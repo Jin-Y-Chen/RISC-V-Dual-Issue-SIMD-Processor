@@ -32,7 +32,6 @@ Instruction File - Base Instruction Formats (R/I/S/U):
 
     c) multiple of 2 convention encourage 8-bit data per address(USART 8-bit package)
 
-
     Register-type: 
     [31 <funct7> 25],       [24 <rs2> 20], [19 <rs1> 15], [14 <funct3> 12], [11 <rd>       7], [6 <opcode> 0]
 

@@ -59,10 +59,17 @@ Valid pairs (even + odd in same cycle):
 
 Invalid: two vector ALU ops, two vector loads, or any pair with a register/file port conflict.
 
-## Encoding (TBD)
+## Encoding (implemented in `rtl/common/spu_lite_pkg.sv`)
 
-Reserve opcode space in `rtl/common/spu_lite_pkg.vhd`:
+Uses RISC-V **custom-0** / **custom-1** major opcodes (not RVV `OP-V`):
 
-- Scalar ops: existing R/I/S/B/J-style 32-bit layouts
-- Vector ALU: R-type variant with vector register fields in `rd/rs1/rs2` positions
-- Vector mem: I/S-type variant targeting VR index and scalar base register
+| Class | `opcode [6:0]` | Format |
+|-------|----------------|--------|
+| Vector ALU (even) | `0001011` (`OPC_VEC_ALU`) | R-type: `funct7` op, `rs2`/`rs1`/`rd` = `vs2`/`vs1`/`vd` (use `[2:0]`), `funct3` = lane mode |
+| Vector mem (odd) | `0101011` (`OPC_VEC_MEM`) | `F3_VLD128`: I-type imm + scalar base; `F3_VST128`: S-type imm + scalar base, `rs2` = `vs` |
+
+**Lane `funct3`:** `000` = `.b` (16×8), `001` = `.h` (8×16), `010` = `.w` (4×32)
+
+**Vector ALU `funct7`:** `VADD=0`, `VSUB=1`, `VAND=2`, `VOR=3`, `VXOR=4`
+
+Scalar ops remain standard RV32I encodings.
