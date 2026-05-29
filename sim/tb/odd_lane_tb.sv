@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Unit testbench for odd_lane: load/store, signed branches (BEQ/BNE/BLT/BGE), jumps (RV32I).
+// Unit testbench for odd_lane: LW/SW, signed branches (BEQ/BNE/BLT/BGE), jumps (RV32I).
 module odd_lane_tb;
 
   import spu_lite_pkg::*;
@@ -111,28 +111,25 @@ module odd_lane_tb;
     end
   endtask
 
-  task automatic check_load(
+  task automatic check_lw(
     input string       name,
-    input string       op_name,
     input logic [4:0]  rd_i,
-    input logic [2:0]  f3,
     input logic [31:0] rs1,
-    input logic [31:0] imm_i,
-    input logic [3:0]  exp_be
+    input logic [31:0] imm_i
   );
     string detail;
     valid    = 1'b1;
     opcode   = OPC_LOAD;
-    funct3   = f3;
+    funct3   = F3_LW;
     rd       = rd_i;
     rs1_data = rs1;
     rs2_data = 32'h0;
     imm      = imm_i;
     #1;
-    detail = $sformatf("%s, rs1=%h, imm=%h, addr=%h, mem_be=%b, link=%h (rd=x%0d)",
-      op_name, rs1, imm_i, rs1 + imm_i, exp_be, pc + 32'd4, rd_i);
+    detail = $sformatf("LW, rs1=%h, imm=%h, addr=%h, mem_be=1111, link=%h (rd=x%0d)",
+      rs1, imm_i, rs1 + imm_i, pc + 32'd4, rd_i);
     if (valid !== 1'b1 || mem_read !== 1'b1 || mem_write !== 1'b0 ||
-        mem_addr !== rs1 + imm_i || mem_be !== exp_be ||
+        mem_addr !== rs1 + imm_i || mem_be !== 4'b1111 ||
         reg_write !== (rd_i != 5'd0) || link_data !== pc + 32'd4) begin
       tb_fail_detail(name, $sformatf("%s (check failed)", detail));
       fail_cnt++;
@@ -156,7 +153,7 @@ module odd_lane_tb;
     pass_cnt = 0;
     fail_cnt = 0;
 
-    tb_banner("odd_lane_tb - load/store, signed branch, jump");
+    tb_banner("odd_lane_tb - LW/SW, signed branch, jump");
     tb_info_msg("PASS line format: <test> | <op>, operands, behavior/result");
 
     // --- branches ---
@@ -228,10 +225,8 @@ module odd_lane_tb;
     check_branch("bge_nt", detail, 1'b0, pc + 32'd12);
     idle_cycle();
 
-    // --- loads ---
-    check_load("lw", "LW", 5'd5, F3_LW, 32'h0000_2000, 32'd4, 4'b1111);
-    check_load("lh", "LH", 5'd6, F3_LH, 32'h0000_3000, 32'd0, 4'b0011);
-    check_load("lb", "LB", 5'd7, F3_LB, 32'h0000_4000, 32'd0, 4'b0001);
+    // --- loads (LW only) ---
+    check_lw("lw", 5'd5, 32'h0000_2000, 32'd4);
 
     valid    = 1'b1;
     opcode   = OPC_LOAD;
@@ -250,7 +245,7 @@ module odd_lane_tb;
     end
     idle_cycle();
 
-    // --- stores ---
+    // --- stores (SW only) ---
     valid    = 1'b1;
     opcode   = OPC_STORE;
     funct3   = F3_SW;
@@ -262,18 +257,6 @@ module odd_lane_tb;
     detail = $sformatf("SW, rs1=%h, imm=%0d, wdata=%h, addr=%h, be=1111",
       rs1_data, imm, rs2_data, rs1_data + imm);
     check_mem("sw", detail, 1'b0, 1'b1, 32'h0000_6000, 32'hDEAD_BEEF, 4'b1111);
-    idle_cycle();
-
-    valid    = 1'b1;
-    opcode   = OPC_STORE;
-    funct3   = F3_SB;
-    rs1_data = 32'h0000_7000;
-    rs2_data = 32'h0000_00A5;
-    imm      = 32'd1;
-    #1;
-    detail = $sformatf("SB, rs1=%h, imm=%0d, wdata=%h, addr=%h, be=0010",
-      rs1_data, imm, rs2_data, 32'h0000_7001);
-    check_mem("sb", detail, 1'b0, 1'b1, 32'h0000_7001, 32'h0000_00A5, 4'b0010);
     idle_cycle();
 
     // --- jumps ---

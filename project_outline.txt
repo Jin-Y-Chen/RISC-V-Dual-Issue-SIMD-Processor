@@ -30,7 +30,8 @@ Instruction File - Base Instruction Formats (R/I/S/U):
 
     b) Error detection for invalid branch or jump address, raising misaligned exception
 
-    c) multiple of 2 convention encourage 8-bit data per address(USART 8-bit package)
+    c) RV32I byte addressing: one address increment = 8 bits (one byte), not 16-bit-per-address.
+       RV-DIS uses this 8-bit-byte map (USART / memory). PC and word LW/SW use multiple-of-4 offsets.
 
     Register-type: 
     [31 <funct7> 25],       [24 <rs2> 20], [19 <rs1> 15], [14 <funct3> 12], [11 <rd>       7], [6 <opcode> 0]
