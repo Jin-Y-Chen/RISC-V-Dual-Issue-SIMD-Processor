@@ -1,4 +1,6 @@
-// Scalar integer ALU for the even execution lane (ADD, SUB, AND, OR, XOR).
+`timescale 1ns / 1ps
+
+// Scalar integer ALU for the even execution lane (RV32I OP / OP-IMM subset).
 module scalar_alu
   import spu_lite_pkg::*;
 (
@@ -14,6 +16,7 @@ module scalar_alu
 
   logic [31:0] operand_a;
   logic [31:0] operand_b;
+  logic [4:0]  shamt;
 
   always_comb begin
     unique case (alu_a_sel)
@@ -32,13 +35,19 @@ module scalar_alu
     endcase
   end
 
+  assign shamt = operand_b[4:0];
+
   always_comb begin
     unique case (alu_op)
       ALU_ADD: alu_result = operand_a + operand_b;
       ALU_SUB: alu_result = operand_a - operand_b;
+      ALU_SLL: alu_result = operand_a << shamt;
+      ALU_SLT: alu_result = ($signed(operand_a) < $signed(operand_b)) ? 32'd1 : 32'd0;
+      ALU_XOR: alu_result = operand_a ^ operand_b;
+      ALU_SRL: alu_result = operand_a >> shamt;
+      ALU_SRA: alu_result = $signed(operand_a) >>> shamt;
       ALU_AND: alu_result = operand_a & operand_b;
       ALU_OR:  alu_result = operand_a | operand_b;
-      ALU_XOR: alu_result = operand_a ^ operand_b;
       default: alu_result = 32'h0;
     endcase
   end

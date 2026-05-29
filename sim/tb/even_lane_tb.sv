@@ -103,13 +103,14 @@ module even_lane_tb;
     input logic [31:0] rs1,
     input logic [31:0] imm_i,
     input logic        exp_reg_write,
-    input logic [31:0] exp_result
+    input logic [31:0] exp_result,
+    input logic [6:0]  f7 = 7'b0
   );
     string detail;
     valid    = 1'b1;
     opcode   = OPC_OP_IMM;
     funct3   = f3;
-    funct7   = 7'b0;
+    funct7   = f7;
     rd       = rd_i;
     rs1_data = rs1;
     rs2_data = 32'h0;
@@ -136,12 +137,19 @@ module even_lane_tb;
     exec_r_type("and", "AND",  F3_AND,     7'b0,     5'd7,  32'hFF00_00FF, 32'h0F0F_0F0F, 1'b1, 32'h0F00_000F);
     exec_r_type("or",  "OR",   F3_OR,      7'b0,     5'd8,  32'hF000_F000, 32'h0F0F_0F0F, 1'b1, 32'hFF0F_FF0F);
     exec_r_type("xor", "XOR",  F3_XOR,     7'b0,     5'd9,  32'hAAAA_AAAA, 32'h5555_5555, 1'b1, 32'hFFFF_FFFF);
+    exec_r_type("sll", "SLL",  F3_SLL,     7'b0,     5'd14, 32'd1,         32'd4,         1'b1, 32'd16);
+    exec_r_type("srl", "SRL",  F3_SRL_SRA, 7'b0,     5'd15, 32'd16,        32'd2,         1'b1, 32'd4);
+    exec_r_type("sra", "SRA",  F3_SRL_SRA, F7_SRA,   5'd16, 32'h8000_0008, 32'd3,         1'b1, 32'hF000_0001);
+    exec_r_type("slt", "SLT",  F3_SLT,     7'b0,     5'd17, 32'hFFFF_FFFF, 32'd1,         1'b1, 32'd1);
     exec_r_type("add_x0", "ADD", F3_ADD_SUB, 7'b0, 5'd0, 32'd1, 32'd2, 1'b0, 32'd3);
 
     exec_i_type("addi", "ADDI", F3_ADD_SUB, 5'd10, 32'd100,       32'd23,         1'b1, 32'd123);
     exec_i_type("andi", "ANDI", F3_AND,     5'd11, 32'hFFFF_0000, 32'h0000_00FF, 1'b1, 32'h0000_0000);
     exec_i_type("ori",  "ORI",  F3_OR,      5'd12, 32'h0000_F000, 32'h0000_0F0F, 1'b1, 32'h0000_FF0F);
     exec_i_type("xori", "XORI", F3_XOR,     5'd13, 32'hFFFF_0000, 32'h0000_FFFF, 1'b1, 32'hFFFF_FFFF);
+    exec_i_type("slli", "SLLI", F3_SLL,     5'd18, 32'd1,         32'd3,         1'b1, 32'd8);
+    exec_i_type("srli", "SRLI", F3_SRL_SRA, 5'd19, 32'h8000_0000, 32'd4,         1'b1, 32'h0800_0000);
+    exec_i_type("srai", "SRAI", F3_SRL_SRA, 5'd20, 32'h8000_0000, 32'd4,         1'b1, 32'hF800_0000, F7_SRA);
 
     valid    = 1'b1;
     opcode   = OPC_LOAD;

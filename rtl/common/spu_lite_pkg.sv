@@ -57,7 +57,10 @@ package spu_lite_pkg;
 
   // funct3 — integer register-register / register-immediate ALU
   localparam logic [2:0] F3_ADD_SUB = 3'b000;
+  localparam logic [2:0] F3_SLL     = 3'b001;
+  localparam logic [2:0] F3_SLT     = 3'b010;
   localparam logic [2:0] F3_XOR     = 3'b100;
+  localparam logic [2:0] F3_SRL_SRA = 3'b101;
   localparam logic [2:0] F3_OR      = 3'b110;
   localparam logic [2:0] F3_AND     = 3'b111;
 
@@ -81,15 +84,20 @@ package spu_lite_pkg;
   //localparam logic [2:0] F3_BLTU = 3'b110;
   //localparam logic [2:0] F3_BGEU = 3'b111;
 
-  // funct7 — SUB is ADD with bit 5 set (R-type only)
+  // funct7 — SUB/SRA use bit 5 set (R-type; I-type shifts use imm[11:5])
   localparam logic [6:0] F7_SUB = 7'b0100000;
+  localparam logic [6:0] F7_SRA = 7'b0100000;
 
-  typedef enum logic [2:0] {
+  typedef enum logic [3:0] {
     ALU_ADD,
     ALU_SUB,
+    ALU_SLL,
+    ALU_SLT,
+    ALU_XOR,
+    ALU_SRL,
+    ALU_SRA,
     ALU_AND,
-    ALU_OR,
-    ALU_XOR
+    ALU_OR
   } alu_op_e;
 
   typedef enum logic [1:0] {
@@ -218,7 +226,10 @@ package spu_lite_pkg;
       OPC_OP, OPC_OP_IMM: begin
         unique case (funct3)
           F3_ADD_SUB: decode_alu_op = (opcode == OPC_OP && funct7 == F7_SUB) ? ALU_SUB : ALU_ADD;
+          F3_SLL:     decode_alu_op = ALU_SLL;
+          F3_SLT:     decode_alu_op = ALU_SLT;
           F3_XOR:     decode_alu_op = ALU_XOR;
+          F3_SRL_SRA: decode_alu_op = (funct7 == F7_SRA) ? ALU_SRA : ALU_SRL;
           F3_OR:      decode_alu_op = ALU_OR;
           F3_AND:     decode_alu_op = ALU_AND;
           default:    decode_alu_op = ALU_ADD;
