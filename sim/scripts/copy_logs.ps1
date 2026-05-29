@@ -1,9 +1,6 @@
-# Copy newest XSim simulate.log + waveform (.wdb) into sim/logs/.
+# Copy Vivado simulate.log -> sim/logs/latest/tb.log + summary.txt
 #
-#   cd C:\Users\Jin\Documents\Github\RISC-V-Dual-Issue-SIMD-Processor
 #   .\sim\scripts\copy_logs.ps1
-#
-# Optional: -VivadoProjectDir "C:\path\to\Vivado\RISC-V"
 
 param(
     [string]$VivadoProjectDir = "C:\Users\Jin\Documents\Vivado\RISC-V"
@@ -13,7 +10,6 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $LogsRoot = Join-Path $RepoRoot "sim\logs"
 $LatestDir = Join-Path $LogsRoot "latest"
-$WaveName = "waveform.wdb"
 
 New-Item -ItemType Directory -Force -Path $LatestDir | Out-Null
 
@@ -30,74 +26,60 @@ if (Test-Path $cfg) {
     }
 }
 
-$searchRoots = $searchRoots | Select-Object -Unique
+$searchRoots = @($searchRoots | Select-Object -Unique)
 if ($searchRoots.Count -eq 0) {
     Write-Error "Vivado project not found. Pass -VivadoProjectDir."
 }
 
-$foundLogs = foreach ($root in $searchRoots) {
-    Get-ChildItem -Path $root -Recurse -Filter "simulate.log" -ErrorAction SilentlyContinue
+$found = @()
+foreach ($root in $searchRoots) {
+    $found += Get-ChildItem -Path $root -Recurse -Filter "simulate.log" -ErrorAction SilentlyContinue
 }
 
-if (-not $foundLogs) {
-    Write-Host "No simulate.log found. Run Vivado simulation first (run 1000ns)."
+if ($found.Count -eq 0) {
+    Write-Host "No simulate.log found. Run simulation first."
     exit 1
 }
 
-$bestLog = $foundLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$xsimDir = $bestLog.Directory.FullName
-$logText = Get-Content -Raw $bestLog.FullName
+$best = $found | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$src = $best.FullName
+$text = Get-Content -Raw $src
 
 $label = "run"
-if ($logText -match '\[INFO\]\s+(\S+)\s+-') {
+if ($text -match '\[INFO\]\s+(\S+)\s+-') {
     $label = $Matches[1]
 }
 
 $result = "unknown"
-if ($logText -match '\*\*\* SUMMARY:\s*(.+?)\s*\*\*\*') {
+if ($text -match '\*\*\* SUMMARY:\s*(.+?)\s*\*\*\*') {
     $result = $Matches[1].Trim()
-}
-
-# Prefer .wdb next to simulate.log; else newest .wdb under project
-$waveSrc = Get-ChildItem -Path $xsimDir -Filter "*.wdb" -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
-
-if (-not $waveSrc) {
-    $allWdb = foreach ($root in $searchRoots) {
-        Get-ChildItem -Path $root -Recurse -Filter "*.wdb" -ErrorAction SilentlyContinue
-    }
-    $waveSrc = $allWdb | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $archive = Join-Path $LogsRoot "${label}_${stamp}"
 New-Item -ItemType Directory -Force -Path $archive | Out-Null
 
-Copy-Item -Force $bestLog.FullName (Join-Path $LatestDir "simulate.log")
-Copy-Item -Force $bestLog.FullName (Join-Path $archive "simulate.log")
-
-$waveNote = "none"
-if ($waveSrc) {
-    Copy-Item -Force $waveSrc.FullName (Join-Path $LatestDir $WaveName)
-    Copy-Item -Force $waveSrc.FullName (Join-Path $archive $WaveName)
-    $waveNote = $WaveName
+function Copy-FileShared([string]$From, [string]$To) {
+    $in = [System.IO.File]::Open($From, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+        $out = [System.IO.File]::Create($To)
+        try { $in.CopyTo($out) } finally { $out.Dispose() }
+    } finally { $in.Dispose() }
 }
 
-$summary = @(
-    "label:    $label"
-    "time:     $stamp"
-    "result:   $result"
-    "waveform: $waveNote"
+$summaryLines = @(
+    "label:  $label"
+    "time:   $stamp"
+    "result: $result"
 )
-$summary | Set-Content (Join-Path $LatestDir "summary.txt")
-$summary | Set-Content (Join-Path $archive "summary.txt")
+
+foreach ($dir in @($LatestDir, $archive)) {
+    Copy-FileShared $src (Join-Path $dir "tb.log")
+    $summaryLines | Set-Content (Join-Path $dir "summary.txt")
+}
+
 $archive | Set-Content (Join-Path $LogsRoot "_latest_run.txt")
 
-Write-Host "OK  $LatestDir\simulate.log"
+Write-Host "OK  $LatestDir\tb.log"
+Write-Host "OK  $LatestDir\summary.txt"
 Write-Host "     $result"
-if ($waveSrc) {
-    Write-Host "OK  $LatestDir\$WaveName"
-} else {
-    Write-Host "    (no .wdb - log signals in Vivado, re-run sim, then copy again)"
-}

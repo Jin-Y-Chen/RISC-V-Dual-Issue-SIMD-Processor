@@ -104,4 +104,4 @@ See [docs/isa/README.md](docs/isa/README.md) and [arm_spu_spulite_project_spec.t
 1. Add `rtl/common/spu_lite_pkg.vhd` (data widths, opcodes, pipeline constants).
 2. Implement stages bottom-up with testbenches before `rtl/core/spu_lite_cpu.vhd`.
 3. Point Vivado (or other flow) at `rtl/core` top and `fpga/constraints/`.
-4. **Vivado simulation:** run TB, then `.\sim\scripts\copy_logs.ps1` → `sim/logs/latest/` ([sim/README.md](sim/README.md)).
+4. **Vivado simulation:** `.\sim\scripts\copy_logs.ps1` → `sim/logs/latest/` ([sim/README.md](sim/README.md)).
