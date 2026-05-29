@@ -1,0 +1,173 @@
+FINAL PROJECT SPECIFICATION
+RV-DIS: RISC-V Dual-Issue SIMD Processor Architecture
+
+1. Project Overview
+This project involves the design and implementation of a RISC-V–based processor (RV32I scalar subset plus a 128-bit SIMD extension) with dual-issue, in-order execution. The core combines a conventional 5-stage RISC pipeline with static even/odd lane partitioning inspired by the Sony Cell SPU, optimized for instruction-level parallelism without out-of-order complexity.
+
+2. Design Philosophy
+The processor follows a hybrid approach:
+- ARM-inspired 5-stage pipeline for simplicity and familiarity
+- SPU-inspired dual-issue execution for performance
+- Static instruction partitioning instead of dynamic out-of-order execution
+- Emphasis on hardware efficiency and predictable control flow
+
+3. Pipeline Architecture
+The processor is based on a classic 5-stage pipeline:
+- IF: Instruction Fetch
+- ID: Instruction Decode and Issue
+- EX: Execution
+- MEM: Memory Access
+- WB: Write Back
+
+The ID stage is extended to include instruction pairing and dispatch logic for dual-issue execution.
+
+4. Dual-Issue Execution Model
+Each cycle, the processor fetches and attempts to issue two instructions:
+- One instruction is assigned to the EVEN pipeline (compute operations)
+- One instruction is assigned to the ODD pipeline (memory and control operations)
+
+Issue rules:
+- At most one instruction per pipeline per cycle
+- Instructions must be correctly classified by type
+- No structural or data hazards between paired instructions
+- If constraints are violated, the processor stalls or issues a single instruction
+
+5. Pipeline Partitioning
+Even Pipeline (Compute Lane):
+- Integer arithmetic operations (ADD, SUB)
+- Logical operations (AND, OR, XOR)
+- 128-bit SIMD packed operations (VADD, VSUB, VAND, VOR, VXOR)
+- Optional multiply
+- Primary arithmetic, logic, and vector execution
+
+Odd Pipeline (Memory/Control Lane):
+- Scalar load and store instructions
+- 128-bit vector load and store (VLD128, VST128)
+- Branch and jump instructions
+- Address generation and control flow evaluation
+
+6. Instruction Set Architecture (ISA)
+The ISA is a simplified RISC-style instruction set including:
+- Scalar arithmetic: ADD, SUB
+- Scalar logical: AND, OR, XOR
+- Scalar memory: LOAD, STORE
+- Control: BRANCH, JUMP
+- Immediates: I-type scalar operations
+- 128-bit SIMD (even lane): VADD, VSUB, VAND, VOR, VXOR
+- 128-bit memory (odd lane): VLD128, VST128
+
+SIMD lane widths (selected by funct3 or opcode subfield):
+- 16 x 8-bit lanes
+- 8 x 16-bit lanes
+- 4 x 32-bit lanes
+
+Each instruction is encoded to allow classification into even or odd pipeline categories.
+
+6.1 128-bit SIMD Extension
+Vector width: 128 bits (16 bytes), aligned with Cell SPU / Arm NEON-style packed execution.
+
+Vector register file:
+- 8 architectural vector registers (v0-v7), each 128 bits wide
+- Separate from the scalar GPR file; accessed only by SIMD and vector load/store ops
+- Multi-port read/write to support dual-issue with scalar traffic
+
+Execution placement:
+- Packed vector ALU ops execute in the even lane (128-bit datapath, lane-wise enable/mask by width)
+- VLD128 / VST128 execute in the odd lane (16-byte-aligned addresses; misaligned vector access traps or is undefined per implementation policy)
+
+Scalar/vector interaction:
+- Scalar GPRs remain 32 x 32-bit for RV32I-style integer code
+- No implicit scalar aliasing into vector registers in v1 (no vr = {r3,r2,r1,r0} mapping); explicit vector ops only
+
+7. Register File Architecture
+- A unified scalar general-purpose register file (32 x 32-bit) is shared between both pipelines
+- A dedicated vector register file (8 x 128-bit) serves SIMD execution
+- Multi-port design required to support concurrent scalar and vector reads from dual-issued instructions
+- Write-back stage merges scalar and vector results from both pipelines
+
+8. Hazard Handling
+The processor includes mechanisms to handle:
+Data Hazards:
+- Forwarding (bypassing) between pipeline stages
+- Stall insertion when forwarding is insufficient
+
+Control Hazards:
+- Branch resolution handled in the EX stage
+- Pipeline flush or stall on branch taken
+
+Dual-Issue Hazards:
+- Dependency checking between paired instructions
+- Issue restrictions enforced by decode/issue logic
+
+9. Issue and Dispatch Unit
+The decode stage is extended into an issue unit that:
+- Decodes instructions
+- Classifies instructions into even or odd pipelines
+- Determines whether both instructions can be issued in parallel
+- Enforces pipeline pairing constraints
+- Generates control signals for pipeline routing
+
+10. Execution Units
+The execution stage is split into two independent units:
+- Even Execution Unit: scalar ALU, 128-bit SIMD ALU (packed lane ops), optional multiply
+- Odd Execution Unit: scalar and vector load/store unit, branch unit, and address generation
+
+Both units operate concurrently and independently.
+
+11. Memory System
+- Unified or separate instruction and data memory may be used
+- Memory accesses are handled in the MEM stage
+- No advanced cache hierarchy is required
+- Simple memory interface is sufficient for implementation
+
+12. Control Unit
+The control unit is responsible for:
+- Generating control signals for all pipeline stages
+- Coordinating dual-issue execution
+- Managing stalls, flushes, and hazards
+- Routing instructions to appropriate execution pipelines
+
+13. Forwarding and Bypassing
+Forwarding paths are implemented to reduce stalls:
+- EX to EX forwarding
+- MEM to EX forwarding
+- WB to EX forwarding
+Forwarding must support both pipelines independently and across pipelines when necessary.
+
+14. Implementation Requirements
+- Hardware Description Language: VHDL or Verilog/SystemVerilog
+- Target platform: FPGA (e.g., Basys 3 or equivalent)
+- Modular and synthesizable design
+- Clear separation of pipeline stages and execution units
+
+15. Verification and Testing
+The design must be verified through:
+- Functional simulation testbenches
+- Instruction-level test programs
+- Pipeline hazard scenarios
+- Dual-issue execution validation
+- 128-bit SIMD lane-width tests (8/16/32-bit lanes)
+- Vector load/store alignment and pairing tests
+- Waveform analysis
+
+16. Deliverables
+- Complete HDL source code
+- Simulation testbenches
+- Documentation/report describing:
+  - Architecture
+  - ISA
+  - Pipeline design
+  - Hazard handling
+  - Dual-issue implementation
+- Demonstration of correct execution via simulation or FPGA
+
+17. Key Design Challenges
+- Implementing correct dual-issue scheduling
+- Designing efficient hazard detection logic
+- Managing scalar and vector register file port contention
+- Implementing a 128-bit SIMD datapath with selectable lane width
+- Ensuring synchronization between even and odd pipelines
+- Maintaining pipeline throughput without introducing complexity
+
+18. Conclusion
+RV-DIS demonstrates a RISC-V dual-issue SIMD processor that integrates a 5-stage in-order pipeline with 128-bit vector execution and SPU-inspired even/odd partitioning. The design emphasizes simplicity, modularity, and parallel execution while avoiding out-of-order complexity, making it well-suited for FPGA implementation and educational purposes.

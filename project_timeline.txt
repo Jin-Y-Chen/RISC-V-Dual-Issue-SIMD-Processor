@@ -1,0 +1,114 @@
+Project: RV-DIS — RISC-V Dual-Issue SIMD Processor
+(RV32I scalar + 128-bit SIMD; in-order even/odd dual-issue)
+
+5-28-2026:
+
+Tool: Vivado simulatiion & Vscode Editor
+
+RISC-V 32-bit instructions formate
+
+RV32I Instruction Set Architecture Deisgned:
+
+    a) fixed 32-bit instruction keeps decode and fetch simpler i.e. no mixed instruction lengths
+
+    b) a 3-address style register fields (rd, rs1, rs2) need less instructions than 2-address
+
+    c) Encoding and Decoding is relatively uniform with the same bit positioning for rs1, rs2, rd, expect sign-extended immediates 
+
+    1) sufficient to form a compiler target,
+        - reliably generate neccessary machine code
+    2) can support modern operating system environments
+
+    3) Reduce hardware required in a minimal implementation
+        - important to test functionally on the Artix-7
+
+    4) ~40 unique instructions 
+
+Instruction File - Base Instruction Formats (R/I/S/U):
+
+    a) IALIGN = 32, each instruction must start at an address that’s a multiple of 2.
+
+    b) Error detection for invalid branch or jump address, raising misaligned exception
+
+    c) multiple of 2 convention encourage 8-bit data per address(USART 8-bit package)
+
+
+    Register-type: 
+    [31 <funct7> 25],       [24 <rs2> 20], [19 <rs1> 15], [14 <funct3> 12], [11 <rd>       7], [6 <opcode> 0]
+
+    Immediate-type:
+    [31 <imm[11:0]>                   20], [19 <rs1> 15], [14 <funct3> 12], [11 <rd>       7], [6 <opcode> 0]
+
+    Store-type / Branch-type:
+    [31 <imm[11:5]> 25],    [24 <rs2> 20], [19 <rs1> 15], [14 <funct3> 12], [11 <imm[4:0]> 7], [6 <opcode> 0]
+
+    Upper_immediate-type / Jump-type:
+    [31 <imm[31:12]>                                                   12], [11 <rd>       7], [6 <opcode> 0]
+
+    Immediates are sign-extended because we did not observe a benefit to using zero extension for
+    some immediates as in the MIPS ISA and wanted to keep the ISA as simple as possible.
+
+    Branch and jump targets in RISC‑V are always 2‑byte aligned, 
+    - Most ISAs solve this by encoding the immediate normally. Then shifting left by 1 bit in hardware
+    
+    - RISC‑V rotates the immediate bits in the instruction so that the LSB is always zero in the encoding itself.
+
+        The immediate is already a byte offset
+
+        No hardware shift is needed
+
+        No extra mux is needed
+
+        The decode logic is simpler and cheaper
+
+Integer Computational Instruction
+
+    a) Integer computational instructions are either encoded as register-immediate operations using the I-type
+    format or as register-register operations using the R-type format. 
+
+    b) The destination is register rd for both register-immediate and register-register instructions. 
+    
+    c) No integer computational instructions cause arithmetic exceptions.
+
+    d) No special overflow-detecting arithmetic instructions, simple branch patterns can detect overflow cheaply, without extra hardware.
+
+        add   t0, t1, t2
+        bltu  t0, t1, overflow -> raise software expection
+
+        complier decided whether overflow must be checked, inserting overflow branch instruction
+
+Registers File - 32 addressible register:
+    // A conventional size that balances encoding, performance, and hardware simplicity
+    a) why more entry (>16) reduce presssure for aggressive compiler optimatizations technieuqes(loops, caching) that uses many temporary register
+
+    b) why less entry (<64) a few register dominate in use, get much of the benefits without needing to use all register equally often
+    
+    1) Register x0 is hardwired with zero
+
+    2) General Prupose registers x1-x31 
+        - x1 holds return address
+        - x2 as stack pointer
+        - x5 alternative link register 
+
+        Hardware might choose to accelerate function calls and returns that use x1 or x5. See the
+        descriptions of the JAL and JALR instructions.
+
+
+    3) Unprivileged register 32-bit pc 
+
+128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
+
+    a) 128-bit vector width; 8 vector registers v0-v7 (separate from scalar x0-x31)
+
+    b) Lane modes: 16x8-bit, 8x16-bit, 4x32-bit packed integer ops
+
+    c) Even lane: VADD, VSUB, VAND, VOR, VXOR (128-bit SIMD ALU)
+
+    d) Odd lane: VLD128, VST128 (16-byte aligned vector load/store)
+
+    e) Dual-issue example: vector ALU (even) + vector/scalar load (odd) in same cycle
+
+
+   
+
+    
