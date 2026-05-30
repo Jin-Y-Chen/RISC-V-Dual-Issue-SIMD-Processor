@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Unit testbench for odd_lane: LW/SW, signed branches (BEQ/BNE/BLT/BGE), jumps (RV32I).
+// Unit testbench for odd_lane: LW/SW, branches, jumps, LUI/AUIPC (RV32I).
 module odd_lane_tb;
 
   import spu_lite_pkg::*;
@@ -28,6 +28,7 @@ module odd_lane_tb;
   logic        reg_write;
   logic [4:0]  rd_out;
   logic [31:0] link_data;
+  logic [31:0] wb_data;
 
   int pass_cnt;
   int fail_cnt;
@@ -113,6 +114,7 @@ module odd_lane_tb;
 
   task automatic check_lw(
     input string       name,
+    input string       op_name,
     input logic [4:0]  rd_i,
     input logic [31:0] rs1,
     input logic [31:0] imm_i
@@ -139,6 +141,34 @@ module odd_lane_tb;
     end
     valid = 1'b0;
     #1;
+  endtask
+
+  task automatic check_u_type(
+    input string       name,
+    input string       detail,
+    input logic        exp_reg_write,
+    input logic [4:0]  exp_rd,
+    input logic [31:0] exp_wb
+  );
+    string got;
+    if (valid !== 1'b1) begin
+      tb_fail_detail(name, "valid=0 during check");
+      fail_cnt++;
+      return;
+    end
+    if (branch_taken || jump || mem_read || mem_write) begin
+      tb_fail_detail(name, $sformatf("%s (unexpected branch/jump/mem)", detail));
+      fail_cnt++;
+      return;
+    end
+    if (reg_write !== exp_reg_write || rd_out !== exp_rd || wb_data !== exp_wb) begin
+      got = $sformatf("%s, reg_write=%0d rd=x%0d wb=%h", detail, reg_write, rd_out, wb_data);
+      tb_fail_detail(name, got);
+      fail_cnt++;
+    end else begin
+      tb_pass_detail(name, detail);
+      pass_cnt++;
+    end
   endtask
 
   task automatic idle_cycle;
@@ -226,7 +256,7 @@ module odd_lane_tb;
     idle_cycle();
 
     // --- loads (LW only) ---
-    check_lw("lw", 5'd5, 32'h0000_2000, 32'd4);
+    check_lw("lw", "LW", 5'd5, 32'h0000_2000, 32'd4);
 
     valid    = 1'b1;
     opcode   = OPC_LOAD;
@@ -296,6 +326,35 @@ module odd_lane_tb;
     check_jump("jalr_x0", detail, 1'b1, 32'h8000_0004, 1'b0, 5'd0, pc + 32'd4);
     idle_cycle();
 
+    // --- U-type (LUI / AUIPC) ---
+    valid    = 1'b1;
+    opcode   = OPC_LUI;
+    funct3   = 3'b0;
+    rd       = 5'd5;
+    imm      = 32'h0004_5000;
+    #1;
+    detail = $sformatf("LUI, imm=%h -> wb=%h (rd=x%0d)", imm, imm, rd);
+    check_u_type("lui", detail, 1'b1, 5'd5, 32'h0004_5000);
+    idle_cycle();
+
+    valid    = 1'b1;
+    opcode   = OPC_AUIPC;
+    rd       = 5'd6;
+    imm      = 32'h0000_1000;
+    #1;
+    detail = $sformatf("AUIPC, pc=%h, imm=%h -> wb=%h", pc, imm, pc + imm);
+    check_u_type("auipc", detail, 1'b1, 5'd6, pc + 32'h0000_1000);
+    idle_cycle();
+
+    valid    = 1'b1;
+    opcode   = OPC_LUI;
+    rd       = 5'd0;
+    imm      = 32'h0000_1000;
+    #1;
+    detail = "LUI, rd=x0 -> reg_write=0";
+    check_u_type("lui_x0", detail, 1'b0, 5'd0, 32'h0000_1000);
+    idle_cycle();
+
     // --- invalid / idle ---
     valid    = 1'b1;
     opcode   = OPC_OP;
@@ -305,7 +364,7 @@ module odd_lane_tb;
     rs2_data = 32'd2;
     imm      = 32'd0;
     #1;
-    detail = "OP (ALU) on odd lane -> no mem/branch/jump/reg_write";
+    detail = "OP (ALU) on odd lane -> no mem/branch/jump/reg_write/wb";
     if (mem_read || mem_write || branch_taken || jump || reg_write) begin
       tb_fail_detail("alu_reject", detail);
       fail_cnt++;

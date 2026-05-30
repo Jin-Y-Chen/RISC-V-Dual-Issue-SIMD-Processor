@@ -30,23 +30,39 @@ Instruction File - Base Instruction Formats (R/I/S/U):
 
     b) Error detection for invalid branch or jump address, raising misaligned exception
 
-    c) uses 8-bit-byte map (USART / memory). PC and word LW/SW use multiple-of-4 offsets.
+    c) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
+       Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
 
-    Immediates are sign-extended because we did not observe a benefit to using zero extension for
-    some immediates as in the MIPS ISA and wanted to keep the ISA as simple as possible.
+    Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
 
-    Branch and jump targets in RISC‑V are always 2‑byte aligned, 
-    - Most ISAs solve this by encoding the immediate normally. Then shifting left by 1 bit in hardware
-    
-    - RISC‑V rotates the immediate bits in the instruction so that the LSB is always zero in the encoding itself.
+    --- Byte offsets vs alignment (RISC-V default vs RV-DIS policy) ---
 
-        The immediate is already a byte offset
+    RISC-V default (Unprivileged ISA):
+    - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
+    - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
+      and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
+      rtl/common/spu_lite_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
+    - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
+    - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
+      is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
 
-        No hardware shift is needed
+    RV-DIS stricter policy (this project):
+    - We only fetch 32-bit instructions (no RVC), so PC and branch/jump/load/store offsets should be
+      multiples of 4 (word aligned).
+    - After standard decode, imm_align4() in spu_lite_pkg.sv forces imm[1:0]=00 (clear low two bits).
+      Valid asm (+4, +8, …) is unchanged; an illegal +2 offset would become 0 (truncate down, not round up).
+    - Example: jal r0, 4 → byte offset 4 → insn 0x0040006F; jal r0, 7 bytes is NOT encodable in RV32I
+      (odd offset); use +6 or +8. Next 32-bit insn after PC is jal rd, 4 not jal rd, 2.
 
-        No extra mux is needed
+    Summary table:
+    | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
+    |--------------------|----------|----------|----------------------|
+    | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
+    | RV-DIS imm_align4  | 0        | forced 00| only +4, +8, …      |
 
-        The decode logic is simpler and cheaper
+    Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
+    - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
+    - Decode rebuilds the byte offset (imm_b / imm_j + 1'b0); no extra shifter in odd_lane pc+imm.
 
 Integer Computational Instruction
 

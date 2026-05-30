@@ -33,6 +33,8 @@ package spu_lite_pkg;
   localparam logic [6:0] OPC_BRANCH = 7'b1100011;
   localparam logic [6:0] OPC_JAL    = 7'b1101111;
   localparam logic [6:0] OPC_JALR   = 7'b1100111;
+  localparam logic [6:0] OPC_AUIPC  = 7'b0010111;
+  localparam logic [6:0] OPC_LUI    = 7'b0110111;
 
   // --- Vector/SIMD (not wired in s3_execution yet; for future even/odd lanes) ---
   // Custom opcodes (RV32I custom-0 / custom-1 — not RISC-V "V" OP-V)
@@ -212,6 +214,8 @@ package spu_lite_pkg;
       OPC_STORE: decode_imm = imm_s(instr);
       OPC_BRANCH: decode_imm = imm_b(instr);
       OPC_JAL: decode_imm = imm_j(instr);
+      OPC_LUI,
+      OPC_AUIPC: decode_imm = imm_u(instr);
       OPC_VEC_MEM: decode_imm = (funct3 == F3_VST128) ? imm_s(instr) : imm_i(instr);
       default: decode_imm = imm_i(instr);
     endcase

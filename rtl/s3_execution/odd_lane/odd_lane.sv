@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Top-level odd execution lane: scalar load/store, branches, and jumps (RV32I).
+// Top-level odd execution lane: LW/SW, branches, jumps, LUI/AUIPC (RV32I).
 module odd_lane
   import spu_lite_pkg::*;
 (
@@ -24,8 +24,11 @@ module odd_lane
   output logic [3:0]  mem_be,
   output logic        reg_write,
   output logic [4:0]  rd_out,
-  output logic [31:0] link_data
+  output logic [31:0] link_data,
+  output logic [31:0] wb_data
 );
+
+  logic u_type;
 
   logic branch_cond;
 
@@ -57,13 +60,18 @@ module odd_lane
   assign jump        = valid && (opcode == OPC_JAL || opcode == OPC_JALR);
   assign jump_target = (opcode == OPC_JALR) ? ((rs1_data + imm) & 32'hFFFFFFFE) : (pc + imm);
 
+  assign u_type = valid && (opcode == OPC_LUI || opcode == OPC_AUIPC);
+
   assign reg_write = valid && (
     ((opcode == OPC_LOAD) && (funct3 == F3_LW)) ||
     (opcode == OPC_JAL) ||
-    (opcode == OPC_JALR)
+    (opcode == OPC_JALR) ||
+    u_type
   ) && (rd != 5'd0);
 
   assign rd_out    = rd;
   assign link_data = pc + 32'd4;
+  // U-type: imm = {instr[31:12], 12'b0} from decode_imm / imm_u
+  assign wb_data   = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
 
 endmodule
