@@ -1,0 +1,26 @@
+Time resolution is 1 ps
+========================================
+[INFO] even_lane_tb - scalar ALU
+========================================
+[INFO] PASS line format: <test> | <op>, operands, result (rd)
+[PASS]        add | ADD, rs1=0000000a, rs2=00000020, result=0000002a (rd=x5)
+[PASS]        sub | SUB, rs1=00000032, rs2=00000008, result=0000002a (rd=x6)
+[PASS]        and | AND, rs1=ff0000ff, rs2=0f0f0f0f, result=0f00000f (rd=x7)
+[PASS]         or | OR, rs1=f000f000, rs2=0f0f0f0f, result=ff0fff0f (rd=x8)
+[PASS]        xor | XOR, rs1=aaaaaaaa, rs2=55555555, result=ffffffff (rd=x9)
+[PASS]        sll | SLL, rs1=00000001, rs2=00000004, result=00000010 (rd=x14)
+[PASS]        srl | SRL, rs1=00000010, rs2=00000002, result=00000004 (rd=x15)
+[PASS]        sra | SRA, rs1=80000008, rs2=00000003, result=f0000001 (rd=x16)
+[PASS]        slt | SLT, rs1=ffffffff, rs2=00000001, result=00000001 (rd=x17)
+[PASS]     add_x0 | ADD, rs1=00000001, rs2=00000002, result=00000003 (rd=x0)
+[PASS]       addi | ADDI, rs1=00000064, imm=00000017, result=0000007b (rd=x10)
+[PASS]       andi | ANDI, rs1=ffff0000, imm=000000ff, result=00000000 (rd=x11)
+[PASS]        ori | ORI, rs1=0000f000, imm=00000f0f, result=0000ff0f (rd=x12)
+[PASS]       xori | XORI, rs1=ffff0000, imm=0000ffff, result=ffffffff (rd=x13)
+[PASS]       slli | SLLI, rs1=00000001, imm=00000003, result=00000008 (rd=x18)
+[PASS]       srli | SRLI, rs1=80000000, imm=00000004, result=08000000 (rd=x19)
+[PASS]       srai | SRAI, rs1=80000000, imm=00000004, result=f8000000 (rd=x20)
+[PASS] load_reject | LOAD on even lane (wrong opcode), expect no reg_write
+
+*** SUMMARY: 18 passed, 0 failed - OK ***
+$finish called at time : 36 ns : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/even_lane_tb.sv" Line 171
