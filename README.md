@@ -16,8 +16,8 @@ Dual-issue, in-order, 5-stage pipelined CPU for FPGA (e.g. Artix-7 / Basys 3). S
 | `rtl/s1_instruction_fetch/` | 3 (IF) | PC, instruction memory, fetch width for dual-issue |
 | `rtl/s2_instruction_decode_issue/` | 3 (ID), 9 | Decode + register read + issue pairing |
 | `rtl/issue_dispatch/` | 4, 5, 9 | Even/odd classification, pairing rules, stall on violation |
-| `rtl/s3_execution/even_lane/` | 5, 10 | Scalar ALU + **128-bit SIMD ALU** (VADD, VSUB, VAND, VOR, VXOR) |
-| `rtl/s3_execution/odd_lane/` | 5, 10 | Scalar LSU, **VLD128/VST128**, branch/jump, address generation |
+| `rtl/s3_execution/even_lane/` | 5, 10 | Scalar ALU (ADD, SUB, AND, OR, XOR) |
+| `rtl/s3_execution/odd_lane/` | 5, 10 | Scalar LSU, branch/jump |
 | `rtl/s4_memory_access/` | 3 (MEM), 11 | MEM stage, memory interface |
 | `rtl/s5_write_back/` | 3 (WB), 7 | Merge write-back from both pipelines |
 | `rtl/pipeline_registers/` | 3, 14 | IF/ID, ID/EX, EX/MEM, MEM/WB (per-lane as needed) |
@@ -104,3 +104,4 @@ See [docs/isa/README.md](docs/isa/README.md) and [arm_spu_spulite_project_spec.t
 1. Add `rtl/common/spu_lite_pkg.vhd` (data widths, opcodes, pipeline constants).
 2. Implement stages bottom-up with testbenches before `rtl/core/spu_lite_cpu.vhd`.
 3. Point Vivado (or other flow) at `rtl/core` top and `fpga/constraints/`.
+4. **Vivado simulation:** `.\sim\scripts\copy_logs.ps1` → `sim/logs/latest/` ([sim/README.md](sim/README.md)).

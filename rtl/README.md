@@ -2,9 +2,11 @@
 
 Place synthesizable VHDL here. Stage folders match the 5-stage pipeline; `even_lane` / `odd_lane` implement spec §5–10.
 
-**Even lane:** `scalar_alu.vhd`, `simd_alu_128.vhd` (16×8 / 8×16 / 4×32 lane modes).  
-**Odd lane:** scalar LSU + `vector_lsu_128.vhd` (VLD128 / VST128).  
-**Register file:** `scalar_regfile.vhd`, `vector_regfile.vhd` (8×128-bit).
+**Even lane (active):** `scalar_alu.sv`  
+**Odd lane (active):** `branch_unit.sv`, `address_gen.sv`  
+**Deferred:** `vector_alu_128.sv`, `vector_lsu_128.sv`, `vector_regfile.sv`
+
+**Pipeline registers (`rtl/sx_registers/`):** `ex_mem.sv` (even + odd), `ex_mem_even.sv`, `ex_mem_odd.sv` — stall holds, flush clears.
 
 Suggested top entity: `rtl/core/spu_lite_cpu.vhd`
 

@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 // Branch condition evaluation for the odd execution lane.
 module branch_unit
   import spu_lite_pkg::*;
@@ -16,8 +18,8 @@ module branch_unit
       F3_BNE:  branch_taken = (rs1_data != rs2_data);
       F3_BLT:  branch_taken = ($signed(rs1_data) < $signed(rs2_data));
       F3_BGE:  branch_taken = ($signed(rs1_data) >= $signed(rs2_data));
-      F3_BLTU: branch_taken = (rs1_data < rs2_data);
-      F3_BGEU: branch_taken = (rs1_data >= rs2_data);
+      //F3_BLTU: branch_taken = (rs1_data < rs2_data);
+      //F3_BGEU: branch_taken = (rs1_data >= rs2_data);
       default: branch_taken = 1'b0;
     endcase
   end

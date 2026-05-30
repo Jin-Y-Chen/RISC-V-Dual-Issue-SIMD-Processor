@@ -30,35 +30,39 @@ Instruction File - Base Instruction Formats (R/I/S/U):
 
     b) Error detection for invalid branch or jump address, raising misaligned exception
 
-    c) multiple of 2 convention encourage 8-bit data per address(USART 8-bit package)
+    c) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
+       Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
 
-    Register-type: 
-    [31 <funct7> 25],       [24 <rs2> 20], [19 <rs1> 15], [14 <funct3> 12], [11 <rd>       7], [6 <opcode> 0]
+    Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
 
-    Immediate-type:
-    [31 <imm[11:0]>                   20], [19 <rs1> 15], [14 <funct3> 12], [11 <rd>       7], [6 <opcode> 0]
+    --- Byte offsets vs alignment (RISC-V default vs RV-DIS policy) ---
 
-    Store-type / Branch-type:
-    [31 <imm[11:5]> 25],    [24 <rs2> 20], [19 <rs1> 15], [14 <funct3> 12], [11 <imm[4:0]> 7], [6 <opcode> 0]
+    RISC-V default (Unprivileged ISA):
+    - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
+    - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
+      and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
+      rtl/common/spu_lite_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
+    - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
+    - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
+      is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
 
-    Upper_immediate-type / Jump-type:
-    [31 <imm[31:12]>                                                   12], [11 <rd>       7], [6 <opcode> 0]
+    RV-DIS stricter policy (this project):
+    - We only fetch 32-bit instructions (no RVC), so PC and branch/jump/load/store offsets should be
+      multiples of 4 (word aligned).
+    - After standard decode, imm_align4() in spu_lite_pkg.sv forces imm[1:0]=00 (clear low two bits).
+      Valid asm (+4, +8, …) is unchanged; an illegal +2 offset would become 0 (truncate down, not round up).
+    - Example: jal r0, 4 → byte offset 4 → insn 0x0040006F; jal r0, 7 bytes is NOT encodable in RV32I
+      (odd offset); use +6 or +8. Next 32-bit insn after PC is jal rd, 4 not jal rd, 2.
 
-    Immediates are sign-extended because we did not observe a benefit to using zero extension for
-    some immediates as in the MIPS ISA and wanted to keep the ISA as simple as possible.
+    Summary table:
+    | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
+    |--------------------|----------|----------|----------------------|
+    | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
+    | RV-DIS imm_align4  | 0        | forced 00| only +4, +8, …      |
 
-    Branch and jump targets in RISC‑V are always 2‑byte aligned, 
-    - Most ISAs solve this by encoding the immediate normally. Then shifting left by 1 bit in hardware
-    
-    - RISC‑V rotates the immediate bits in the instruction so that the LSB is always zero in the encoding itself.
-
-        The immediate is already a byte offset
-
-        No hardware shift is needed
-
-        No extra mux is needed
-
-        The decode logic is simpler and cheaper
+    Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
+    - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
+    - Decode rebuilds the byte offset (imm_b / imm_j + 1'b0); no extra shifter in odd_lane pc+imm.
 
 Integer Computational Instruction
 
@@ -84,16 +88,34 @@ Registers File - 32 addressible register:
     
     1) Register x0 is hardwired with zero
 
-    2) General Prupose registers x1-x31 
-        - x1 holds return address
-        - x2 as stack pointer
-        - x5 alternative link register 
+    2) General Purpose registers x1-x31 (RV32I Unprivileged ISA, "Register State")
 
-        Hardware might choose to accelerate function calls and returns that use x1 or x5. See the
-        descriptions of the JAL and JALR instructions.
+        ABI / convention (not extra hardware in a minimal core):
+        - x1 (ra)  — usual return-address register for JAL / JALR
+        - x2 (sp)  — stack pointer
+        - x5 (t0)  — may be used as an alternate link register in some code sequences
+
+        RV-DIS: JAL/JALR write the link (pc+4) to whatever GPR rd encodes — no special x1/x5
+        hardware; compilers usually pick x1 (ra), but any rd except x0 is valid.
+
+    3) Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
+
+        Instruction memory: 8-bit byte map (one address = one byte). Each 32-bit instruction
+        occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
+        RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
 
 
-    3) Unprivileged register 32-bit pc 
+
+
+
+
+
+
+
+
+
+
+    
 
 128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
 

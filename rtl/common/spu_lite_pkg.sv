@@ -1,4 +1,6 @@
-// Shared constants and types for RV-DIS (RV32I scalar + 128-bit SIMD).
+`timescale 1ns / 1ps
+
+// Shared constants and types for RV-DIS (RV32I scalar active; vector/SIMD reserved below).
 package spu_lite_pkg;
 
   // Datapath / register widths (three different quantities — do not confuse):
@@ -13,6 +15,12 @@ package spu_lite_pkg;
   localparam int VLEN_BYTES = VLEN / 8;  // 16 bytes per vector register
   localparam int VADDR_ALIGN = VLEN_BYTES; // VLD128/VST128 alignment
 
+  // Memory addressing (RV32I-compatible, RV-DIS scalar path):
+  //   ADDR_UNIT_BITS = 8 — each address increment is one byte (standard RISC-V).
+  //   Immediates are byte offsets (rs1 + imm, pc + imm), not 16-bit-word addresses.
+  //   (RVC uses 16-bit *instructions* at 2-byte PC alignment; this core uses ILEN=32 @ PC%4.)
+  localparam int ADDR_UNIT_BITS = 8;
+
   typedef logic [ILEN-1:0]  instr_t;
   typedef logic [XLEN-1:0]  xlen_t;
   typedef logic [VLEN-1:0]  vreg_t;
@@ -25,8 +33,11 @@ package spu_lite_pkg;
   localparam logic [6:0] OPC_BRANCH = 7'b1100011;
   localparam logic [6:0] OPC_JAL    = 7'b1101111;
   localparam logic [6:0] OPC_JALR   = 7'b1100111;
+  localparam logic [6:0] OPC_AUIPC  = 7'b0010111;
+  localparam logic [6:0] OPC_LUI    = 7'b0110111;
 
-  // Custom SIMD opcodes (RV32I custom-0 / custom-1 — not RISC-V "V" OP-V)
+  // --- Vector/SIMD (not wired in s3_execution yet; for future even/odd lanes) ---
+  // Custom opcodes (RV32I custom-0 / custom-1 — not RISC-V "V" OP-V)
   localparam logic [6:0] OPC_VEC_ALU = 7'b0001011; // even lane: VADD..VXOR
   localparam logic [6:0] OPC_VEC_MEM = 7'b0101011; // odd lane:  VLD128/VST128
 
@@ -48,19 +59,22 @@ package spu_lite_pkg;
 
   // funct3 — integer register-register / register-immediate ALU
   localparam logic [2:0] F3_ADD_SUB = 3'b000;
+  localparam logic [2:0] F3_SLL     = 3'b001;
+  localparam logic [2:0] F3_SLT     = 3'b010;
   localparam logic [2:0] F3_XOR     = 3'b100;
+  localparam logic [2:0] F3_SRL_SRA = 3'b101;
   localparam logic [2:0] F3_OR      = 3'b110;
   localparam logic [2:0] F3_AND     = 3'b111;
 
   // funct3 — loads / stores
-  localparam logic [2:0] F3_LB  = 3'b000;
-  localparam logic [2:0] F3_LH  = 3'b001;
+  // localparam logic [2:0] F3_LB  = 3'b000;
+  // localparam logic [2:0] F3_LH  = 3'b001;
   localparam logic [2:0] F3_LW  = 3'b010;
-  localparam logic [2:0] F3_LBU = 3'b100;
-  localparam logic [2:0] F3_LHU = 3'b101;
+  // localparam logic [2:0] F3_LBU = 3'b100;
+  // localparam logic [2:0] F3_LHU = 3'b101;
 
-  localparam logic [2:0] F3_SB = 3'b000;
-  localparam logic [2:0] F3_SH = 3'b001;
+  // localparam logic [2:0] F3_SB = 3'b000;
+  // localparam logic [2:0] F3_SH = 3'b001;
   localparam logic [2:0] F3_SW = 3'b010;
 
   // funct3 — branches
@@ -68,18 +82,24 @@ package spu_lite_pkg;
   localparam logic [2:0] F3_BNE  = 3'b001;
   localparam logic [2:0] F3_BLT  = 3'b100;
   localparam logic [2:0] F3_BGE  = 3'b101;
-  localparam logic [2:0] F3_BLTU = 3'b110;
-  localparam logic [2:0] F3_BGEU = 3'b111;
 
-  // funct7 — SUB is ADD with bit 5 set (R-type only)
+  //localparam logic [2:0] F3_BLTU = 3'b110;
+  //localparam logic [2:0] F3_BGEU = 3'b111;
+
+  // funct7 — SUB/SRA use bit 5 set (R-type; I-type shifts use imm[11:5])
   localparam logic [6:0] F7_SUB = 7'b0100000;
+  localparam logic [6:0] F7_SRA = 7'b0100000;
 
-  typedef enum logic [2:0] {
+  typedef enum logic [3:0] {
     ALU_ADD,
     ALU_SUB,
+    ALU_SLL,
+    ALU_SLT,
+    ALU_XOR,
+    ALU_SRL,
+    ALU_SRA,
     ALU_AND,
-    ALU_OR,
-    ALU_XOR
+    ALU_OR
   } alu_op_e;
 
   typedef enum logic [1:0] {
@@ -144,33 +164,38 @@ package spu_lite_pkg;
   // Immediate decode
   //
   // RISC-V scatters immediate bits across non-contiguous instruction fields.
-  // Each function gathers those slices, then sign-extends to 32 bits.
+  // Each function gathers those slices, then sign-extends to 32-bit byte offsets
+  // (ADDR_UNIT_BITS = 8: one address = one byte, per RV32I).
   //
-  // I/S offsets are byte addresses (use as-is: rs1 + imm).
+  // RV-DIS does not use 16-bit-per-address memory. Scalar LW/SW and PC math use
+  // byte addresses; imm_align4 clears imm[1:0] so word ops and 32-bit fetch
+  // stay aligned to multiples of 4 (see project_outline / USART byte map).
   //
-  // B/J offsets are also byte offsets, but imm[0] is not stored in the encoding:
-  // the ISA leaves bit 0 implicit at 0 so targets stay 2-byte aligned without a
-  // hardware << 1 (see project_outline: "No hardware shift is needed").
+  // B/J ISA encoding leaves imm[0] implicit; imm_align4 also clears imm[1].
   // -------------------------------------------------------------------------
+
+  function automatic logic [31:0] imm_align4(input logic [31:0] imm);
+    return {imm[31:2], 2'b00};
+  endfunction
 
   function automatic logic [31:0] sign_extend(input logic [11:0] imm12);
     return {{20{imm12[11]}}, imm12};
   endfunction
 
   function automatic logic [31:0] imm_i(input logic [31:0] instr);
-    return {{20{instr[31]}}, instr[31:20]};
+    return imm_align4({{20{instr[31]}}, instr[31:20]});
   endfunction
 
   function automatic logic [31:0] imm_s(input logic [31:0] instr);
-    return {{20{instr[31]}}, instr[31:25], instr[11:7]};
+    return imm_align4({{20{instr[31]}}, instr[31:25], instr[11:7]});
   endfunction
 
   function automatic logic [31:0] imm_b(input logic [31:0] instr);
-    return {{19{instr[31]}}, instr[31], instr[7], instr[30:25], instr[11:8], 1'b0};
+    return imm_align4({{19{instr[31]}}, instr[31], instr[7], instr[30:25], instr[11:8], 1'b0});
   endfunction
 
   function automatic logic [31:0] imm_j(input logic [31:0] instr);
-    return {{11{instr[31]}}, instr[31], instr[19:12], instr[20], instr[30:21], 1'b0};
+    return imm_align4({{11{instr[31]}}, instr[31], instr[19:12], instr[20], instr[30:21], 1'b0});
   endfunction
 
   function automatic logic [31:0] imm_u(input logic [31:0] instr);
@@ -189,6 +214,8 @@ package spu_lite_pkg;
       OPC_STORE: decode_imm = imm_s(instr);
       OPC_BRANCH: decode_imm = imm_b(instr);
       OPC_JAL: decode_imm = imm_j(instr);
+      OPC_LUI,
+      OPC_AUIPC: decode_imm = imm_u(instr);
       OPC_VEC_MEM: decode_imm = (funct3 == F3_VST128) ? imm_s(instr) : imm_i(instr);
       default: decode_imm = imm_i(instr);
     endcase
@@ -203,7 +230,10 @@ package spu_lite_pkg;
       OPC_OP, OPC_OP_IMM: begin
         unique case (funct3)
           F3_ADD_SUB: decode_alu_op = (opcode == OPC_OP && funct7 == F7_SUB) ? ALU_SUB : ALU_ADD;
+          F3_SLL:     decode_alu_op = ALU_SLL;
+          F3_SLT:     decode_alu_op = ALU_SLT;
           F3_XOR:     decode_alu_op = ALU_XOR;
+          F3_SRL_SRA: decode_alu_op = (funct7 == F7_SRA) ? ALU_SRA : ALU_SRL;
           F3_OR:      decode_alu_op = ALU_OR;
           F3_AND:     decode_alu_op = ALU_AND;
           default:    decode_alu_op = ALU_ADD;
