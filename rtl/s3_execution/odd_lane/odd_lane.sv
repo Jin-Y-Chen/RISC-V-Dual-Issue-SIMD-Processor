@@ -13,15 +13,15 @@ module odd_lane
   input  logic [31:0] imm,
   input  logic [31:0] pc,
 
-  output logic        branch_taken,
-  output logic [31:0] branch_target,
-  output logic        jump,
-  output logic [31:0] jump_target,
+  output logic        brch_taken,
+  output logic [31:0] brch_target,
+  output logic        jmp,
+  output logic [31:0] jmp_target,
   output logic        mem_read,
   output logic        mem_write,
   output logic [31:0] mem_addr,
   output logic [31:0] mem_wdata,
-  output logic [3:0]  mem_be,
+  output logic [3:0]  mem_besel,
   output logic        reg_write,
   output logic [4:0]  rd_out,
   output logic [31:0] link_data,
@@ -36,29 +36,29 @@ module odd_lane
     .funct3       (funct3),
     .rs1_data     (rs1_data),
     .rs2_data     (rs2_data),
-    .branch_taken (branch_cond)
+    .brch_taken   (branch_cond)
   );
 
-  address_gen u_addr (
+  memory_access u_mem (
     .funct3    (funct3),
-    // Store byte-enable: SW only (SB/SH disabled in address_gen)
+    // Store byte-enable: SW only (SB/SH disabled in memory_access)
     .is_store  (valid && (opcode == OPC_STORE) && (funct3 == F3_SW)),
     .rs1_data  (rs1_data),
     .rs2_data  (rs2_data),
     .imm       (imm),
     .mem_addr  (mem_addr),
     .mem_wdata (mem_wdata),
-    .mem_be    (mem_be)
+    .mem_besel    (mem_besel)
   );
 
   assign mem_read  = valid && (opcode == OPC_LOAD) && (funct3 == F3_LW);
   assign mem_write = valid && (opcode == OPC_STORE) && (funct3 == F3_SW);
 
-  assign branch_taken  = valid && (opcode == OPC_BRANCH) && branch_cond;
-  assign branch_target = pc + imm;
+  assign brch_taken  = valid && (opcode == OPC_BRANCH) && branch_cond;
+  assign brch_target = pc + imm;
 
-  assign jump        = valid && (opcode == OPC_JAL || opcode == OPC_JALR);
-  assign jump_target = (opcode == OPC_JALR) ? ((rs1_data + imm) & 32'hFFFFFFFE) : (pc + imm);
+  assign jmp         = valid && (opcode == OPC_JAL || opcode == OPC_JALR);
+  assign jmp_target  = (opcode == OPC_JALR) ? ((rs1_data + imm) & 32'hFFFFFFFE) : (pc + imm);
 
   assign u_type = valid && (opcode == OPC_LUI || opcode == OPC_AUIPC);
 

@@ -102,17 +102,6 @@ package spu_lite_pkg;
     ALU_OR
   } alu_op_e;
 
-  typedef enum logic [1:0] {
-    ALU_A_RS1,
-    ALU_A_PC
-  } alu_a_sel_e;
-
-  typedef enum logic [1:0] {
-    ALU_B_RS2,
-    ALU_B_IMM,
-    ALU_B_FOUR
-  } alu_b_sel_e;
-
   typedef enum logic [2:0] {
     VEC_ALU_ADD,
     VEC_ALU_SUB,

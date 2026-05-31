@@ -21,7 +21,7 @@ module even_lane_tb;
   logic        reg_write;
   logic [4:0]  rd_out;
   logic [31:0] alu_result;
-  logic [31:0] wb_data;
+  logic [31:0] pc_out;
 
   int pass_cnt;
   int fail_cnt;
@@ -33,7 +33,8 @@ module even_lane_tb;
     input string       detail,
     input logic        exp_reg_write,
     input logic [4:0]  exp_rd,
-    input logic [31:0] exp_result
+    input logic [31:0] exp_result,
+    input logic [31:0] exp_pc = pc
   );
     string got_detail;
     if (valid !== 1'b1) begin
@@ -53,8 +54,8 @@ module even_lane_tb;
       got_detail = $sformatf("%s, result=%h expected %h", detail, alu_result, exp_result);
       tb_fail_detail(name, got_detail);
       fail_cnt++;
-    end else if (wb_data !== exp_result) begin
-      got_detail = $sformatf("%s, wb_data=%h expected %h", detail, wb_data, exp_result);
+    end else if (pc_out !== exp_pc) begin
+      got_detail = $sformatf("%s, pc_out=%h expected %h", detail, pc_out, exp_pc);
       tb_fail_detail(name, got_detail);
       fail_cnt++;
     end else begin
@@ -77,7 +78,8 @@ module even_lane_tb;
     input logic [31:0] rs1,
     input logic [31:0] rs2,
     input logic        exp_reg_write,
-    input logic [31:0] exp_result
+    input logic [31:0] exp_result,
+    input logic [31:0] insn_pc = 32'h0000_1004
   );
     string detail;
     valid    = 1'b1;
@@ -88,10 +90,11 @@ module even_lane_tb;
     rs1_data = rs1;
     rs2_data = rs2;
     imm      = 32'h0;
+    pc       = insn_pc;
     #1;
     detail = $sformatf("%s, rs1=%h, rs2=%h, result=%h (rd=x%0d)",
       op_name, rs1, rs2, exp_result, rd_i);
-    check(name, detail, exp_reg_write, rd_i, exp_result);
+    check(name, detail, exp_reg_write, rd_i, exp_result, insn_pc);
     idle_cycle();
   endtask
 
@@ -104,7 +107,8 @@ module even_lane_tb;
     input logic [31:0] imm_i,
     input logic        exp_reg_write,
     input logic [31:0] exp_result,
-    input logic [6:0]  f7 = 7'b0
+    input logic [6:0]  f7 = 7'b0,
+    input logic [31:0] insn_pc = 32'h0000_1004
   );
     string detail;
     valid    = 1'b1;
@@ -115,17 +119,18 @@ module even_lane_tb;
     rs1_data = rs1;
     rs2_data = 32'h0;
     imm      = imm_i;
+    pc       = insn_pc;
     #1;
     detail = $sformatf("%s, rs1=%h, imm=%h, result=%h (rd=x%0d)",
       op_name, rs1, imm_i, exp_result, rd_i);
-    check(name, detail, exp_reg_write, rd_i, exp_result);
+    check(name, detail, exp_reg_write, rd_i, exp_result, insn_pc);
     idle_cycle();
   endtask
 
   initial begin
     string detail;
     valid = 0;
-    pc    = 32'h8000_0000;
+    pc    = 32'h0;
     pass_cnt = 0;
     fail_cnt = 0;
 
@@ -159,6 +164,7 @@ module even_lane_tb;
     rs1_data = 32'd0;
     rs2_data = 32'd0;
     imm      = 32'd4;
+    pc       = 32'h0000_1000;
     #1;
     detail = "LOAD on even lane (wrong opcode), expect no reg_write";
     check("load_reject", detail, 1'b0, 5'd3, alu_result);
