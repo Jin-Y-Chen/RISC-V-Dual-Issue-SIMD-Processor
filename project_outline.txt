@@ -123,11 +123,29 @@ Registers File - 32 addressible register:
 
         b) Unified 32×32 GPR; merge rules
         - Same rd from both lanes on one WB: younger insn wins (compare latched PC)
-        - Issue unit stalls RAW hazards; forwarding between even and odd lanes
+        - RAW between I0/I1 handled in dispatch (see ID stage); EX/MEM forwarding between lanes
 
     6) Vector register file (SIMD) — separate 8×128-bit VR; extra read/write ports, not in scalar 4+2 above
 
+Decode, dispatch, and issue (ID stage — in-order dual-issue):
 
+    a) Parallel decode — two insns per cycle
+    - I0 = older (lower PC), I1 = younger (PC+4): opcode decode, control signals, lane_sel (even / odd)
+
+    b) Dispatch (before ID/EX) — hazard and lane checks
+    - RAW: I1 uses a register written by I0 → issue only if forwarding can supply it in time
+    - Lane conflict: both insns need the same single-issue lane in one cycle → cannot dual-issue
+    - If I1 fails either check: grant issue to I0 only
+
+    c) Issue vs hold
+    - Issued insn → correct ID/EX lane entry (even or odd), valid=1
+    - Blocked I1 stays valid in dispatch buffer (or IF/ID hold); not written to ID/EX yet
+    - Already-issued insns are not redispatched
+
+    d) Stall and retry
+    - Stall freezes upstream (PC, IF/ID) so the waiting insn is not overwritten
+    - Next cycle: dispatch reevaluates only the still-valid unissued insn; issues when lane + hazards clear
+    - Preserves program order without an out-of-order scheduler
 
 
 
