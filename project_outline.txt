@@ -104,7 +104,28 @@ Registers File - 32 addressible register:
         occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
         RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
 
+    4) Scalar GPR read ports — 2 (RISC-V) × 2 (dual-issue) = 4
 
+        a) 2 read ports per instruction (RV32I)
+        - 3-address encoding: rs1, rs2 fields in every format (I-type uses imm for 2nd operand)
+        - One insn needs 0–2 GPR reads (e.g. ADD/BEQ/SW use both; ADDI/LW use rs1 only)
+
+        b) × 2 for dual-issue → 4 read ports total
+        - Even lane: dedicated rs1 + rs2 ports (ALU / OP-IMM)
+        - Odd lane:  dedicated rs1 + rs2 ports (load/store / branch)
+        - Both lanes can read GPR in the same ID cycle (e.g. even ADD + odd SW)
+
+    5) Scalar GPR write ports — 2 (dual-issue)
+
+        a) One write port per lane, same writeback cycle
+        - Even lane writes rd from ALU result (when rd != x0)
+        - Odd lane writes rd from load data, JAL/JALR link, or LUI/AUIPC
+
+        b) Unified 32×32 GPR; merge rules
+        - Same rd from both lanes on one WB: younger insn wins (compare latched PC)
+        - Issue unit stalls RAW hazards; forwarding between even and odd lanes
+
+    6) Vector register file (SIMD) — separate 8×128-bit VR; extra read/write ports, not in scalar 4+2 above
 
 
 

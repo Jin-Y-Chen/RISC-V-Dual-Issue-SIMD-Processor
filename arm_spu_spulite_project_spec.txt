@@ -81,8 +81,10 @@ Scalar/vector interaction:
 
 7. Register File Architecture
 - A unified scalar general-purpose register file (32 x 32-bit) is shared between both pipelines
+- Scalar GPR reads: 2 per insn (RISC-V rs1/rs2) × 2 lanes (dual-issue) = 4 read ports (even×2, odd×2)
+- Scalar GPR writes: 2 write ports (one per lane, unified WB)
 - A dedicated vector register file (8 x 128-bit) serves SIMD execution
-- Multi-port design required to support concurrent scalar and vector reads from dual-issued instructions
+- Multi-port vector read/write in addition to scalar ports when SIMD is enabled
 - Write-back stage merges scalar and vector results from both pipelines
 
 8. Hazard Handling

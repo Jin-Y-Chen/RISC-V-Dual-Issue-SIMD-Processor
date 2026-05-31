@@ -12,43 +12,30 @@ module even_lane
   input  logic [31:0] rs1_data,
   input  logic [31:0] rs2_data,
   input  logic [31:0] imm,
-  input  logic [31:0] pc,
+  input  logic [31:0] pc,       // insn byte address (program-order tag for WB / hazards)
 
   output logic        reg_write,
   output logic [4:0]  rd_out,
+  // EX result: latch as alu_result_ex/mem for forwarding and GPR writeback
   output logic [31:0] alu_result,
-  output logic [31:0] wb_data
+  output logic [31:0] pc_out    // passthrough; latch in ex_mem_even → WB age vs odd lane
 );
 
-  alu_op_e    alu_op;
-  alu_a_sel_e alu_a_sel;
-  alu_b_sel_e alu_b_sel;
+  alu_op_e         alu_op;
+  logic [31:0]     operand_b;
 
-  assign alu_op = decode_alu_op(opcode, funct3, funct7);
-
-  always_comb begin
-    alu_a_sel = ALU_A_RS1;
-    alu_b_sel = ALU_B_RS2;
-
-    if (valid && (opcode == OPC_OP || opcode == OPC_OP_IMM)) begin
-      alu_a_sel = ALU_A_RS1;
-      alu_b_sel = (opcode == OPC_OP_IMM) ? ALU_B_IMM : ALU_B_RS2;
-    end
-  end
+  assign alu_op    = decode_alu_op(opcode, funct3, funct7);
+  assign operand_b = (opcode == OPC_OP_IMM) ? imm : rs2_data;
 
   scalar_alu u_scalar_alu (
     .alu_op     (alu_op),
-    .alu_a_sel  (alu_a_sel),
-    .alu_b_sel  (alu_b_sel),
-    .rs1_data   (rs1_data),
-    .rs2_data   (rs2_data),
-    .imm        (imm),
-    .pc         (pc),
+    .operand_a  (rs1_data),
+    .operand_b  (operand_b),
     .alu_result (alu_result)
   );
 
   assign reg_write = valid && (opcode == OPC_OP || opcode == OPC_OP_IMM) && (rd != 5'd0);
   assign rd_out    = rd;
-  assign wb_data   = alu_result;
+  assign pc_out    = pc;
 
 endmodule

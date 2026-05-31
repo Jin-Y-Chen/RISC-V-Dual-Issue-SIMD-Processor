@@ -5,35 +5,12 @@ module scalar_alu
   import spu_lite_pkg::*;
 (
   input  alu_op_e     alu_op,
-  input  alu_a_sel_e  alu_a_sel,
-  input  alu_b_sel_e  alu_b_sel,
-  input  logic [31:0] rs1_data,
-  input  logic [31:0] rs2_data,
-  input  logic [31:0] imm,
-  input  logic [31:0] pc,
+  input  logic [31:0] operand_a,
+  input  logic [31:0] operand_b,
   output logic [31:0] alu_result
 );
 
-  logic [31:0] operand_a;
-  logic [31:0] operand_b;
-  logic [4:0]  shamt;
-
-  always_comb begin
-    unique case (alu_a_sel)
-      ALU_A_RS1: operand_a = rs1_data;
-      ALU_A_PC:  operand_a = pc;
-      default:   operand_a = rs1_data;
-    endcase
-  end
-
-  always_comb begin
-    unique case (alu_b_sel)
-      ALU_B_RS2: operand_b = rs2_data;
-      ALU_B_IMM: operand_b = imm;
-      ALU_B_FOUR: operand_b = 32'd4;
-      default:   operand_b = rs2_data;
-    endcase
-  end
+  logic [4:0] shamt;
 
   assign shamt = operand_b[4:0];
 

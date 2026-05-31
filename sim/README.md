@@ -23,8 +23,8 @@ sim/logs/
 | Top | Sources |
 |-----|---------|
 | `even_lane_tb` | `spu_lite_pkg.sv`, `scalar_alu.sv`, `even_lane.sv`, `even_lane_tb.sv` |
-| `odd_lane_tb` | `spu_lite_pkg.sv`, `branch_unit.sv`, `address_gen.sv`, `odd_lane.sv`, `odd_lane_tb.sv` |
-| `ex_mem_tb` | `spu_lite_pkg.sv`, `ex_mem.sv`, `ex_mem_even.sv`, `ex_mem_odd.sv`, `ex_mem_tb.sv` |
+| `odd_lane_tb` | `spu_lite_pkg.sv`, `branch_unit.sv`, `memory_access.sv`, `odd_lane.sv`, `odd_lane_tb.sv` |
+| `ex_mem_tb` | `spu_lite_pkg.sv`, `ex_mem_even.sv`, `ex_mem_odd.sv`, `ex_mem_tb.sv` |
 
 Vivado **include path:** `sim/tb`
 

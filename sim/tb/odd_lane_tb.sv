@@ -16,15 +16,15 @@ module odd_lane_tb;
   logic [31:0] imm;
   logic [31:0] pc;
 
-  logic        branch_taken;
-  logic [31:0] branch_target;
-  logic        jump;
-  logic [31:0] jump_target;
+  logic        brch_taken;
+  logic [31:0] brch_target;
+  logic        jmp;
+  logic [31:0] jmp_target;
   logic        mem_read;
   logic        mem_write;
   logic [31:0] mem_addr;
   logic [31:0] mem_wdata;
-  logic [3:0]  mem_be;
+  logic [3:0]  mem_besel;
   logic        reg_write;
   logic [4:0]  rd_out;
   logic [31:0] link_data;
@@ -51,9 +51,9 @@ module odd_lane_tb;
       return;
     end
     if (mem_read !== exp_mem_read || mem_write !== exp_mem_write ||
-        mem_addr !== exp_addr || mem_wdata !== exp_wdata || mem_be !== exp_be) begin
+        mem_addr !== exp_addr || mem_wdata !== exp_wdata || mem_besel !== exp_be) begin
       got = $sformatf("%s, got read=%0d write=%0d addr=%h wdata=%h be=%b",
-        detail, mem_read, mem_write, mem_addr, mem_wdata, mem_be);
+        detail, mem_read, mem_write, mem_addr, mem_wdata, mem_besel);
       tb_fail_detail(name, got);
       fail_cnt++;
     end else begin
@@ -74,9 +74,9 @@ module odd_lane_tb;
       fail_cnt++;
       return;
     end
-    if (branch_taken !== exp_taken || branch_target !== exp_target || jump !== 1'b0) begin
+    if (brch_taken !== exp_taken || brch_target !== exp_target || jmp !== 1'b0) begin
       got = $sformatf("%s, got taken=%0d target=%h jump=%0d",
-        detail, branch_taken, branch_target, jump);
+        detail, brch_taken, brch_target, jmp);
       tb_fail_detail(name, got);
       fail_cnt++;
     end else begin
@@ -85,10 +85,10 @@ module odd_lane_tb;
     end
   endtask
 
-  task automatic check_jump(
+  task automatic check_jmp(
     input string       name,
     input string       detail,
-    input logic        exp_jump,
+    input logic        exp_jmp,
     input logic [31:0] exp_target,
     input logic        exp_reg_write,
     input logic [4:0]  exp_rd,
@@ -100,10 +100,10 @@ module odd_lane_tb;
       fail_cnt++;
       return;
     end
-    if (jump !== exp_jump || jump_target !== exp_target ||
+    if (jmp !== exp_jmp || jmp_target !== exp_target ||
         reg_write !== exp_reg_write || rd_out !== exp_rd || link_data !== exp_link) begin
       got = $sformatf("%s, got jump=%0d tgt=%h reg_write=%0d rd=x%0d link=%h",
-        detail, jump, jump_target, reg_write, rd_out, link_data);
+        detail, jmp, jmp_target, reg_write, rd_out, link_data);
       tb_fail_detail(name, got);
       fail_cnt++;
     end else begin
@@ -128,10 +128,10 @@ module odd_lane_tb;
     rs2_data = 32'h0;
     imm      = imm_i;
     #1;
-    detail = $sformatf("LW, rs1=%h, imm=%h, addr=%h, mem_be=1111, link=%h (rd=x%0d)",
+    detail = $sformatf("LW, rs1=%h, imm=%h, addr=%h, mem_besel=1111, link=%h (rd=x%0d)",
       rs1, imm_i, rs1 + imm_i, pc + 32'd4, rd_i);
     if (valid !== 1'b1 || mem_read !== 1'b1 || mem_write !== 1'b0 ||
-        mem_addr !== rs1 + imm_i || mem_be !== 4'b1111 ||
+        mem_addr !== rs1 + imm_i || mem_besel !== 4'b1111 ||
         reg_write !== (rd_i != 5'd0) || link_data !== pc + 32'd4) begin
       tb_fail_detail(name, $sformatf("%s (check failed)", detail));
       fail_cnt++;
@@ -156,7 +156,7 @@ module odd_lane_tb;
       fail_cnt++;
       return;
     end
-    if (branch_taken || jump || mem_read || mem_write) begin
+    if (brch_taken || jmp || mem_read || mem_write) begin
       tb_fail_detail(name, $sformatf("%s (unexpected branch/jump/mem)", detail));
       fail_cnt++;
       return;
@@ -300,7 +300,7 @@ module odd_lane_tb;
     #1;
     detail = $sformatf("JAL, pc=%h, imm=%h -> target=%h, link=%h (rd=x%0d)",
       pc, imm, pc + imm, pc + 32'd4, rd);
-    check_jump("jal", detail, 1'b1, pc + 32'h100, 1'b1, 5'd1, pc + 32'd4);
+    check_jmp("jal", detail, 1'b1, pc + 32'h100, 1'b1, 5'd1, pc + 32'd4);
     idle_cycle();
 
     valid    = 1'b1;
@@ -312,7 +312,7 @@ module odd_lane_tb;
     #1;
     detail = $sformatf("JALR, rs1=%h, imm=%h -> target=%h (LSB clear), link=%h",
       rs1_data, imm, 32'h8000_0010, pc + 32'd4);
-    check_jump("jalr", detail, 1'b1, 32'h8000_0010, 1'b1, 5'd2, pc + 32'd4);
+    check_jmp("jalr", detail, 1'b1, 32'h8000_0010, 1'b1, 5'd2, pc + 32'd4);
     idle_cycle();
 
     valid    = 1'b1;
@@ -323,7 +323,7 @@ module odd_lane_tb;
     imm      = 32'd4;
     #1;
     detail = $sformatf("JALR, rs1=%h, imm=%0d, rd=x0 -> reg_write=0", rs1_data, imm);
-    check_jump("jalr_x0", detail, 1'b1, 32'h8000_0004, 1'b0, 5'd0, pc + 32'd4);
+    check_jmp("jalr_x0", detail, 1'b1, 32'h8000_0004, 1'b0, 5'd0, pc + 32'd4);
     idle_cycle();
 
     // --- U-type (LUI / AUIPC) ---
@@ -365,7 +365,7 @@ module odd_lane_tb;
     imm      = 32'd0;
     #1;
     detail = "OP (ALU) on odd lane -> no mem/branch/jump/reg_write/wb";
-    if (mem_read || mem_write || branch_taken || jump || reg_write) begin
+    if (mem_read || mem_write || brch_taken || jmp || reg_write) begin
       tb_fail_detail("alu_reject", detail);
       fail_cnt++;
     end else begin
@@ -378,7 +378,7 @@ module odd_lane_tb;
     opcode = OPC_BRANCH;
     #1;
     detail = "valid=0 -> no branch/mem/jump";
-    if (branch_taken || jump || mem_read || mem_write) begin
+    if (brch_taken || jmp || mem_read || mem_write) begin
       tb_fail_detail("idle", detail);
       fail_cnt++;
     end else begin
