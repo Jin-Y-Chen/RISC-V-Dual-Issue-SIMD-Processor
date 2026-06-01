@@ -7,8 +7,10 @@ package rv_dis_pkg;
   //   ILEN — 32-bit instruction word (RV32I)
   //   XLEN — scalar GPR width (x0–x31)
   localparam int ILEN    = 32;
-  localparam int XLEN    = 32;
-  localparam int NUM_GPR = 32;
+
+  //register size = XLEN * NUM_GPR = 32 * 32 = 1024 bits = 128 bytes
+  localparam int XLEN    = 32; // Register width = 32 bits
+  localparam int NUM_GPR = 32; // Number registers = 32 (x0-x31)
 
   // --- SIMD (disabled) ---
   // localparam int VLEN      = 128;
