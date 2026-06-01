@@ -14,7 +14,7 @@ Dual-issue, in-order, 5-stage pipelined CPU for FPGA (e.g. Artix-7 / Basys 3). S
 |------|---------------|---------|
 | `rtl/core/` | 3, 12, 14 | Top-level `spu_lite_cpu` and structural integration |
 | `rtl/s1_instruction_fetch/` | 3 (IF) | PC, instruction memory, fetch width for dual-issue |
-| `rtl/s2_instruction_decode_issue/` | 3 (ID), 9 | Decode + register read + issue pairing |
+| `rtl/s2_decode/` | 3 (ID), 9 | Decode (`decoder.sv`, `rv_dis_decode_pkg.sv`) + issue (future) |
 | `rtl/issue_dispatch/` | 4, 5, 9 | Even/odd classification, pairing rules, stall on violation |
 | `rtl/s3_execution/even_lane/` | 5, 10 | Scalar ALU (ADD, SUB, AND, OR, XOR) |
 | `rtl/s3_execution/odd_lane/` | 5, 10 | Scalar LSU, branch/jump |
@@ -26,7 +26,7 @@ Dual-issue, in-order, 5-stage pipelined CPU for FPGA (e.g. Artix-7 / Basys 3). S
 | `rtl/control/` | 8, 12 | Global control, flush, stall, dual-issue coordination |
 | `rtl/memory/` | 11 | Instruction/data memory or unified memory block |
 | `rtl/common/` | 6, 14 | Packages: opcodes, widths, ISA encode/decode helpers |
-| `sim/tb/` | 15 | Testbenches (unit + full pipeline) |
+| `sim/tb/` | 15 | Testbenches (`common/`, per-unit folders) |
 | `tests/asm/` | 15 | Instruction-level programs |
 | `tests/hazard/` | 15 | Data/control hazard scenarios |
 | `tests/simd/` | 15 | 128-bit lane-width ops, vector load/store, SIMD hazard cases |
@@ -43,9 +43,9 @@ Dual-issue, in-order, 5-stage pipelined CPU for FPGA (e.g. Artix-7 / Basys 3). S
 ```
 spu_lite_cpu (rtl/core/)
 ├── s1_instruction_fetch/
-├── s2_instruction_decode_issue/
-│   ├── issue_dispatch/          (also rtl/issue_dispatch/ for standalone TB)
-│   └── register_file/           (scalar GPR + vector VR)
+├── s2_decode/                   (decoder, rv_dis_decode_pkg)
+├── issue_dispatch/              (pairing / stall — rtl/issue_dispatch/)
+├── register_file/               (scalar GPR + vector VR)
 ├── s3_execution/
 │   ├── even_lane/               (scalar ALU + 128-bit SIMD)
 │   └── odd_lane/                (scalar/vector memory + control)
@@ -101,7 +101,7 @@ See [docs/isa/README.md](docs/isa/README.md) and [arm_spu_spulite_project_spec.t
 
 ## Getting started
 
-1. Add `rtl/common/spu_lite_pkg.vhd` (data widths, opcodes, pipeline constants).
+1. Add `rtl/common/rv_dis_pkg.sv` (data widths, opcodes, pipeline constants).
 2. Implement stages bottom-up with testbenches before `rtl/core/spu_lite_cpu.vhd`.
 3. Point Vivado (or other flow) at `rtl/core` top and `fpga/constraints/`.
 4. **Vivado simulation:** `.\sim\scripts\copy_logs.ps1` → `sim/logs/latest/` ([sim/README.md](sim/README.md)).

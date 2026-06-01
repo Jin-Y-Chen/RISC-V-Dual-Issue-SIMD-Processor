@@ -59,7 +59,7 @@ Valid pairs (even + odd in same cycle):
 
 Invalid: two vector ALU ops, two vector loads, or any pair with a register/file port conflict.
 
-## Encoding (implemented in `rtl/common/spu_lite_pkg.sv`)
+## Encoding (opcodes in `rtl/common/rv_dis_pkg.sv`; scalar decode in `rtl/s2_decode/rv_dis_decode_pkg.sv`)
 
 Uses RISC-V **custom-0** / **custom-1** major opcodes (not RVV `OP-V`):
 

@@ -2,7 +2,7 @@
 
 // Scalar integer ALU for the even execution lane (RV32I OP / OP-IMM subset).
 module scalar_alu
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
 (
   input  alu_op_e     alu_op,
   input  logic [31:0] operand_a,

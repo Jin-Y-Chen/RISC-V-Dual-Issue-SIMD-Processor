@@ -1,15 +1,36 @@
 # Testbenches (`sim/tb/`)
 
-## Required for every testbench
+## Layout
 
-1. **Vivado include path:** `sim/tb` (so `` `include "tb_console.svh" `` resolves).
-2. **Inside the module** (after `import spu_lite_pkg::*;` if used):
-
-```systemverilog
-`include "tb_console.svh"
+```
+sim/tb/
+├── README.md
+├── common/
+│   ├── tb_console.svh   shared PASS/FAIL logging (required)
+│   └── tb_template.sv   copy when adding a new TB
+├── s2_decode/
+│   └── decoder_tb.sv
+├── even_lane/
+│   └── even_lane_tb.sv
+├── odd_lane/
+│   └── odd_lane_tb.sv
+└── sx_registers/
+    └── ex_mem_tb.sv
 ```
 
-3. Use shared logging tasks (do not roll your own `$display` pass/fail format):
+Folders mirror RTL: `rtl/s2_decode`, `rtl/s3_execution/*`, `rtl/sx_registers`.
+
+## Vivado setup
+
+1. **Include path:** `sim/tb` (resolves `` `include "common/tb_console.svh" ``).
+2. **Simulation top:** module name (e.g. `decoder_tb`, `even_lane_tb`).
+3. In each `*_tb.sv` (after `import rv_dis_pkg::*` if used):
+
+```systemverilog
+`include "common/tb_console.svh"
+```
+
+## Logging tasks
 
 | Task | Use |
 |------|-----|
@@ -18,12 +39,13 @@
 | `tb_banner(msg)` | Test start |
 | `tb_summary(pass_cnt, fail_cnt)` | Final count + `*** SUMMARY: ... ***` |
 
-Copy **`tb_template.sv`** when adding a new TB.
+Copy `common/tb_template.sv` to `sim/tb/<unit>/<module>_tb.sv` for new tests.
 
-## Existing testbenches
+## Testbenches
 
-| File | Top |
-|------|-----|
-| `even_lane_tb.sv` | `even_lane_tb` |
-| `odd_lane_tb.sv` | `odd_lane_tb` |
-| `ex_mem_tb.sv` | `ex_mem_tb` |
+| Top | Path | RTL sources |
+|-----|------|-------------|
+| `decoder_tb` | `s2_decode/decoder_tb.sv` | `rv_dis_pkg.sv`, `rv_dis_decode_pkg.sv`, `decoder.sv` |
+| `even_lane_tb` | `even_lane/even_lane_tb.sv` | `rv_dis_pkg.sv`, `rv_dis_decode_pkg.sv`, `scalar_alu.sv`, `even_lane.sv` |
+| `odd_lane_tb` | `odd_lane/odd_lane_tb.sv` | `rv_dis_pkg.sv`, `branch_unit.sv`, `memory_access.sv`, `odd_lane.sv` |
+| `ex_mem_tb` | `sx_registers/ex_mem_tb.sv` | `rv_dis_pkg.sv`, `ex_mem_even.sv`, `ex_mem_odd.sv` |

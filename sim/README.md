@@ -18,14 +18,15 @@ sim/logs/
 
 ## Testbenches
 
-**Convention:** every `sim/tb/*_tb.sv` must `` `include "tb_console.svh" `` — see [tb/README.md](tb/README.md), copy [tb/tb_template.sv](tb/tb_template.sv) for new TBs.
+**Convention:** every unit TB must `` `include "common/tb_console.svh" `` — see [tb/README.md](tb/README.md).
 
-| Top | Sources |
+| Top | TB path |
 |-----|---------|
-| `even_lane_tb` | `spu_lite_pkg.sv`, `scalar_alu.sv`, `even_lane.sv`, `even_lane_tb.sv` |
-| `odd_lane_tb` | `spu_lite_pkg.sv`, `branch_unit.sv`, `memory_access.sv`, `odd_lane.sv`, `odd_lane_tb.sv` |
-| `ex_mem_tb` | `spu_lite_pkg.sv`, `ex_mem_even.sv`, `ex_mem_odd.sv`, `ex_mem_tb.sv` |
+| `decoder_tb` | `tb/s2_decode/decoder_tb.sv` |
+| `even_lane_tb` | `tb/even_lane/even_lane_tb.sv` |
+| `odd_lane_tb` | `tb/odd_lane/odd_lane_tb.sv` |
+| `ex_mem_tb` | `tb/sx_registers/ex_mem_tb.sv` |
 
-Vivado **include path:** `sim/tb`
+Vivado **include path:** `sim/tb` (add each `*_tb.sv` under its folder as a sim source)
 
 Project path: `scripts/sim_log_paths.cfg`

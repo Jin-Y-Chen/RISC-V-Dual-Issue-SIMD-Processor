@@ -2,7 +2,7 @@
 
 // Branch condition evaluation for the odd execution lane.
 module branch_unit
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
 (
   input  logic [2:0]  funct3,
   input  logic [31:0] rs1_data,

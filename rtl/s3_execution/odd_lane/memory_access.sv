@@ -2,7 +2,7 @@
 
 // Scalar memory access: effective address, store data, byte enables (LW/SW only).
 module memory_access
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
 (
   input  logic [2:0]  funct3,
   input  logic        is_store,
