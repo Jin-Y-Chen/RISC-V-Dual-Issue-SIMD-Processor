@@ -4,9 +4,9 @@
 // Combinational: sample outputs while valid=1 (before deassert).
 module even_lane_tb;
 
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
 
-  `include "tb_console.svh"
+  `include "common/tb_console.svh"
 
   logic        valid;
   logic [6:0]  opcode;

@@ -3,9 +3,9 @@
 // Unit testbench for odd_lane: LW/SW, branches, jumps, LUI/AUIPC (RV32I).
 module odd_lane_tb;
 
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
 
-  `include "tb_console.svh"
+  `include "common/tb_console.svh"
 
   logic        valid;
   logic [6:0]  opcode;

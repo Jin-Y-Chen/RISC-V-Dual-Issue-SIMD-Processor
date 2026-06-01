@@ -41,7 +41,7 @@ Instruction File - Base Instruction Formats (R/I/S/U):
     - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
     - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
       and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
-      rtl/common/spu_lite_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
+      rtl/common/rv_dis_pkg.sv / rv_dis_decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
     - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
     - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
       is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
@@ -49,7 +49,7 @@ Instruction File - Base Instruction Formats (R/I/S/U):
     RV-DIS stricter policy (this project):
     - We only fetch 32-bit instructions (no RVC), so PC and branch/jump/load/store offsets should be
       multiples of 4 (word aligned).
-    - After standard decode, imm_align4() in spu_lite_pkg.sv forces imm[1:0]=00 (clear low two bits).
+    - After standard decode, imm_align4() in rv_dis_decode_pkg.sv forces imm[1:0]=00 (clear low two bits).
       Valid asm (+4, +8, …) is unchanged; an illegal +2 offset would become 0 (truncate down, not round up).
     - Example: jal r0, 4 → byte offset 4 → insn 0x0040006F; jal r0, 7 bytes is NOT encodable in RV32I
       (odd offset); use +6 or +8. Next 32-bit insn after PC is jal rd, 4 not jal rd, 2.
@@ -146,6 +146,17 @@ Decode, dispatch, and issue (ID stage — in-order dual-issue):
     - Stall freezes upstream (PC, IF/ID) so the waiting insn is not overwritten
     - Next cycle: dispatch reevaluates only the still-valid unissued insn; issues when lane + hazards clear
     - Preserves program order without an out-of-order scheduler
+
+Data memory (scalar load/store — odd lane, memory_access.sv):
+
+    a) Byte addressing — one address = one 8-bit byte (standard RV32I data memory map)
+    - Address N and N+1 are adjacent bytes, not 16-bit or 32-bit word indices
+    - Effective address: mem_addr = rs1 + imm (byte offset from decode, same unit as PC)
+
+    b) LW / SW (32-bit) — mem_besel selects which bytes out of a 32-bit word lane at mem_addr
+    - RV-DIS word-aligned policy: imm_align4 and addr[1:0] for full-word enables (see § Instruction formats)
+
+    c) Instruction and data memory share the same byte-address space concept (8 bits per address)
 
 
 

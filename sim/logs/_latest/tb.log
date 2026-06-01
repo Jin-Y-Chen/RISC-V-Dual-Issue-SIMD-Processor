@@ -9,7 +9,7 @@ Time resolution is 1 ps
 [PASS]  blt_taken | BLT, rs1=ffffffff (signed -1), rs2=1 -> taken
 [PASS]  bge_taken | BGE, rs1=1, rs2=ffffffff (signed -1) -> taken
 [PASS]     bge_nt | BGE, rs1=1, rs2=5 -> not taken
-[PASS]         lw | LW, rs1=00002000, imm=00000004, addr=00002004, mem_be=1111, link=00001004 (rd=x5)
+[PASS]         lw | LW, rs1=00002000, imm=00000004, addr=00002004, mem_besel=1111, link=00001004 (rd=x5)
 [PASS]      lw_x0 | LW, rd=x0 -> reg_write=0
 [PASS]         sw | SW, rs1=00006000, imm=0, wdata=deadbeef, addr=00006000, be=1111
 [PASS]        jal | JAL, pc=00001000, imm=00000100 -> target=00001100, link=00001004 (rd=x1)

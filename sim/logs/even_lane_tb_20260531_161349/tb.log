@@ -23,4 +23,4 @@ Time resolution is 1 ps
 [PASS] load_reject | LOAD on even lane (wrong opcode), expect no reg_write
 
 *** SUMMARY: 18 passed, 0 failed - OK ***
-$finish called at time : 36 ns : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/even_lane_tb.sv" Line 171
+$finish called at time : 36 ns : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/even_lane_tb.sv" Line 177
