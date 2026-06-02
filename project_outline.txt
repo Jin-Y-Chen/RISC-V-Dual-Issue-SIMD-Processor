@@ -41,24 +41,22 @@ Instruction File - Base Instruction Formats (R/I/S/U):
     - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
     - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
       and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
-      rtl/common/rv_dis_pkg.sv / rv_dis_decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
+      rtl/common/rv_dis_pkg.sv / decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
     - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
     - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
       is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
 
-    RV-DIS stricter policy (this project):
-    - We only fetch 32-bit instructions (no RVC), so PC and branch/jump/load/store offsets should be
-      multiples of 4 (word aligned).
-    - After standard decode, imm_align4() in rv_dis_decode_pkg.sv forces imm[1:0]=00 (clear low two bits).
-      Valid asm (+4, +8, …) is unchanged; an illegal +2 offset would become 0 (truncate down, not round up).
-    - Example: jal r0, 4 → byte offset 4 → insn 0x0040006F; jal r0, 7 bytes is NOT encodable in RV32I
-      (odd offset); use +6 or +8. Next 32-bit insn after PC is jal rd, 4 not jal rd, 2.
+    RV-DIS decode policy (this project):
+    - We only fetch 32-bit instructions (no RVC); PC should stay 4-byte aligned in normal code.
+    - imm_align4() in decode_pkg.sv forces imm[1:0]=00 on branch/jump offsets (B, J, JALR).
+      Load/store/OP-IMM use full sign-extended 32-bit byte offsets (no align4).
+    - B/J still have imm[0]=0 in the ISA encoding; decode appends that bit (see imm_b / imm_j).
 
     Summary table:
     | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
     |--------------------|----------|----------|----------------------|
     | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
-    | RV-DIS imm_align4  | 0        | forced 00| only +4, +8, …      |
+    | RV-DIS imm_align4  | 0        | forced 00| B/J/JALR only        |
 
     Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
     - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
@@ -154,7 +152,7 @@ Data memory (scalar load/store — odd lane, memory_access.sv):
     - Effective address: mem_addr = rs1 + imm (byte offset from decode, same unit as PC)
 
     b) LW / SW (32-bit) — mem_besel selects which bytes out of a 32-bit word lane at mem_addr
-    - RV-DIS word-aligned policy: imm_align4 and addr[1:0] for full-word enables (see § Instruction formats)
+    - Load/store offsets: sign-ext only (no imm_align4); use 4-byte-aligned addresses in software
 
     c) Instruction and data memory share the same byte-address space concept (8 bits per address)
 
@@ -166,53 +164,9 @@ Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
       GPR, pipeline regs, FIFOs — not all 225 KiB is available to caches)
 
     Planned cache sizes (byte-addressed, 8 bits per address):
-    - L2 data cache (largest): 2^17 bytes = 128 KiB total
+    - L2 data cache (largest): 2^17 bytes = (2 * 64) KiB total
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
-
-    Combined cache footprint:
-        2^17 + 2^15 + 2^15 = 2^17 + 2^16 bytes = 192 KiB < 225 KiB  (fits on-chip BRAM budget)
-
-    | Level | Role              | Size (bytes) | Size (powers of 2) |
-    |-------|-------------------|--------------|--------------------|
-    | I$    | instruction fetch | 2^15         | 32 KiB             |
-    | L1 D$ | data (load/store) | 2^15         | 32 KiB             |
-    | L2 D$ | data              | 2^17         | 128 KiB            |
-    | Total | on-chip caches    | 192 KiB      | 2^17 + 2^16 B      |
-
-    Instruction cache (I$) — addressing and capacity:
-    - 2^16 byte-addressable locations (16-bit byte index): one address = one 8-bit byte
-      (same addressing model as PC / data memory)
-    - 32-bit fixed instructions (ILEN=32, PC%4): 4 bytes per instruction
-    - Max instructions resident in a full 2^16-byte I$ window:
-        2^16 / 4 = 2^14 = 16,384 instructions at once
-    - PC remains 32-bit; programs larger than on-chip I$ use miss/refill from backing store
-      (BRAM IMEM region and/or board SPI flash), not PC wrap to reset
-    - Direct-mapped I$: index from low PC bits, tag from high PC bits; on tag miss refill line
-      from backing instruction memory (do not alias unrelated PCs by modulo alone)
-
-    Data memory map (scalar):
-    - Backing data memory: 2^16 byte-addressable locations (64 KiB address space at 8 bits/addr)
-    - L1 D$: 2^15 bytes (32 KiB) in front of L2 / backing memory
-    - Note: L1 size is 2^15 B per BRAM budget above (not 2^6 B)
-
-    Programs larger than on-chip capacity:
-    - Basys 3 also has 32 Mbit serial flash (non-volatile) for full program + assets
-    - On-chip BRAM holds hot cache lines + working set; flash/SDRAM-style backing for bulk
-    - Fetch path: I$ hit → BRAM line; I$ miss → stall/refill from IMEM in BRAM or loader
-
-    BRAM usage (can be split across roles in Vivado):
-    - Same FPGA BRAM primitives may implement I$ lines, L1/L2 data arrays, and/or direct
-      IMEM/DMEM backing — different instances, not one block serving two roles at once
-    - First bring-up may use BRAM as direct IMEM/DMEM with no cache; add I$/L1/L2 when needed
-
-    Capacity vs 225 KiB (design check):
-    - If I$ is increased to full 2^16 bytes (64 KiB) for 16,384 insns, revisit L1/L2 split so
-      I$ + L1 + L2 + non-cache BRAM still fits device limits (192 KiB cache budget uses 2^15 I$)
-
-
-
-
 
 
 

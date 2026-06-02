@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-// Unit testbench for odd_lane: LW/SW, branches, jumps, LUI/AUIPC (RV32I).
+// odd_lane_tb — DUT vs hand-written expected (decoder_tb-style run_insn + check_expect).
 module odd_lane_tb;
 
   import rv_dis_pkg::*;
 
-  `include "common/tb_console.svh"
+  `include "../common/tb_console.svh"
 
   logic        valid;
   logic [6:0]  opcode;
@@ -35,356 +35,221 @@ module odd_lane_tb;
 
   odd_lane dut (.*);
 
-  task automatic check_mem(
+  task automatic run_insn(
+    input logic        valid_i,
+    input logic [6:0]  opcode_i,
+    input logic [2:0]  funct3_i,
+    input logic [4:0]  rd_i,
+    input logic [31:0] rs1_i,
+    input logic [31:0] rs2_i,
+    input logic [31:0] imm_i,
+    input logic [31:0] pc_i
+  );
+    valid    = valid_i;
+    opcode   = opcode_i;
+    funct3   = funct3_i;
+    rd       = rd_i;
+    rs1_data = rs1_i;
+    rs2_data = rs2_i;
+    imm      = imm_i;
+    pc       = pc_i;
+    #1;
+  endtask
+
+  task automatic check_expect(
     input string       name,
     input string       detail,
+    input logic        exp_brch_taken,
+    input logic [31:0] exp_brch_target,
+    input logic        exp_jmp,
+    input logic [31:0] exp_jmp_target,
     input logic        exp_mem_read,
     input logic        exp_mem_write,
-    input logic [31:0] exp_addr,
-    input logic [31:0] exp_wdata,
-    input logic [3:0]  exp_be
-  );
-    string got;
-    if (valid !== 1'b1) begin
-      tb_fail_detail(name, "valid=0 during check");
-      fail_cnt++;
-      return;
-    end
-    if (mem_read !== exp_mem_read || mem_write !== exp_mem_write ||
-        mem_addr !== exp_addr || mem_wdata !== exp_wdata || mem_besel !== exp_be) begin
-      got = $sformatf("%s, got read=%0d write=%0d addr=%h wdata=%h be=%b",
-        detail, mem_read, mem_write, mem_addr, mem_wdata, mem_besel);
-      tb_fail_detail(name, got);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail(name, detail);
-      pass_cnt++;
-    end
-  endtask
-
-  task automatic check_branch(
-    input string       name,
-    input string       detail,
-    input logic        exp_taken,
-    input logic [31:0] exp_target
-  );
-    string got;
-    if (valid !== 1'b1) begin
-      tb_fail_detail(name, "valid=0 during check");
-      fail_cnt++;
-      return;
-    end
-    if (brch_taken !== exp_taken || brch_target !== exp_target || jmp !== 1'b0) begin
-      got = $sformatf("%s, got taken=%0d target=%h jump=%0d",
-        detail, brch_taken, brch_target, jmp);
-      tb_fail_detail(name, got);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail(name, detail);
-      pass_cnt++;
-    end
-  endtask
-
-  task automatic check_jmp(
-    input string       name,
-    input string       detail,
-    input logic        exp_jmp,
-    input logic [31:0] exp_target,
+    input logic [31:0] exp_mem_addr,
+    input logic [31:0] exp_mem_wdata,
+    input logic [3:0]  exp_mem_besel,
     input logic        exp_reg_write,
     input logic [4:0]  exp_rd,
-    input logic [31:0] exp_link
-  );
-    string got;
-    if (valid !== 1'b1) begin
-      tb_fail_detail(name, "valid=0 during check");
-      fail_cnt++;
-      return;
-    end
-    if (jmp !== exp_jmp || jmp_target !== exp_target ||
-        reg_write !== exp_reg_write || rd_out !== exp_rd || link_data !== exp_link) begin
-      got = $sformatf("%s, got jump=%0d tgt=%h reg_write=%0d rd=x%0d link=%h",
-        detail, jmp, jmp_target, reg_write, rd_out, link_data);
-      tb_fail_detail(name, got);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail(name, detail);
-      pass_cnt++;
-    end
-  endtask
-
-  task automatic check_lw(
-    input string       name,
-    input string       op_name,
-    input logic [4:0]  rd_i,
-    input logic [31:0] rs1,
-    input logic [31:0] imm_i
-  );
-    string detail;
-    valid    = 1'b1;
-    opcode   = OPC_LOAD;
-    funct3   = F3_LW;
-    rd       = rd_i;
-    rs1_data = rs1;
-    rs2_data = 32'h0;
-    imm      = imm_i;
-    #1;
-    detail = $sformatf("LW, rs1=%h, imm=%h, addr=%h, mem_besel=1111, link=%h (rd=x%0d)",
-      rs1, imm_i, rs1 + imm_i, pc + 32'd4, rd_i);
-    if (valid !== 1'b1 || mem_read !== 1'b1 || mem_write !== 1'b0 ||
-        mem_addr !== rs1 + imm_i || mem_besel !== 4'b1111 ||
-        reg_write !== (rd_i != 5'd0) || link_data !== pc + 32'd4) begin
-      tb_fail_detail(name, $sformatf("%s (check failed)", detail));
-      fail_cnt++;
-    end else begin
-      tb_pass_detail(name, detail);
-      pass_cnt++;
-    end
-    valid = 1'b0;
-    #1;
-  endtask
-
-  task automatic check_u_type(
-    input string       name,
-    input string       detail,
-    input logic        exp_reg_write,
-    input logic [4:0]  exp_rd,
+    input logic [31:0] exp_link,
     input logic [31:0] exp_wb
   );
-    string got;
+    bit pass;
     if (valid !== 1'b1) begin
-      tb_fail_detail(name, "valid=0 during check");
+      tb_fail_field_bit(name, detail, "valid", valid, 1'b1);
       fail_cnt++;
       return;
     end
-    if (brch_taken || jmp || mem_read || mem_write) begin
-      tb_fail_detail(name, $sformatf("%s (unexpected branch/jump/mem)", detail));
-      fail_cnt++;
-      return;
-    end
-    if (reg_write !== exp_reg_write || rd_out !== exp_rd || wb_data !== exp_wb) begin
-      got = $sformatf("%s, reg_write=%0d rd=x%0d wb=%h", detail, reg_write, rd_out, wb_data);
-      tb_fail_detail(name, got);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail(name, detail);
-      pass_cnt++;
-    end
+    pass = (brch_taken === exp_brch_taken && brch_target === exp_brch_target &&
+            jmp === exp_jmp && jmp_target === exp_jmp_target &&
+            mem_read === exp_mem_read && mem_write === exp_mem_write &&
+            mem_addr === exp_mem_addr && mem_wdata === exp_mem_wdata &&
+            mem_besel === exp_mem_besel &&
+            reg_write === exp_reg_write && rd_out === exp_rd &&
+            link_data === exp_link && wb_data === exp_wb);
+    tb_report_open(pass, name, detail);
+    tb_field_bit("brch_taken", brch_taken, exp_brch_taken);
+    tb_field_u32("brch_target", brch_target, exp_brch_target);
+    tb_field_bit("jmp", jmp, exp_jmp);
+    tb_field_u32("jmp_target", jmp_target, exp_jmp_target);
+    tb_field_bit("mem_read", mem_read, exp_mem_read);
+    tb_field_bit("mem_write", mem_write, exp_mem_write);
+    tb_field_u32("mem_addr", mem_addr, exp_mem_addr);
+    tb_field_u32("mem_wdata", mem_wdata, exp_mem_wdata);
+    tb_field_be("mem_besel", mem_besel, exp_mem_besel);
+    tb_field_bit("reg_write", reg_write, exp_reg_write);
+    tb_field_u5("rd_out", rd_out, exp_rd);
+    tb_field_u32("link_data", link_data, exp_link);
+    tb_field_u32("wb_data", wb_data, exp_wb);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
   endtask
 
-  task automatic idle_cycle;
+  task automatic run_idle;
     valid = 1'b0;
     #1;
+  endtask
+
+  task automatic check_expect_quiet(input string name, input string detail);
+    bit pass;
+    pass = !(brch_taken || jmp || mem_read || mem_write || reg_write);
+    tb_report_open(pass, name, detail);
+    tb_field_bit("brch_taken", brch_taken, 1'b0);
+    tb_field_bit("jmp", jmp, 1'b0);
+    tb_field_bit("mem_read", mem_read, 1'b0);
+    tb_field_bit("mem_write", mem_write, 1'b0);
+    tb_field_bit("reg_write", reg_write, 1'b0);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
   endtask
 
   initial begin
-    string detail;
-    valid = 0;
-    pc    = 32'h0000_1000;
     pass_cnt = 0;
     fail_cnt = 0;
+    pc       = 32'h0000_1000;
 
-    tb_banner("odd_lane_tb - LW/SW, signed branch, jump");
-    tb_info_msg("PASS line format: <test> | <op>, operands, behavior/result");
+    tb_banner("odd_lane_tb - LW/SW, branch, jump, U-type");
+    tb_info_msg("Golden values explicit per test (run_insn + check_expect)");
 
-    // --- branches ---
-    valid    = 1'b1;
-    opcode   = OPC_BRANCH;
-    funct3   = F3_BEQ;
-    rd       = 5'd0;
-    rs1_data = 32'd10;
-    rs2_data = 32'd10;
-    imm      = 32'd8;
-    #1;
-    detail = $sformatf("BEQ, rs1=%0d, rs2=%0d, pc=%h, imm=%0d -> taken, target=%h",
-      rs1_data, rs2_data, pc, imm, pc + imm);
-    check_branch("beq_taken", detail, 1'b1, pc + 32'd8);
-    idle_cycle();
+    // --- Branches ---
+    run_insn(1'b1, OPC_BRANCH, F3_BEQ, 5'd0, 32'd10, 32'd10, 32'd8, pc);
+    check_expect("beq_taken", "BEQ x10==x10, imm=8 -> taken",
+      1'b1, pc + 32'd8, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_BRANCH;
-    funct3   = F3_BEQ;
-    rs1_data = 32'd1;
-    rs2_data = 32'd2;
-    imm      = 32'd16;
-    #1;
-    detail = $sformatf("BEQ, rs1=%0d, rs2=%0d -> not taken", rs1_data, rs2_data);
-    check_branch("beq_nt", detail, 1'b0, pc + 32'd16);
-    idle_cycle();
+    run_insn(1'b1, OPC_BRANCH, F3_BEQ, 5'd0, 32'd1, 32'd2, 32'd16, pc);
+    check_expect("beq_nt", "BEQ x1!=x2 -> not taken",
+      1'b0, pc + 32'd16, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_BRANCH;
-    funct3   = F3_BNE;
-    rs1_data = 32'd3;
-    rs2_data = 32'd4;
-    imm      = 32'd20;
-    #1;
-    detail = $sformatf("BNE, rs1=%0d, rs2=%0d -> taken, target=%h", rs1_data, rs2_data, pc + imm);
-    check_branch("bne_taken", detail, 1'b1, pc + 32'd20);
-    idle_cycle();
+    run_insn(1'b1, OPC_BRANCH, F3_BNE, 5'd0, 32'd3, 32'd4, 32'd20, pc);
+    check_expect("bne_taken", "BNE x3!=x4 -> taken",
+      1'b1, pc + 32'd20, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_BRANCH;
-    funct3   = F3_BLT;
-    rs1_data = 32'hFFFF_FFFF;
-    rs2_data = 32'd1;
-    imm      = 32'd4;
-    #1;
-    detail = $sformatf("BLT, rs1=%h (signed -1), rs2=%0d -> taken", rs1_data, rs2_data);
-    check_branch("blt_taken", detail, 1'b1, pc + 32'd4);
-    idle_cycle();
+    run_insn(1'b1, OPC_BRANCH, F3_BLT, 5'd0, 32'hFFFF_FFFF, 32'd1, 32'd4, pc);
+    check_expect("blt_taken", "BLT signed(-1)<1 -> taken",
+      1'b1, pc + 32'd4, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_BRANCH;
-    funct3   = F3_BGE;
-    rs1_data = 32'd1;
-    rs2_data = 32'hFFFF_FFFF;
-    imm      = 32'd8;
-    #1;
-    detail = $sformatf("BGE, rs1=%0d, rs2=%h (signed -1) -> taken", rs1_data, rs2_data);
-    check_branch("bge_taken", detail, 1'b1, pc + 32'd8);
-    idle_cycle();
+    run_insn(1'b1, OPC_BRANCH, F3_BGE, 5'd0, 32'd1, 32'hFFFF_FFFF, 32'd8, pc);
+    check_expect("bge_taken", "BGE signed(1)>=(-1) -> taken",
+      1'b1, pc + 32'd8, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_BRANCH;
-    funct3   = F3_BGE;
-    rs1_data = 32'd1;
-    rs2_data = 32'd5;
-    imm      = 32'd12;
-    #1;
-    detail = $sformatf("BGE, rs1=%0d, rs2=%0d -> not taken", rs1_data, rs2_data);
-    check_branch("bge_nt", detail, 1'b0, pc + 32'd12);
-    idle_cycle();
+    run_insn(1'b1, OPC_BRANCH, F3_BGE, 5'd0, 32'd1, 32'd5, 32'd12, pc);
+    check_expect("bge_nt", "BGE 1>=5 -> not taken",
+      1'b0, pc + 32'd12, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    // --- loads (LW only) ---
-    check_lw("lw", "LW", 5'd5, 32'h0000_2000, 32'd4);
+    // --- Load ---
+    run_insn(1'b1, OPC_LOAD, F3_LW, 5'd5, 32'h0000_2000, 32'd0, 32'd4, pc);
+    check_expect("lw", "LW x5, 4(x2000)",
+      1'b0, brch_target, 1'b0, jmp_target,
+      1'b1, 1'b0, 32'h0000_2004, mem_wdata, 4'b1111,
+      1'b1, 5'd5, pc + 32'd4, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_LOAD;
-    funct3   = F3_LW;
-    rd       = 5'd0;
-    rs1_data = 32'h0000_5000;
-    imm      = 32'd0;
-    #1;
-    detail = "LW, rd=x0 -> reg_write=0";
-    if (reg_write !== 1'b0) begin
-      tb_fail_detail("lw_x0", detail);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail("lw_x0", detail);
-      pass_cnt++;
-    end
-    idle_cycle();
+    run_insn(1'b1, OPC_LOAD, F3_LW, 5'd0, 32'h0000_5000, 32'd0, 32'd0, pc);
+    check_expect("lw_x0", "LW x0 -> reg_write=0",
+      1'b0, brch_target, 1'b0, jmp_target,
+      1'b1, 1'b0, 32'h0000_5000, mem_wdata, 4'b1111,
+      1'b0, 5'd0, pc + 32'd4, wb_data);
+    run_idle();
 
-    // --- stores (SW only) ---
-    valid    = 1'b1;
-    opcode   = OPC_STORE;
-    funct3   = F3_SW;
-    rd       = 5'd0;
-    rs1_data = 32'h0000_6000;
-    rs2_data = 32'hDEAD_BEEF;
-    imm      = 32'd0;
-    #1;
-    detail = $sformatf("SW, rs1=%h, imm=%0d, wdata=%h, addr=%h, be=1111",
-      rs1_data, imm, rs2_data, rs1_data + imm);
-    check_mem("sw", detail, 1'b0, 1'b1, 32'h0000_6000, 32'hDEAD_BEEF, 4'b1111);
-    idle_cycle();
+    // --- Store ---
+    run_insn(1'b1, OPC_STORE, F3_SW, 5'd0, 32'h0000_6000, 32'hDEAD_BEEF, 32'd0, pc);
+    check_expect("sw", "SW xDEAD_BEEF, 0(x6000)",
+      1'b0, brch_target, 1'b0, jmp_target,
+      1'b0, 1'b1, 32'h0000_6000, 32'hDEAD_BEEF, 4'b1111,
+      1'b0, 5'd0, link_data, wb_data);
+    run_idle();
 
-    // --- jumps ---
-    valid    = 1'b1;
-    opcode   = OPC_JAL;
-    funct3   = 3'b000;
-    rd       = 5'd1;
-    rs1_data = 32'h0;
-    rs2_data = 32'h0;
-    imm      = 32'h100;
-    #1;
-    detail = $sformatf("JAL, pc=%h, imm=%h -> target=%h, link=%h (rd=x%0d)",
-      pc, imm, pc + imm, pc + 32'd4, rd);
-    check_jmp("jal", detail, 1'b1, pc + 32'h100, 1'b1, 5'd1, pc + 32'd4);
-    idle_cycle();
+    // --- Jumps ---
+    run_insn(1'b1, OPC_JAL, 3'b000, 5'd1, 32'd0, 32'd0, 32'h100, pc);
+    check_expect("jal", "JAL x1, +0x100",
+      1'b0, brch_target, 1'b1, pc + 32'h100,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b1, 5'd1, pc + 32'd4, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_JALR;
-    funct3   = 3'b000;
-    rd       = 5'd2;
-    rs1_data = 32'h8000_0001;
-    imm      = 32'h10;
-    #1;
-    detail = $sformatf("JALR, rs1=%h, imm=%h -> target=%h (LSB clear), link=%h",
-      rs1_data, imm, 32'h8000_0010, pc + 32'd4);
-    check_jmp("jalr", detail, 1'b1, 32'h8000_0010, 1'b1, 5'd2, pc + 32'd4);
-    idle_cycle();
+    run_insn(1'b1, OPC_JALR, 3'b000, 5'd2, 32'h8000_0001, 32'd0, 32'h10, pc);
+    check_expect("jalr", "JALR x2, 0x10(x1) LSB clear",
+      1'b0, brch_target, 1'b1, 32'h8000_0010,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b1, 5'd2, pc + 32'd4, wb_data);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_JALR;
-    funct3   = 3'b000;
-    rd       = 5'd0;
-    rs1_data = 32'h8000_0000;
-    imm      = 32'd4;
-    #1;
-    detail = $sformatf("JALR, rs1=%h, imm=%0d, rd=x0 -> reg_write=0", rs1_data, imm);
-    check_jmp("jalr_x0", detail, 1'b1, 32'h8000_0004, 1'b0, 5'd0, pc + 32'd4);
-    idle_cycle();
+    run_insn(1'b1, OPC_JALR, 3'b000, 5'd0, 32'h8000_0000, 32'd0, 32'd4, pc);
+    check_expect("jalr_x0", "JALR x0 -> no reg_write",
+      1'b0, brch_target, 1'b1, 32'h8000_0004,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, pc + 32'd4, wb_data);
+    run_idle();
 
-    // --- U-type (LUI / AUIPC) ---
-    valid    = 1'b1;
-    opcode   = OPC_LUI;
-    funct3   = 3'b0;
-    rd       = 5'd5;
-    imm      = 32'h0004_5000;
-    #1;
-    detail = $sformatf("LUI, imm=%h -> wb=%h (rd=x%0d)", imm, imm, rd);
-    check_u_type("lui", detail, 1'b1, 5'd5, 32'h0004_5000);
-    idle_cycle();
+    // --- U-type ---
+    run_insn(1'b1, OPC_LUI, 3'b0, 5'd5, 32'd0, 32'd0, 32'h0004_5000, pc);
+    check_expect("lui", "LUI x5, 0x45000",
+      1'b0, brch_target, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b1, 5'd5, link_data, 32'h0004_5000);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_AUIPC;
-    rd       = 5'd6;
-    imm      = 32'h0000_1000;
-    #1;
-    detail = $sformatf("AUIPC, pc=%h, imm=%h -> wb=%h", pc, imm, pc + imm);
-    check_u_type("auipc", detail, 1'b1, 5'd6, pc + 32'h0000_1000);
-    idle_cycle();
+    run_insn(1'b1, OPC_AUIPC, 3'b0, 5'd6, 32'd0, 32'd0, 32'h0000_1000, pc);
+    check_expect("auipc", "AUIPC x6, +0x1000",
+      1'b0, brch_target, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b1, 5'd6, link_data, pc + 32'h0000_1000);
+    run_idle();
 
-    valid    = 1'b1;
-    opcode   = OPC_LUI;
-    rd       = 5'd0;
-    imm      = 32'h0000_1000;
-    #1;
-    detail = "LUI, rd=x0 -> reg_write=0";
-    check_u_type("lui_x0", detail, 1'b0, 5'd0, 32'h0000_1000);
-    idle_cycle();
+    run_insn(1'b1, OPC_LUI, 3'b0, 5'd0, 32'd0, 32'd0, 32'h0000_1000, pc);
+    check_expect("lui_x0", "LUI x0 -> reg_write=0",
+      1'b0, brch_target, 1'b0, jmp_target,
+      1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
+      1'b0, 5'd0, link_data, 32'h0000_1000);
+    run_idle();
 
-    // --- invalid / idle ---
-    valid    = 1'b1;
-    opcode   = OPC_OP;
-    funct3   = F3_ADD_SUB;
-    rd       = 5'd3;
-    rs1_data = 32'd1;
-    rs2_data = 32'd2;
-    imm      = 32'd0;
-    #1;
-    detail = "OP (ALU) on odd lane -> no mem/branch/jump/reg_write/wb";
-    if (mem_read || mem_write || brch_taken || jmp || reg_write) begin
-      tb_fail_detail("alu_reject", detail);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail("alu_reject", detail);
-      pass_cnt++;
-    end
-    idle_cycle();
+    // --- Wrong lane (even-lane opcode): no branch/jump/mem/reg_write; rd_out still passthrough rd
+    run_insn(1'b1, OPC_OP, F3_ADD_SUB, 5'd3, 32'd1, 32'd2, 32'd0, pc);
+    check_expect("alu_reject", "OP on odd lane -> no activity",
+      1'b0, pc + 32'd0, 1'b0, pc + 32'd0,
+      1'b0, 1'b0, 32'd1, 32'd2, 4'b0000,
+      1'b0, 5'd3, pc + 32'd4, 32'd0);
+    run_idle();
 
-    valid = 1'b0;
-    opcode = OPC_BRANCH;
-    #1;
-    detail = "valid=0 -> no branch/mem/jump";
-    if (brch_taken || jmp || mem_read || mem_write) begin
-      tb_fail_detail("idle", detail);
-      fail_cnt++;
-    end else begin
-      tb_pass_detail("idle", detail);
-      pass_cnt++;
-    end
+    run_idle();
+    check_expect_quiet("idle", "valid=0 -> no branch/mem/jump/reg_write");
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

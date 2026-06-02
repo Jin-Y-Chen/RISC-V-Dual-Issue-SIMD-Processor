@@ -1,22 +1,25 @@
 // Shared testbench logging (required in all sim/tb/<unit>/*_tb.sv).
 //
-// Vivado: add include path sim/tb, then inside each testbench module:
-//   `include "common/tb_console.svh"
+// From sim/tb/<unit>/*_tb.sv:
+//   `include "../common/tb_console.svh"
+// Optional Vivado include path: <repo>/sim/tb (then `include "common/tb_console.svh")
 //
-// Tcl Console does not show ANSI colors; use GUI Messages for Error/Warning icons.
+// Multi-line result format (tb_report_open + tb_field_* + tb_report_close):
+//   [PASS] beq_taken | BEQ x1,x2,+8
 //
-// Prefer tb_pass_detail / tb_fail_detail for lines with operation + operands.
+//     brch_taken      =                  0 (exp: 0)
+//     brch_target     =       0x00001008 (exp: 0x00001008)
+//   ---------------------------------------
+//
+// Labels use full DUT / pipeline signal names.
 // End every TB with tb_summary(pass_cnt, fail_cnt) for copy_logs.ps1.
-//
-// New TBs: copy tb_template.sv from this folder.
 
 task automatic tb_pass_msg(input string msg);
   $display("[PASS] %s", msg);
 endtask
 
-// [PASS] <name> | <detail>  e.g. xor | XOR, rs1=..., rs2=..., result=...
 task automatic tb_pass_detail(input string name, input string detail);
-  $display("[PASS] %-10s | %s", name, detail);
+  $display("[PASS] %s | %s", name, detail);
 endtask
 
 task automatic tb_warn_msg(input string msg);
@@ -28,12 +31,6 @@ endtask
 task automatic tb_fail_msg(input string msg);
   $error("========================================");
   $error("[FAIL] %s", msg);
-  $error("========================================");
-endtask
-
-task automatic tb_fail_detail(input string name, input string detail);
-  $error("========================================");
-  $error("[FAIL] %-10s | %s", name, detail);
   $error("========================================");
 endtask
 
@@ -52,4 +49,84 @@ task automatic tb_summary(input int passed, input int failed);
     $display("*** SUMMARY: %0d passed, 0 failed - OK ***", passed);
   else
     $error("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
+endtask
+
+// --- Multi-line PASS/FAIL report (use inside check_expect) ---
+
+task automatic tb_case_sep();
+  $display("---------------------------------------");
+endtask
+
+localparam int TB_FIELD_VAL_W = 18;
+
+task automatic tb_field_line(input string label, input string got_s, input string exp_s);
+  string fmt;
+  fmt = $sformatf("  %%-16s = %%%0ds (exp: %%s)", TB_FIELD_VAL_W);
+  $display(fmt, label, got_s, exp_s);
+endtask
+
+task automatic tb_field_bit(input string label, input logic got, input logic exp);
+  tb_field_line(label, $sformatf("%0d", got), $sformatf("%0d", exp));
+endtask
+
+task automatic tb_field_u5(input string label, input logic [4:0] got, input logic [4:0] exp);
+  tb_field_line(label, $sformatf("%0d", got), $sformatf("%0d", exp));
+endtask
+
+task automatic tb_field_u32(input string label, input logic [31:0] got, input logic [31:0] exp);
+  tb_field_line(label, $sformatf("0x%08h", got), $sformatf("0x%08h", exp));
+endtask
+
+task automatic tb_field_be(input string label, input logic [3:0] got, input logic [3:0] exp);
+  tb_field_line(label, $sformatf("%04b", got), $sformatf("%04b", exp));
+endtask
+
+task automatic tb_field_op7(input string label, input logic [6:0] got, input logic [6:0] exp);
+  tb_field_line(label, $sformatf("%07b", got), $sformatf("%07b", exp));
+endtask
+
+task automatic tb_field_f3(input string label, input logic [2:0] got, input logic [2:0] exp);
+  tb_field_line(label, $sformatf("%0d", got), $sformatf("%0d", exp));
+endtask
+
+task automatic tb_field_f7(input string label, input logic [6:0] got, input logic [6:0] exp);
+  tb_field_line(label, $sformatf("0x%02h", got), $sformatf("0x%02h", exp));
+endtask
+
+task automatic tb_field_lane(
+  input string label,
+  input lane_sel_e got,
+  input lane_sel_e exp
+);
+  tb_field_line(label, $sformatf("%0d", got), $sformatf("%0d", exp));
+endtask
+
+task automatic tb_report_open(input bit pass, input string name, input string detail);
+  if (pass)
+    $display("[PASS] %s | %s", name, detail);
+  else
+    $error("[FAIL] %s | %s", name, detail);
+  $display("");
+endtask
+
+task automatic tb_report_close(input bit pass);
+  tb_case_sep();
+endtask
+
+task automatic tb_fail_field_bit(
+  input string name,
+  input string detail,
+  input string label,
+  input logic  got,
+  input logic  exp
+);
+  tb_report_open(0, name, detail);
+  tb_field_bit(label, got, exp);
+  tb_report_close(0);
+endtask
+
+task automatic tb_fail_detail(input string name, input string detail);
+  tb_report_open(0, name, detail);
+  tb_field_line("note", detail, "-");
+  tb_report_close(0);
 endtask

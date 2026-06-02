@@ -1,1 +1,1 @@
-C:\Users\Jin\Documents\Github\RISC-V-Dual-Issue-SIMD-Processor\sim\logs\odd_lane_tb_20260531_163156
+C:\Users\Jin\Documents\Github\RISC-V-Dual-Issue-SIMD-Processor\sim\logs\decoder_tb_20260601_201603

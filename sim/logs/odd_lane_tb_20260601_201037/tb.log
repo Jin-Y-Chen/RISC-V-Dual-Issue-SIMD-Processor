@@ -1,0 +1,272 @@
+Time resolution is 1 ps
+========================================
+[INFO] odd_lane_tb - LW/SW, branch, jump, U-type
+========================================
+[INFO] Golden values explicit per test (run_insn + check_expect)
+[PASS] beq_taken | BEQ x10==x10, imm=8 -> taken
+
+        brch_taken =                  1 (exp: 1)
+       brch_target =         0x00001008 (exp: 0x00001008)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001008 (exp: 0x00001008)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000012 (exp: 0x00000012)
+         mem_wdata =         0x0000000a (exp: 0x0000000a)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000008 (exp: 0x00000008)
+---------------------------------------
+[PASS] beq_nt | BEQ x1!=x2 -> not taken
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001010 (exp: 0x00001010)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001010 (exp: 0x00001010)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000011 (exp: 0x00000011)
+         mem_wdata =         0x00000002 (exp: 0x00000002)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000010 (exp: 0x00000010)
+---------------------------------------
+[PASS] bne_taken | BNE x3!=x4 -> taken
+
+        brch_taken =                  1 (exp: 1)
+       brch_target =         0x00001014 (exp: 0x00001014)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001014 (exp: 0x00001014)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000017 (exp: 0x00000017)
+         mem_wdata =         0x00000004 (exp: 0x00000004)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000014 (exp: 0x00000014)
+---------------------------------------
+[PASS] blt_taken | BLT signed(-1)<1 -> taken
+
+        brch_taken =                  1 (exp: 1)
+       brch_target =         0x00001004 (exp: 0x00001004)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001004 (exp: 0x00001004)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000003 (exp: 0x00000003)
+         mem_wdata =         0x00000001 (exp: 0x00000001)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000004 (exp: 0x00000004)
+---------------------------------------
+[PASS] bge_taken | BGE signed(1)>=(-1) -> taken
+
+        brch_taken =                  1 (exp: 1)
+       brch_target =         0x00001008 (exp: 0x00001008)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001008 (exp: 0x00001008)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000009 (exp: 0x00000009)
+         mem_wdata =         0xffffffff (exp: 0xffffffff)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000008 (exp: 0x00000008)
+---------------------------------------
+[PASS] bge_nt | BGE 1>=5 -> not taken
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x0000100c (exp: 0x0000100c)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x0000100c (exp: 0x0000100c)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x0000000d (exp: 0x0000000d)
+         mem_wdata =         0x00000005 (exp: 0x00000005)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x0000000c (exp: 0x0000000c)
+---------------------------------------
+[PASS] lw | LW x5, 4(x2000)
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001004 (exp: 0x00001004)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001004 (exp: 0x00001004)
+          mem_read =                  1 (exp: 1)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00002004 (exp: 0x00002004)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               1111 (exp: 1111)
+         reg_write =                  1 (exp: 1)
+            rd_out =                  5 (exp: 5)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000004 (exp: 0x00000004)
+---------------------------------------
+[PASS] lw_x0 | LW x0 -> reg_write=0
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001000 (exp: 0x00001000)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001000 (exp: 0x00001000)
+          mem_read =                  1 (exp: 1)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00005000 (exp: 0x00005000)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               1111 (exp: 1111)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] sw | SW xDEAD_BEEF, 0(x6000)
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001000 (exp: 0x00001000)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001000 (exp: 0x00001000)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  1 (exp: 1)
+          mem_addr =         0x00006000 (exp: 0x00006000)
+         mem_wdata =         0xdeadbeef (exp: 0xdeadbeef)
+         mem_besel =               1111 (exp: 1111)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] jal | JAL x1, +0x100
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001100 (exp: 0x00001100)
+               jmp =                  1 (exp: 1)
+        jmp_target =         0x00001100 (exp: 0x00001100)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000100 (exp: 0x00000100)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  1 (exp: 1)
+            rd_out =                  1 (exp: 1)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000100 (exp: 0x00000100)
+---------------------------------------
+[PASS] jalr | JALR x2, 0x10(x1) LSB clear
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001010 (exp: 0x00001010)
+               jmp =                  1 (exp: 1)
+        jmp_target =         0x80000010 (exp: 0x80000010)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x80000011 (exp: 0x80000011)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  1 (exp: 1)
+            rd_out =                  2 (exp: 2)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000010 (exp: 0x00000010)
+---------------------------------------
+[PASS] jalr_x0 | JALR x0 -> no reg_write
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001004 (exp: 0x00001004)
+               jmp =                  1 (exp: 1)
+        jmp_target =         0x80000004 (exp: 0x80000004)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x80000004 (exp: 0x80000004)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000004 (exp: 0x00000004)
+---------------------------------------
+[PASS] lui | LUI x5, 0x45000
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00046000 (exp: 0x00046000)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00046000 (exp: 0x00046000)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00045000 (exp: 0x00045000)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  1 (exp: 1)
+            rd_out =                  5 (exp: 5)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00045000 (exp: 0x00045000)
+---------------------------------------
+[PASS] auipc | AUIPC x6, +0x1000
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00002000 (exp: 0x00002000)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00002000 (exp: 0x00002000)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00001000 (exp: 0x00001000)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  1 (exp: 1)
+            rd_out =                  6 (exp: 6)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00002000 (exp: 0x00002000)
+---------------------------------------
+[PASS] lui_x0 | LUI x0 -> reg_write=0
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00002000 (exp: 0x00002000)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00002000 (exp: 0x00002000)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00001000 (exp: 0x00001000)
+         mem_wdata =         0x00000000 (exp: 0x00000000)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  0 (exp: 0)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00001000 (exp: 0x00001000)
+---------------------------------------
+[PASS] alu_reject | OP on odd lane -> no activity
+
+        brch_taken =                  0 (exp: 0)
+       brch_target =         0x00001000 (exp: 0x00001000)
+               jmp =                  0 (exp: 0)
+        jmp_target =         0x00001000 (exp: 0x00001000)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+          mem_addr =         0x00000001 (exp: 0x00000001)
+         mem_wdata =         0x00000002 (exp: 0x00000002)
+         mem_besel =               0000 (exp: 0000)
+         reg_write =                  0 (exp: 0)
+            rd_out =                  3 (exp: 3)
+         link_data =         0x00001004 (exp: 0x00001004)
+           wb_data =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] idle | valid=0 -> no branch/mem/jump/reg_write
+
+        brch_taken =                  0 (exp: 0)
+               jmp =                  0 (exp: 0)
+          mem_read =                  0 (exp: 0)
+         mem_write =                  0 (exp: 0)
+         reg_write =                  0 (exp: 0)
+---------------------------------------
+
+*** SUMMARY: 17 passed, 0 failed - OK ***
+$finish called at time : 33 ns : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/s3_execute/odd_lane_tb.sv" Line 258

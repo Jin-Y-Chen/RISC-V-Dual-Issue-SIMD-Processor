@@ -4,48 +4,49 @@
 
 ```
 sim/tb/
-├── README.md
 ├── common/
-│   ├── tb_console.svh   shared PASS/FAIL logging (required)
-│   └── tb_template.sv   copy when adding a new TB
+│   ├── tb_console.svh
+│   └── tb_template.sv
 ├── s2_decode/
-│   └── decoder_tb.sv
-├── even_lane/
-│   └── even_lane_tb.sv
-├── odd_lane/
+│   ├── decoder_tb.sv
+│   └── register_file_tb.sv
+├── s3_execute/
+│   ├── even_lane_tb.sv
 │   └── odd_lane_tb.sv
 └── sx_registers/
     └── ex_mem_tb.sv
 ```
 
-Folders mirror RTL: `rtl/s2_decode`, `rtl/s3_execution/*`, `rtl/sx_registers`.
+## Includes
 
-## Vivado setup
-
-1. **Include path:** `sim/tb` (resolves `` `include "common/tb_console.svh" ``).
-2. **Simulation top:** module name (e.g. `decoder_tb`, `even_lane_tb`).
-3. In each `*_tb.sv` (after `import rv_dis_pkg::*` if used):
+Each testbench (in a subfolder) uses a **relative** path:
 
 ```systemverilog
-`include "common/tb_console.svh"
+`include "../common/tb_console.svh"
 ```
 
-## Logging tasks
+This works in Vivado without adding `sim/tb` to include paths.
 
-| Task | Use |
-|------|-----|
-| `tb_pass_detail(name, detail)` | Pass with op/operands/result |
-| `tb_fail_detail(name, detail)` | Fail with context |
-| `tb_banner(msg)` | Test start |
-| `tb_summary(pass_cnt, fail_cnt)` | Final count + `*** SUMMARY: ... ***` |
+Optional: add include path `<repo>/sim/tb` and use `` `include "common/tb_console.svh" ``.
 
-Copy `common/tb_template.sv` to `sim/tb/<unit>/<module>_tb.sv` for new tests.
+## Stimulus pattern
 
-## Testbenches
+All four unit TBs (`decoder_tb`, `even_lane_tb`, `odd_lane_tb`, `ex_mem_tb`) use the same multi-line log format from `common/tb_console.svh`:
 
-| Top | Path | RTL sources |
-|-----|------|-------------|
-| `decoder_tb` | `s2_decode/decoder_tb.sv` | `rv_dis_pkg.sv`, `rv_dis_decode_pkg.sv`, `decoder.sv` |
-| `even_lane_tb` | `even_lane/even_lane_tb.sv` | `rv_dis_pkg.sv`, `rv_dis_decode_pkg.sv`, `scalar_alu.sv`, `even_lane.sv` |
-| `odd_lane_tb` | `odd_lane/odd_lane_tb.sv` | `rv_dis_pkg.sv`, `branch_unit.sv`, `memory_access.sv`, `odd_lane.sv` |
-| `ex_mem_tb` | `sx_registers/ex_mem_tb.sv` | `rv_dis_pkg.sv`, `ex_mem_even.sv`, `ex_mem_odd.sv` |
+1. **`run_insn`** — drive DUT inputs, advance time (`#1` combinational or `tick()` clocked).
+2. **`check_expect`** — `tb_report_open` → `tb_field_*` per signal → `tb_report_close` (`signal = value (exp: …)`, aligned `(exp:)`, dashed separator).
+3. **`run_idle`** — deassert `valid` (combinational TBs).
+
+`ex_mem_tb` uses `run_insn_even` / `run_insn_odd` and `check_expect_even` / `check_expect_odd` (two DUTs, clocked).
+
+## Vivado
+
+See [../vivado/README.md](../vivado/README.md) and file lists in [../filelists/](../filelists/).
+
+| Top | TB path | File list |
+|-----|---------|-----------|
+| `decoder_tb` | `s2_decode/decoder_tb.sv` | `sim/filelists/decoder_tb.f` |
+| `register_file_tb` | `s2_decode/register_file_tb.sv` | `sim/filelists/register_file_tb.f` |
+| `even_lane_tb` | `s3_execute/even_lane_tb.sv` | `sim/filelists/even_lane_tb.f` |
+| `odd_lane_tb` | `s3_execute/odd_lane_tb.sv` | `sim/filelists/odd_lane_tb.f` |
+| `ex_mem_tb` | `sx_registers/ex_mem_tb.sv` | `sim/filelists/ex_mem_tb.f` |

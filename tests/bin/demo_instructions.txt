@@ -1,0 +1,20 @@
+# RV-DIS listing — assembled from demo_instructions.asm
+# Format: byte_address : machine_hex  mnemonic  [even|odd lane]
+# RV-DIS subset: LW/SW only; branches BEQ BNE BLT BGE; no LB/SB/SH
+#
+0x00001000 : 0x00000537  lui   x10, 0x00001                [odd]
+0x00001004 : 0x00A00293  addi  x5,  x0,  10                [even]
+0x00001008 : 0x01400313  addi  x6,  x0,  20                [even]
+0x0000100C : 0x006283B3  add   x7,  x5,  x6                [even]
+0x00001010 : 0x00752023  sw    x7,  0(x10)                 [odd]
+0x00001014 : 0x00100293  addi  x5,  x0,  1                 [even]
+0x00001018 : 0x00052403  lw    x8,  0(x10)                 [odd]
+0x0000101C : 0xFFF28293  addi  x5,  x5,  -1                [even]
+0x00001020 : 0xFE029EE3  bne   x5,  x0,  loop              [odd]
+0x00001024 : 0x00C000EF  jal   x1,  helper                 [odd]
+0x00001028 : 0x06300493  addi  x9,  x0,  99                [even]
+0x0000102C : 0x00000063  beq   x0,  x0,  done              [odd]
+0x00001030 : 0x02A00113  addi  x2,  x0,  42                [even]
+0x00001034 : 0x00008067  jalr  x0,  0(x1)                  [odd]
+#
+# Total: 14 instructions (56 bytes)

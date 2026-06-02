@@ -1,4 +1,4 @@
-# Copy Vivado simulate.log -> sim/logs/latest/tb.log + summary.txt
+# Copy Vivado simulate.log -> sim/logs/_latest/tb.log + summary.txt
 #
 #   .\sim\scripts\copy_logs.ps1
 
@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $LogsRoot = Join-Path $RepoRoot "sim\logs"
-$LatestDir = Join-Path $LogsRoot "latest"
+$LatestDir = Join-Path $LogsRoot "_latest"
 
 New-Item -ItemType Directory -Force -Path $LatestDir | Out-Null
 

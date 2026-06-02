@@ -3,7 +3,7 @@
 Place synthesizable VHDL here. Stage folders match the 5-stage pipeline; `even_lane` / `odd_lane` implement spec §5–10.
 
 **Common:** `common/rv_dis_pkg.sv` — RV32I widths, opcodes, types (SIMD defs commented out)  
-**Decode (active):** `s2_decode/rv_dis_decode_pkg.sv`, `s2_decode/decoder.sv` — scalar imm/fields/`lane_sel`  
+**Decode (active):** `s2_decode/decode_pkg.sv`, `s2_decode/decoder.sv`, `s2_decode/register_file.sv` — scalar imm/fields/`lane_sel`, dual-issue GPR  
 **Even lane (active):** `scalar_alu.sv`  
 **Odd lane (active):** `branch_unit.sv`, `memory_access.sv`  
 **Deferred:** 128-bit SIMD (vector ALU/LSU/VR — not in current build)

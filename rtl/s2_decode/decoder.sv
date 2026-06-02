@@ -4,7 +4,7 @@
 // One instance per insn slot (I0 / I1); issue/dispatch sits downstream.
 module decoder
   import rv_dis_pkg::*;
-  import rv_dis_decode_pkg::*;
+  import decode_pkg::*;
 (
   input  logic        valid_in,
   input  logic [31:0] instr,
@@ -27,21 +27,26 @@ module decoder
 
   logic legal;
 
-  assign opcode  = decode_opcode(instr);
-  assign funct3  = decode_funct3(instr);
-  assign funct7  = decode_funct7(instr);
-  assign rd      = decode_rd(instr);
-  assign rs1     = decode_rs1(instr);
-  assign rs2     = decode_rs2(instr);
-  assign imm     = decode_imm(opcode, funct3, instr);
+  logic [6:0] opcode_raw;
+  logic [2:0] funct3_raw;
+
+  assign opcode_raw = decode_opcode(instr);
+  assign funct3_raw = decode_funct3(instr);
+  assign opcode     = opcode_raw;
+  assign funct3     = decode_funct3_gpr(opcode_raw, instr);
+  assign funct7     = decode_funct7_gpr(opcode_raw, funct3_raw, instr);
+  assign rd         = decode_rd_gpr(opcode_raw, instr);
+  assign rs1        = decode_rs1_gpr(opcode_raw, instr);
+  assign rs2        = decode_rs2_gpr(opcode_raw, instr);
+  assign imm        = decode_imm(opcode_raw, funct3_raw, instr);
   assign pc_out  = pc;
 
-  assign lane_sel   = decode_lane_sel(opcode);
-  assign legal      = insn_legal_scalar(opcode, funct3) && (lane_sel != LANE_NONE);
+  assign lane_sel   = decode_lane_sel(opcode_raw);
+  assign legal      = insn_legal_scalar(opcode_raw, funct3_raw) && (lane_sel != LANE_NONE);
   assign valid_out = valid_in && legal;
 
-  assign rs1_use    = decode_rs1_use(opcode);
-  assign rs2_use    = decode_rs2_use(opcode);
-  assign reg_write  = decode_reg_write(opcode, funct3, rd);
+  assign rs1_use    = decode_rs1_use(opcode_raw);
+  assign rs2_use    = decode_rs2_use(opcode_raw);
+  assign reg_write  = decode_reg_write(opcode_raw, funct3_raw, rd);
 
 endmodule

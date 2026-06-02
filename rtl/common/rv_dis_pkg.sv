@@ -3,29 +3,40 @@
 // Shared constants and types for RV-DIS (RV32I scalar only; SIMD commented out).
 package rv_dis_pkg;
 
-  // Datapath / register widths:
-  //   ILEN — 32-bit instruction word (RV32I)
-  //   XLEN — scalar GPR width (x0–x31)
-  localparam int ILEN    = 32;
+  // Instruction length = 32 bits
+  localparam int ILEN = 32;
+  // Instruction size = 8 * 2^15 = 32KB
+  localparam int I_SIZE = 8*2**15; 
+  // number addressable 8-bit instruction chunks
+  localparam int NUM_IADDR = I_SIZE/8; 
 
-  //register size = XLEN * NUM_GPR = 32 * 32 = 1024 bits = 128 bytes
-  localparam int XLEN    = 32; // Register width = 32 bits
-  localparam int NUM_GPR = 32; // Number registers = 32 (x0-x31)
+  // Scalar GPR / datapath width (RV32I) — register length in bits
+  localparam int RLEN = 32;
+  localparam int NUM_GPR = 32;   // x0–x31
+  localparam int NUM_RADDR = NUM_GPR; 
+  // Register size = 32 * 32 = 1024 bits = 128 bytes
+  localparam int R_SIZE = NUM_RADDR*RLEN; 
 
-  // --- SIMD (disabled) ---
-  // localparam int VLEN      = 128;
-  // localparam int NUM_VREG  = 8;
-  // localparam int VLEN_BYTES = VLEN / 8;
-  // localparam int VADDR_ALIGN = VLEN_BYTES;
+  // Cache length = 32 bits
+  localparam int MLEN = 32; 
+  // memory size = 8 * 2^15 = 32KB
+  localparam int M_SIZE = 8*2**15; 
+  // number of 32-bit memory chunks
+  localparam int NUM_MADDR = M_SIZE/32; 
 
-  // Memory addressing (RV32I-compatible, RV-DIS scalar path):
-  //   ADDR_UNIT_BITS = 8 — each address increment is one byte (standard RISC-V).
-  //   Immediates are byte offsets (rs1 + imm, pc + imm), not 16-bit-word addresses.
-  //   (RVC uses 16-bit *instructions* at 2-byte PC alignment; this core uses ILEN=32 @ PC%4.)
+  // number of caches
+  localparam int NUM_CACHES = 2; 
+  // each cache size = 8 * 2^16 = 64KB
+  localparam int C_SIZE = 8*2**16; 
+  // total cache size = 2 * 64KB = 128KB
+  localparam int TOTAL_C_SIZE = NUM_CACHES*C_SIZE; 
+
+  // Memory addressing: one address = one byte (RV32I)
   localparam int ADDR_UNIT_BITS = 8;
 
   typedef logic [ILEN-1:0] instr_t;
-  typedef logic [XLEN-1:0] xlen_t;
+  typedef logic [RLEN-1:0] reg_t;
+
   // typedef logic [VLEN-1:0] vreg_t;
 
   // RV32I major opcodes
@@ -109,6 +120,6 @@ package rv_dis_pkg;
   } lane_sel_e;
 
   // No functions in this package — types/constants only.
-  // Scalar decode: rtl/s2_decode/rv_dis_decode_pkg.sv
+  // Scalar decode: rtl/s2_decode/decode_pkg.sv
 
 endpackage
