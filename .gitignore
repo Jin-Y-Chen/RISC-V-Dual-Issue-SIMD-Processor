@@ -1,0 +1,25 @@
+# Vivado / simulator generated
+*.jou
+*.log
+*.pb
+*.wdb
+*.str
+Xilinx/
+.xsim/
+
+# Local sim log archives (keep scripts/config tracked)
+sim/logs/register_file_tb_*/
+sim/logs/decoder_tb_*/
+sim/logs/dispatch_hazard_tb_*/
+sim/logs/even_lane_tb_*/
+sim/logs/odd_lane_tb_*/
+sim/logs/ex_mem_tb_*/
+sim/logs/_latest/tb.log
+sim/logs/_latest/summary.txt
+sim/logs/_latest_run.txt
+
+# Editor / OS
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini

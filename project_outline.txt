@@ -5,6 +5,11 @@ Project: RV-DIS — RISC-V Dual-Issue SIMD Processor
 
 Tool: Vivado simulatiion & Vscode Editor
 
+6-4-2026 update:
+    - Scalar GPR RTL + register_file_tb (chained WB/ID checks)
+    - dispatch_hazard_tb golden model; pipeline regs under s1_fetch … s5_wback
+    - See "Pipeline RTL map" and "Verification" sections below
+
 RISC-V 32-bit instructions formate
 
 RV32I Instruction Set Architecture Deisgned:
@@ -120,8 +125,13 @@ Registers File - 32 addressible register:
         - Odd lane writes rd from load data, JAL/JALR link, or LUI/AUIPC
 
         b) Unified 32×32 GPR; merge rules
-        - Same rd from both lanes on one WB: younger insn wins (compare latched PC)
+        - Same rd from both lanes on one WB: younger insn wins (compare latched PC / wpc)
         - RAW between I0/I1 handled in dispatch (see ID stage); EX/MEM forwarding between lanes
+
+        c) RTL implementation — rtl/s2_decode/register_file.sv
+        - even_rs1/rs2, odd_rs1/rs2 read; even/odd wen, rd, wdata, wpc write
+        - Same-cycle read of rd being written: bypass from WB (both lanes; higher wpc if same rd)
+        - Writes to x0 ignored; always_comb read path for simulator bypass sensitivity
 
     6) Vector register file (SIMD) — separate 8×128-bit VR; extra read/write ports, not in scalar 4+2 above
 
@@ -134,6 +144,7 @@ Decode, dispatch, and issue (ID stage — in-order dual-issue):
     - RAW: I1 uses a register written by I0 → issue only if forwarding can supply it in time
     - Lane conflict: both insns need the same single-issue lane in one cycle → cannot dual-issue
     - If I1 fails either check: grant issue to I0 only
+    - RTL: rtl/issue_dispatch/ (placeholder); golden policy TB: sim/tb/s2_decode/dispatch_hazard_tb.sv
 
     c) Issue vs hold
     - Issued insn → correct ID/EX lane entry (even or odd), valid=1
@@ -168,10 +179,10 @@ Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 
+Verification (Vivado behavioral sim):
 
-
-
-    
+    See sim/README.md (run commands, file lists, register_file_tb / dispatch_hazard_tb notes).
+    TB layout and logging: sim/tb/README.md
 
 128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
 
@@ -185,7 +196,3 @@ Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
 
     e) Dual-issue example: vector ALU (even) + vector/scalar load (odd) in same cycle
 
-
-   
-
-    

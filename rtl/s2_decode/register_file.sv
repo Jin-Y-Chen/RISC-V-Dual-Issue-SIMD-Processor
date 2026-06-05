@@ -74,10 +74,13 @@ module register_file
     rf_read_port = wdata;
   endfunction
 
-  assign even_rs1_data = rf_read_port(even_rs1_addr);
-  assign even_rs2_data = rf_read_port(even_rs2_addr);
-  assign odd_rs1_data  = rf_read_port(odd_rs1_addr);
-  assign odd_rs2_data  = rf_read_port(odd_rs2_addr);
+  // always_comb (not assign+function): XSim must see full bypass/write sensitivity
+  always_comb begin
+    even_rs1_data = rf_read_port(even_rs1_addr);
+    even_rs2_data = rf_read_port(even_rs2_addr);
+    odd_rs1_data  = rf_read_port(odd_rs1_addr);
+    odd_rs2_data  = rf_read_port(odd_rs2_addr);
+  end
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin

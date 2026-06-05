@@ -1,5 +1,7 @@
 # Architecture documentation
 
+Living outline: [../../project_outline.txt](../../project_outline.txt)
+
 Deliverable per spec §16:
 
 - 5-stage pipeline overview
