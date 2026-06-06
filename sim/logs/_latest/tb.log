@@ -2,7 +2,35 @@ Time resolution is 1 ps
 ========================================
 [INFO] register_file_tb - tb.log ID read and WB, manual expected
 ========================================
-[INFO] Vivado: use Run All or sim time at least 2us to reach summary
+[INFO] Manual golden reference values for check_rf exp columns
+[INFO] GPR preload operands, committed per test by preload_gpr
+            PRE_x1 =         0x0a011100 (exp: 0x0a011100)
+            PRE_x2 =         0x0a020002 (exp: 0x0a020002)
+            PRE_x3 =         0x0a030003 (exp: 0x0a030003)
+            PRE_x5 =         0x0a050005 (exp: 0x0a050005)
+            PRE_x6 =         0x0a060006 (exp: 0x0a060006)
+            PRE_x7 =         0x0a070007 (exp: 0x0a070007)
+            PRE_x9 =         0x0a090009 (exp: 0x0a090009)
+[INFO] WB bus golden payloads and PC references
+[INFO] WB merge rule: same rd both lanes, youngest insn wins via higher wpc only
+         WB_X2_IMM =         0xfa0a505f (exp: 0xfa0a505f)
+        WB_X2_ADDI =         0x000000aa (exp: 0x000000aa)
+          WB_X2_LW =         0x000000bb (exp: 0x000000bb)
+[INFO] Green Card odd_wdata: jal/jalr R[rd]=insn_PC+4 only
+            ODD_PC =         0x00001004 (exp: 0x00001004)
+       WB_JAL_LINK =         0x00001008 (exp: 0x00001008)
+[INFO] Green Card odd_wdata: lui R[rd]=imm<<12, auipc R[rd]=insn_PC+(imm<<12)
+        LUI_IMM_2A =         0x0000002a (exp: 0x0000002a)
+         WB_LUI_X7 =         0x0002a000 (exp: 0x0002a000)
+       AUIPC_IMM_2 =         0x00000002 (exp: 0x00000002)
+       WB_AUIPC_X7 =         0x00003004 (exp: 0x00003004)
+[INFO] Mnemonic detail strings use 0x hex for imm/offset fields
+[INFO] Immediates for mnemonic detail strings
+         JAL_IMM_0 =         0x00000000 (exp: 0x00000000)
+        JALR_IMM_0 =         0x00000000 (exp: 0x00000000)
+        LOAD_IMM_0 =         0x00000000 (exp: 0x00000000)
+       STORE_IMM_0 =         0x00000000 (exp: 0x00000000)
+---------------------------------------
 [PASS] single even R-type | add x7,x5,x2, idle odd
 
   read ports ID
@@ -87,7 +115,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] single even B-type | beq x7,x9,label, idle odd
+[PASS] single even B-type | beq x7, x9, 0x00, idle odd
 
   read ports ID
      even_rs1_addr =                 x7 (exp: x7)
@@ -108,7 +136,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] single odd B-type | idle even, bne x1,x5,label
+[PASS] single odd B-type | idle even, bne x1, x5, 0x00
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -129,7 +157,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] single even J-type | jal x7,x2, idle odd
+[PASS] single even J-type | jal x7, 0x00, idle odd
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -150,7 +178,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] single odd J-type | idle even, jalr x7,x6,x2
+[PASS] single odd J-type | idle even, jalr x7, 0x00(x6)
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -171,7 +199,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] single even load | lw x7,x2,x5, idle odd
+[PASS] single even load | lw x7, 0x00(x5), idle odd
 
   read ports ID
      even_rs1_addr =                 x5 (exp: x5)
@@ -192,7 +220,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] single odd store | idle even, sw x7,x2,x6
+[PASS] single odd store | sw x6, 0x00(x7), idle even, ID read only
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -255,7 +283,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] ideal case different reads | sub x6,x7,x9, lw x1,0(x5), no write back
+[PASS] ideal case different reads | sub x6,x7,x9, lw x1, 0x00(x5), no write back
 
   read ports ID
      even_rs1_addr =                 x7 (exp: x7)
@@ -276,7 +304,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] ideal case same reads | sw x6,0(x9), ori x1,x9,0x2d, no write back
+[PASS] ideal case same reads | sw x6, 0x00(x9), ori x1,x9,0x2d, no write back
 
   read ports ID
      even_rs1_addr =                 x9 (exp: x9)
@@ -297,7 +325,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] both B-type different reads | blt x1,x5,label, bge x6,x7,label
+[PASS] both B-type different reads | blt x1, x5, 0x00, bge x6, x7, 0x00
 
   read ports ID
      even_rs1_addr =                 x1 (exp: x1)
@@ -318,7 +346,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] both B-type same reads | beq x1,x5,label, bne x1,x5,label
+[PASS] both B-type same reads | beq x1, x5, 0x00, bne x1, x5, 0x00
 
   read ports ID
      even_rs1_addr =                 x1 (exp: x1)
@@ -381,11 +409,11 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] WB merge addi lw x2 | addi x2,x1,0xaa, lw x2,0(x2), odd wpc wins on x2
+[PASS] WB merge same rd youngest wins | addi x2,x1,0xaa, lw x2, 0x00(x2), addi reads x1, lw bypass x2 youngest 0xbb
 
   read ports ID
-     even_rs1_addr =                 x0 (exp: x0)
-     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs1_addr =                 x1 (exp: x1)
+     even_rs1_data =         0x0a011100 (exp: 0x0a011100)
      even_rs2_addr =                 x0 (exp: x0)
      even_rs2_data =         0x00000000 (exp: 0x00000000)
       odd_rs1_addr =                 x2 (exp: x2)
@@ -402,7 +430,7 @@ Time resolution is 1 ps
          odd_wdata =         0x000000bb (exp: 0x000000bb)
            odd_wpc =         0x00000004 (exp: 0x00000004)
 ---------------------------------------
-[PASS] WB jal odd | idle even, jal x7,x2, odd rd x7, odd_wdata PC plus 4
+[PASS] WB jal odd | idle even, jal x7, 0x00, odd_wdata 0x00001008
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -423,7 +451,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00001008 (exp: 0x00001008)
            odd_wpc =         0x00001004 (exp: 0x00001004)
 ---------------------------------------
-[PASS] WB jalr odd | idle even, jalr x7,x6,x2, odd rd x7, odd_wdata PC plus 4
+[PASS] WB jalr odd | idle even, jalr x7, 0x00(x6), odd_wdata 0x00001008
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -431,7 +459,7 @@ Time resolution is 1 ps
      even_rs2_addr =                 x0 (exp: x0)
      even_rs2_data =         0x00000000 (exp: 0x00000000)
       odd_rs1_addr =                 x6 (exp: x6)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_data =         0x0a060006 (exp: 0x0a060006)
       odd_rs2_addr =                 x0 (exp: x0)
       odd_rs2_data =         0x00000000 (exp: 0x00000000)
   write ports WB
@@ -444,7 +472,7 @@ Time resolution is 1 ps
          odd_wdata =         0x00001008 (exp: 0x00001008)
            odd_wpc =         0x00001004 (exp: 0x00001004)
 ---------------------------------------
-[PASS] WB lui odd | idle even, lui x7,0x2a, odd rd x7, odd_wdata imm shift 12
+[PASS] WB lui odd | idle even, lui x7, 0x2a, odd_wdata 0x0002a000
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -465,7 +493,7 @@ Time resolution is 1 ps
          odd_wdata =         0x0002a000 (exp: 0x0002a000)
            odd_wpc =         0x00001004 (exp: 0x00001004)
 ---------------------------------------
-[PASS] WB auipc odd | idle even, auipc x7,0x2, odd rd x7, odd_wdata PC plus imm shift 12
+[PASS] WB auipc odd | idle even, auipc x7, 0x02, odd_wdata 0x00003004
 
   read ports ID
      even_rs1_addr =                 x0 (exp: x0)
@@ -483,9 +511,9 @@ Time resolution is 1 ps
           even_wpc =         0x00000000 (exp: 0x00000000)
            odd_wen =                  1 (exp: 1)
             odd_rd =                 x7 (exp: x7)
-         odd_wdata =         0x00003000 (exp: 0x00003000)
+         odd_wdata =         0x00003004 (exp: 0x00003004)
            odd_wpc =         0x00001004 (exp: 0x00001004)
 ---------------------------------------
 
 *** SUMMARY: 23 passed, 0 failed - OK ***
-$finish called at time : 776001 ps : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/s2_decode/register_file_tb.sv" Line 486
+$finish called at time : 806001 ps : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/s2_decode/register_file_tb.sv" Line 526
