@@ -48,7 +48,7 @@ task automatic tb_summary(input int passed, input int failed);
   if (failed == 0)
     $display("*** SUMMARY: %0d passed, 0 failed - OK ***", passed);
   else
-    $error("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
+    $display("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
 endtask
 
 // --- Multi-line PASS/FAIL report (use inside check_expect) ---

@@ -1,20 +1,20 @@
 Time resolution is 1 ps
 ========================================
-[INFO] register_file_tb - isolated insn (ID read + WB), manual expected
+[INFO] register_file_tb - tb.log ID read and WB, manual expected
 ========================================
-[INFO] GPR defaults (isolated_reset): x1=0a011100 x5=0a050005 x6=0a060006 x7=0a070007 x9=0a090009
-[PASS] id_even_add | add x7,x5,x6 | (idle odd)
+[INFO] Vivado: use Run All or sim time at least 2us to reach summary
+[PASS] single even R-type | add x7,x5,x2, idle odd
 
-  --- read ports (ID) ---
+  read ports ID
      even_rs1_addr =                 x5 (exp: x5)
      even_rs1_data =         0x0a050005 (exp: 0x0a050005)
-     even_rs2_addr =                 x6 (exp: x6)
-     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
+     even_rs2_addr =                 x2 (exp: x2)
+     even_rs2_data =         0x0a020002 (exp: 0x0a020002)
       odd_rs1_addr =                 x0 (exp: x0)
       odd_rs1_data =         0x00000000 (exp: 0x00000000)
       odd_rs2_addr =                 x0 (exp: x0)
       odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
+  write ports WB
           even_wen =                  0 (exp: 0)
            even_rd =                 x0 (exp: x0)
         even_wdata =         0x00000000 (exp: 0x00000000)
@@ -24,18 +24,39 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] id_even_addi | addi x5,x0,10 | (idle odd)
+[PASS] single odd R-type | idle even, sub x7,x5,x6
 
-  --- read ports (ID) ---
+  read ports ID
      even_rs1_addr =                 x0 (exp: x0)
      even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x5 (exp: x5)
+      odd_rs1_data =         0x0a050005 (exp: 0x0a050005)
+      odd_rs2_addr =                 x6 (exp: x6)
+      odd_rs2_data =         0x0a060006 (exp: 0x0a060006)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] single even I-type | ori x7,x5,0x2a, idle odd
+
+  read ports ID
+     even_rs1_addr =                 x5 (exp: x5)
+     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
      even_rs2_addr =                 x0 (exp: x0)
      even_rs2_data =         0x00000000 (exp: 0x00000000)
       odd_rs1_addr =                 x0 (exp: x0)
       odd_rs1_data =         0x00000000 (exp: 0x00000000)
       odd_rs2_addr =                 x0 (exp: x0)
       odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
+  write ports WB
           even_wen =                  0 (exp: 0)
            even_rd =                 x0 (exp: x0)
         even_wdata =         0x00000000 (exp: 0x00000000)
@@ -45,240 +66,9 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] id_even_sub | sub x7,x6,x5 | (idle odd)
+[PASS] single odd I-type | idle even, andi x7,x5,0x2b
 
-  --- read ports (ID) ---
-     even_rs1_addr =                 x6 (exp: x6)
-     even_rs1_data =         0x0a060006 (exp: 0x0a060006)
-     even_rs2_addr =                 x5 (exp: x5)
-     even_rs2_data =         0x0a050005 (exp: 0x0a050005)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_sll | sll x7,x5,x6 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x5 (exp: x5)
-     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
-     even_rs2_addr =                 x6 (exp: x6)
-     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_slt | slt x7,x5,x6 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x5 (exp: x5)
-     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
-     even_rs2_addr =                 x6 (exp: x6)
-     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_xor | xor x7,x5,x6 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x5 (exp: x5)
-     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
-     even_rs2_addr =                 x6 (exp: x6)
-     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_srl | srl x7,x6,x5 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x6 (exp: x6)
-     even_rs1_data =         0x0a060006 (exp: 0x0a060006)
-     even_rs2_addr =                 x5 (exp: x5)
-     even_rs2_data =         0x0a050005 (exp: 0x0a050005)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_sra | sra x7,x6,x5 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x6 (exp: x6)
-     even_rs1_data =         0x0a060006 (exp: 0x0a060006)
-     even_rs2_addr =                 x5 (exp: x5)
-     even_rs2_data =         0x0a050005 (exp: 0x0a050005)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_or | or x7,x5,x6 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x5 (exp: x5)
-     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
-     even_rs2_addr =                 x6 (exp: x6)
-     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_and | and x7,x5,x6 | (idle odd)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x5 (exp: x5)
-     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
-     even_rs2_addr =                 x6 (exp: x6)
-     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_even_add_x0_rs1 | add x7,x0,x5 | (idle odd)ÿÿÿ” x0 read
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x0 (exp: x0)
-     even_rs1_data =         0x00000000 (exp: 0x00000000)
-     even_rs2_addr =                 x5 (exp: x5)
-     even_rs2_data =         0x0a050005 (exp: 0x0a050005)
-      odd_rs1_addr =                 x0 (exp: x0)
-      odd_rs1_data =         0x00000000 (exp: 0x00000000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_odd_lw | (idle even) | lw x9,0(x10)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x0 (exp: x0)
-     even_rs1_data =         0x00000000 (exp: 0x00000000)
-     even_rs2_addr =                 x0 (exp: x0)
-     even_rs2_data =         0x00000000 (exp: 0x00000000)
-      odd_rs1_addr =                x10 (exp: x10)
-      odd_rs1_data =         0x0a101000 (exp: 0x0a101000)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_odd_sw | (idle even) | sw x7,0(x10)
-
-  --- read ports (ID) ---
-     even_rs1_addr =                 x0 (exp: x0)
-     even_rs1_data =         0x00000000 (exp: 0x00000000)
-     even_rs2_addr =                 x0 (exp: x0)
-     even_rs2_data =         0x00000000 (exp: 0x00000000)
-      odd_rs1_addr =                x10 (exp: x10)
-      odd_rs1_data =         0x0a101000 (exp: 0x0a101000)
-      odd_rs2_addr =                 x7 (exp: x7)
-      odd_rs2_data =         0x0a070007 (exp: 0x0a070007)
-  --- write ports (WB) ---
-          even_wen =                  0 (exp: 0)
-           even_rd =                 x0 (exp: x0)
-        even_wdata =         0x00000000 (exp: 0x00000000)
-          even_wpc =         0x00000000 (exp: 0x00000000)
-           odd_wen =                  0 (exp: 0)
-            odd_rd =                 x0 (exp: x0)
-         odd_wdata =         0x00000000 (exp: 0x00000000)
-           odd_wpc =         0x00000000 (exp: 0x00000000)
----------------------------------------
-[PASS] id_odd_beq | (idle even) | beq x5,x0,label
-
-  --- read ports (ID) ---
+  read ports ID
      even_rs1_addr =                 x0 (exp: x0)
      even_rs1_data =         0x00000000 (exp: 0x00000000)
      even_rs2_addr =                 x0 (exp: x0)
@@ -287,7 +77,7 @@ Time resolution is 1 ps
       odd_rs1_data =         0x0a050005 (exp: 0x0a050005)
       odd_rs2_addr =                 x0 (exp: x0)
       odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
+  write ports WB
           even_wen =                  0 (exp: 0)
            even_rd =                 x0 (exp: x0)
         even_wdata =         0x00000000 (exp: 0x00000000)
@@ -297,18 +87,39 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] id_odd_bne | (idle even) | bne x5,x0,label
+[PASS] single even B-type | beq x7,x9,label, idle odd
 
-  --- read ports (ID) ---
+  read ports ID
+     even_rs1_addr =                 x7 (exp: x7)
+     even_rs1_data =         0x0a070007 (exp: 0x0a070007)
+     even_rs2_addr =                 x9 (exp: x9)
+     even_rs2_data =         0x0a090009 (exp: 0x0a090009)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] single odd B-type | idle even, bne x1,x5,label
+
+  read ports ID
      even_rs1_addr =                 x0 (exp: x0)
      even_rs1_data =         0x00000000 (exp: 0x00000000)
      even_rs2_addr =                 x0 (exp: x0)
      even_rs2_data =         0x00000000 (exp: 0x00000000)
-      odd_rs1_addr =                 x5 (exp: x5)
-      odd_rs1_data =         0x0a050005 (exp: 0x0a050005)
-      odd_rs2_addr =                 x0 (exp: x0)
-      odd_rs2_data =         0x00000000 (exp: 0x00000000)
-  --- write ports (WB) ---
+      odd_rs1_addr =                 x1 (exp: x1)
+      odd_rs1_data =         0x0a011100 (exp: 0x0a011100)
+      odd_rs2_addr =                 x5 (exp: x5)
+      odd_rs2_data =         0x0a050005 (exp: 0x0a050005)
+  write ports WB
           even_wen =                  0 (exp: 0)
            even_rd =                 x0 (exp: x0)
         even_wdata =         0x00000000 (exp: 0x00000000)
@@ -318,18 +129,39 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
-[PASS] id_odd_blt | (idle even) | blt x6,x5,label
+[PASS] single even J-type | jal x7,x2, idle odd
 
-  --- read ports (ID) ---
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] single odd J-type | idle even, jalr x7,x6,x2
+
+  read ports ID
      even_rs1_addr =                 x0 (exp: x0)
      even_rs1_data =         0x00000000 (exp: 0x00000000)
      even_rs2_addr =                 x0 (exp: x0)
      even_rs2_data =         0x00000000 (exp: 0x00000000)
       odd_rs1_addr =                 x6 (exp: x6)
       odd_rs1_data =         0x0a060006 (exp: 0x0a060006)
-      odd_rs2_addr =                 x5 (exp: x5)
-      odd_rs2_data =         0x0a050005 (exp: 0x0a050005)
-  --- write ports (WB) ---
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
           even_wen =                  0 (exp: 0)
            even_rd =                 x0 (exp: x0)
         even_wdata =         0x00000000 (exp: 0x00000000)
@@ -339,3 +171,321 @@ Time resolution is 1 ps
          odd_wdata =         0x00000000 (exp: 0x00000000)
            odd_wpc =         0x00000000 (exp: 0x00000000)
 ---------------------------------------
+[PASS] single even load | lw x7,x2,x5, idle odd
+
+  read ports ID
+     even_rs1_addr =                 x5 (exp: x5)
+     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] single odd store | idle even, sw x7,x2,x6
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x7 (exp: x7)
+      odd_rs1_data =         0x0a070007 (exp: 0x0a070007)
+      odd_rs2_addr =                 x6 (exp: x6)
+      odd_rs2_data =         0x0a060006 (exp: 0x0a060006)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] both R-type differnt reads | addi x1,x5,0x2c, sll x6,x7,x9, no write back
+
+  read ports ID
+     even_rs1_addr =                 x5 (exp: x5)
+     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x7 (exp: x7)
+      odd_rs1_data =         0x0a070007 (exp: 0x0a070007)
+      odd_rs2_addr =                 x9 (exp: x9)
+      odd_rs2_data =         0x0a090009 (exp: 0x0a090009)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] both R-type same reads | or x1,x5,x6, srl x6,x5,x6, no write back
+
+  read ports ID
+     even_rs1_addr =                 x5 (exp: x5)
+     even_rs1_data =         0x0a050005 (exp: 0x0a050005)
+     even_rs2_addr =                 x6 (exp: x6)
+     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
+      odd_rs1_addr =                 x5 (exp: x5)
+      odd_rs1_data =         0x0a050005 (exp: 0x0a050005)
+      odd_rs2_addr =                 x6 (exp: x6)
+      odd_rs2_data =         0x0a060006 (exp: 0x0a060006)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] ideal case different reads | sub x6,x7,x9, lw x1,0(x5), no write back
+
+  read ports ID
+     even_rs1_addr =                 x7 (exp: x7)
+     even_rs1_data =         0x0a070007 (exp: 0x0a070007)
+     even_rs2_addr =                 x9 (exp: x9)
+     even_rs2_data =         0x0a090009 (exp: 0x0a090009)
+      odd_rs1_addr =                 x5 (exp: x5)
+      odd_rs1_data =         0x0a050005 (exp: 0x0a050005)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] ideal case same reads | sw x6,0(x9), ori x1,x9,0x2d, no write back
+
+  read ports ID
+     even_rs1_addr =                 x9 (exp: x9)
+     even_rs1_data =         0x0a090009 (exp: 0x0a090009)
+     even_rs2_addr =                 x6 (exp: x6)
+     even_rs2_data =         0x0a060006 (exp: 0x0a060006)
+      odd_rs1_addr =                 x9 (exp: x9)
+      odd_rs1_data =         0x0a090009 (exp: 0x0a090009)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] both B-type different reads | blt x1,x5,label, bge x6,x7,label
+
+  read ports ID
+     even_rs1_addr =                 x1 (exp: x1)
+     even_rs1_data =         0x0a011100 (exp: 0x0a011100)
+     even_rs2_addr =                 x5 (exp: x5)
+     even_rs2_data =         0x0a050005 (exp: 0x0a050005)
+      odd_rs1_addr =                 x6 (exp: x6)
+      odd_rs1_data =         0x0a060006 (exp: 0x0a060006)
+      odd_rs2_addr =                 x7 (exp: x7)
+      odd_rs2_data =         0x0a070007 (exp: 0x0a070007)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] both B-type same reads | beq x1,x5,label, bne x1,x5,label
+
+  read ports ID
+     even_rs1_addr =                 x1 (exp: x1)
+     even_rs1_data =         0x0a011100 (exp: 0x0a011100)
+     even_rs2_addr =                 x5 (exp: x5)
+     even_rs2_data =         0x0a050005 (exp: 0x0a050005)
+      odd_rs1_addr =                 x1 (exp: x1)
+      odd_rs1_data =         0x0a011100 (exp: 0x0a011100)
+      odd_rs2_addr =                 x5 (exp: x5)
+      odd_rs2_data =         0x0a050005 (exp: 0x0a050005)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] WB addi x2 imm | addi x2,x1,0xfa0a505f, even_rd x2, even_wdata 0xfa0a505f
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  1 (exp: 1)
+           even_rd =                 x2 (exp: x2)
+        even_wdata =         0xfa0a505f (exp: 0xfa0a505f)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] WB add x2 reg | add x2,x1,x3, even_rd x2, even_wdata 0xfa0a505f
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  1 (exp: 1)
+           even_rd =                 x2 (exp: x2)
+        even_wdata =         0xfa0a505f (exp: 0xfa0a505f)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  0 (exp: 0)
+            odd_rd =                 x0 (exp: x0)
+         odd_wdata =         0x00000000 (exp: 0x00000000)
+           odd_wpc =         0x00000000 (exp: 0x00000000)
+---------------------------------------
+[PASS] WB merge addi lw x2 | addi x2,x1,0xaa, lw x2,0(x2), odd wpc wins on x2
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x2 (exp: x2)
+      odd_rs1_data =         0x000000bb (exp: 0x000000bb)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  1 (exp: 1)
+           even_rd =                 x2 (exp: x2)
+        even_wdata =         0x000000aa (exp: 0x000000aa)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  1 (exp: 1)
+            odd_rd =                 x2 (exp: x2)
+         odd_wdata =         0x000000bb (exp: 0x000000bb)
+           odd_wpc =         0x00000004 (exp: 0x00000004)
+---------------------------------------
+[PASS] WB jal odd | idle even, jal x7,x2, odd rd x7, odd_wdata PC plus 4
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  1 (exp: 1)
+            odd_rd =                 x7 (exp: x7)
+         odd_wdata =         0x00001008 (exp: 0x00001008)
+           odd_wpc =         0x00001004 (exp: 0x00001004)
+---------------------------------------
+[PASS] WB jalr odd | idle even, jalr x7,x6,x2, odd rd x7, odd_wdata PC plus 4
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x6 (exp: x6)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  1 (exp: 1)
+            odd_rd =                 x7 (exp: x7)
+         odd_wdata =         0x00001008 (exp: 0x00001008)
+           odd_wpc =         0x00001004 (exp: 0x00001004)
+---------------------------------------
+[PASS] WB lui odd | idle even, lui x7,0x2a, odd rd x7, odd_wdata imm shift 12
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  1 (exp: 1)
+            odd_rd =                 x7 (exp: x7)
+         odd_wdata =         0x0002a000 (exp: 0x0002a000)
+           odd_wpc =         0x00001004 (exp: 0x00001004)
+---------------------------------------
+[PASS] WB auipc odd | idle even, auipc x7,0x2, odd rd x7, odd_wdata PC plus imm shift 12
+
+  read ports ID
+     even_rs1_addr =                 x0 (exp: x0)
+     even_rs1_data =         0x00000000 (exp: 0x00000000)
+     even_rs2_addr =                 x0 (exp: x0)
+     even_rs2_data =         0x00000000 (exp: 0x00000000)
+      odd_rs1_addr =                 x0 (exp: x0)
+      odd_rs1_data =         0x00000000 (exp: 0x00000000)
+      odd_rs2_addr =                 x0 (exp: x0)
+      odd_rs2_data =         0x00000000 (exp: 0x00000000)
+  write ports WB
+          even_wen =                  0 (exp: 0)
+           even_rd =                 x0 (exp: x0)
+        even_wdata =         0x00000000 (exp: 0x00000000)
+          even_wpc =         0x00000000 (exp: 0x00000000)
+           odd_wen =                  1 (exp: 1)
+            odd_rd =                 x7 (exp: x7)
+         odd_wdata =         0x00003000 (exp: 0x00003000)
+           odd_wpc =         0x00001004 (exp: 0x00001004)
+---------------------------------------
+
+*** SUMMARY: 23 passed, 0 failed - OK ***
+$finish called at time : 776001 ps : File "C:/Users/Jin/Documents/Github/RISC-V-Dual-Issue-SIMD-Processor/sim/tb/s2_decode/register_file_tb.sv" Line 486
