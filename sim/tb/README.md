@@ -38,9 +38,8 @@ sim/tb/
 
 - **DUT:** `rtl/s2_decode/register_file.sv`
 - **Checks:** x0 read-as-zero / write-ignore; dual WB; same-rd `wpc` merge; same-cycle bypass; four read ports
-- **Chained GPR state:** one program after reset; later cases read values committed by earlier WB cycles
+- **Stimulus:** isolated per-instruction tests from `demo_instructions.asm` mnemonics — **ID read** (`wen=0`, preloaded operands) and **WB** (writeback insn named in `rf_detail`); manual expected values; `isolated_reset()` between tests
 - **WB commit tests:** log `even`/`odd` `wen`, `rd`, `wdata`, `wpc` (bypass when ID reads overlap WB same cycle)
-- **Dependent insn reads:** `tick` + `clear_writes`, then ID read with `wen=0` (storage in `regs[]`, not ADDI immediates)
 - **`GPR_*` localparams:** WB payload ≠ small immediates in `rf_detail()` asm strings (avoid RF/imm confusion)
 - **File list:** `sim/filelists/register_file_tb.f`
 

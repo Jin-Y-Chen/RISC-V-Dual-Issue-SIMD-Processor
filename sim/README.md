@@ -1,11 +1,5 @@
 # Simulation
 
-Behavioral simulation in Vivado from the repo root:
-
-```tcl
-read_verilog -f sim/filelists/<top>.f
-```
-
 Logs after **Run Behavioral Simulation**:
 
 ```powershell
