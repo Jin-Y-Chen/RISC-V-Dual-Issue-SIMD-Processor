@@ -4,8 +4,8 @@
 // ID tests: read ports only wen=0, PRE preloaded per test via isolated_reset and preload_gpr.
 //   Operand reads stay active per decoded rs1/rs2; idle lane only is all zero.
 //   Same-rd WB merge suppresses older commit only, not ID operand reads (addi still reads rs1).
-// WB tests: drive even_wdata and odd_wdata on register_file write ports, manual bus payloads.
-//   Same rd on both lanes one WB cycle: youngest insn wins (higher latched PC / wpc), not lane name.
+// WB tests: same cycle has 2 insns in WB (even/odd write) and 2 insns in ID (even/odd read).
+//   An insn is in WB or ID, never both. ID reads may bypass WB rd (same or cross lane).
 // check_rf exp args are literal golden values only, never DUT outputs or rf_rs1_addr helpers.
 // set_reads_dec uses decode_pkg for stimulus addr mux policy only.
 module register_file_tb;
@@ -54,6 +54,7 @@ module register_file_tb;
   localparam logic [4:0] ADDR_X0 = 5'd0;
   localparam logic [4:0] ADDR_X1 = 5'd1;
   localparam logic [4:0] ADDR_X2 = 5'd2;
+  localparam logic [4:0] ADDR_X3 = 5'd3;
   localparam logic [4:0] ADDR_X5 = 5'd5;
   localparam logic [4:0] ADDR_X6 = 5'd6;
   localparam logic [4:0] ADDR_X7 = 5'd7;
@@ -261,6 +262,7 @@ module register_file_tb;
     tb_field_u32("PRE_x9", PRE_X9, PRE_X9);
     tb_info_msg("WB bus golden payloads and PC references");
     tb_info_msg("WB merge rule: same rd both lanes, youngest insn wins via higher wpc only");
+    tb_info_msg("WB tests label WB even, WB odd, ID even, ID odd (mutually exclusive stages)");
     tb_field_u32("WB_X2_IMM",   WB_X2_IMM,   WB_X2_IMM);
     tb_field_u32("WB_X2_ADDI",  WB_X2_ADDI,  WB_X2_ADDI);
     tb_field_u32("WB_X2_LW",    WB_X2_LW,    WB_X2_LW);
@@ -453,33 +455,35 @@ module register_file_tb;
       PRE_X1, PRE_X5, PRE_X1, PRE_X5,
       1'b0, ADDR_X0, 32'd0, 32'd0, 1'b0, ADDR_X0, 32'd0, 32'd0);
     // =========================================================================
-    // Dual issue cases with write back, even lane ALU imm or reg results
+    // WB + ID same cycle: WB even/odd completing, ID even/odd operand reads
     // =========================================================================
     isolated_reset();
+    preload_gpr(5'd1, PRE_X1);
     drive_writes(1'b1, 5'd2, WB_X2_IMM, EVEN_WPC_0, 1'b0, 5'd0, '0, '0);
-    set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
+    set_reads_dec(OPC_OP, 5'd2, 5'd1, OPC_LOAD, 5'd2, 5'd0);
     check_rf("WB addi x2 imm",
-      rf_detail("addi x2,x1,0xfa0a505f, even_rd x2, even_wdata 0xfa0a505f"),
-      ADDR_X0, ADDR_X0, ADDR_X0, ADDR_X0,
-      32'd0, 32'd0, 32'd0, 32'd0,
-      1'b1, ADDR_X2, WB_X2_IMM, EVEN_WPC_0, 1'b0, ADDR_X0, 32'd0, 32'd0);
-    isolated_reset();
-    drive_writes(1'b1, 5'd2, WB_X2_IMM, EVEN_WPC_0, 1'b0, 5'd0, '0, '0);
-    set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
-    check_rf("WB add x2 reg",
-      rf_detail("add x2,x1,x3, even_rd x2, even_wdata 0xfa0a505f"),
-      ADDR_X0, ADDR_X0, ADDR_X0, ADDR_X0,
-      32'd0, 32'd0, 32'd0, 32'd0,
+      rf_detail("WB even addi x2,x1,0xfa0a505f, WB odd idle, ID even add x3,x2,x1, ID odd lw x1,0x00(x2)"),
+      ADDR_X2, ADDR_X1, ADDR_X2, ADDR_X0,
+      WB_X2_IMM, PRE_X1, WB_X2_IMM, 32'd0,
       1'b1, ADDR_X2, WB_X2_IMM, EVEN_WPC_0, 1'b0, ADDR_X0, 32'd0, 32'd0);
     isolated_reset();
     preload_gpr(5'd1, PRE_X1);
-    preload_gpr(5'd2, PRE_X2);
+    preload_gpr(5'd3, PRE_X3);
+    drive_writes(1'b1, 5'd2, WB_X2_IMM, EVEN_WPC_0, 1'b0, 5'd0, '0, '0);
+    set_reads_dec(OPC_OP, 5'd2, 5'd3, OPC_LOAD, 5'd2, 5'd0);
+    check_rf("WB add x2 reg",
+      rf_detail("WB even add x2,x1,x3, WB odd idle, ID even add x4,x2,x3, ID odd lw x1,0x00(x2)"),
+      ADDR_X2, ADDR_X3, ADDR_X2, ADDR_X0,
+      WB_X2_IMM, PRE_X3, WB_X2_IMM, 32'd0,
+      1'b1, ADDR_X2, WB_X2_IMM, EVEN_WPC_0, 1'b0, ADDR_X0, 32'd0, 32'd0);
+    isolated_reset();
+    preload_gpr(5'd1, PRE_X1);
     drive_writes(1'b1, 5'd2, WB_X2_ADDI, EVEN_WPC_0, 1'b1, 5'd2, WB_X2_LW, ODD_WPC_4);
-    set_reads_dec(OPC_OP_IMM, 5'd1, 5'd0, OPC_LOAD, 5'd2, 5'd0);
+    set_reads_dec(OPC_OP, 5'd2, 5'd1, OPC_LOAD, 5'd2, 5'd0);
     check_rf("WB merge same rd youngest wins",
-      rf_detail("addi x2,x1,0xaa, lw x2, 0x00(x2), addi reads x1, lw bypass x2 youngest 0xbb"),
-      ADDR_X1, ADDR_X0, ADDR_X2, ADDR_X0,
-      PRE_X1, 32'd0, WB_X2_LW, 32'd0,
+      rf_detail("WB even addi x2,x1,0xaa, WB odd lw x2,0x00(x2), ID even add x3,x2,x1, ID odd lw x1,0x00(x2)"),
+      ADDR_X2, ADDR_X1, ADDR_X2, ADDR_X0,
+      WB_X2_LW, PRE_X1, WB_X2_LW, 32'd0,
       1'b1, ADDR_X2, WB_X2_ADDI, EVEN_WPC_0,
       1'b1, ADDR_X2, WB_X2_LW, ODD_WPC_4);
     // =========================================================================
@@ -490,45 +494,41 @@ module register_file_tb;
     // =========================================================================
     isolated_reset();
     drive_writes(1'b0, 5'd0, '0, '0, 1'b1, 5'd7, WB_JAL_LINK, ODD_PC);
-    set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_JAL, 5'd0, 5'd0);
+    set_reads_dec(OPC_LOAD, 5'd7, 5'd0, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("WB jal odd",
-      rf_detail("idle even, jal x7, 0x00, odd_wdata 0x00001008"),
-      ADDR_X0, ADDR_X0, ADDR_X0, ADDR_X0,
-      32'd0, 32'd0, 32'd0, 32'd0,
+      rf_detail("WB even idle, WB odd jal x7,0x00, ID even lw x1,0x00(x7), ID odd idle"),
+      ADDR_X7, ADDR_X0, ADDR_X0, ADDR_X0,
+      WB_JAL_LINK, 32'd0, 32'd0, 32'd0,
       1'b0, ADDR_X0, 32'd0, 32'd0, 1'b1, ADDR_X7, WB_JAL_LINK, ODD_PC);
     isolated_reset();
-    preload_gpr(5'd6, PRE_X6);
     drive_writes(1'b0, 5'd0, '0, '0, 1'b1, 5'd7, WB_JAL_LINK, ODD_PC);
-    set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_JALR, 5'd6, 5'd0);
+    set_reads_dec(OPC_LOAD, 5'd7, 5'd0, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("WB jalr odd",
-      rf_detail("idle even, jalr x7, 0x00(x6), odd_wdata 0x00001008"),
-      ADDR_X0, ADDR_X0, ADDR_X6, ADDR_X0,
-      32'd0, 32'd0, PRE_X6, 32'd0,
+      rf_detail("WB even idle, WB odd jalr x7,0x00(x6), ID even lw x1,0x00(x7), ID odd idle"),
+      ADDR_X7, ADDR_X0, ADDR_X0, ADDR_X0,
+      WB_JAL_LINK, 32'd0, 32'd0, 32'd0,
       1'b0, ADDR_X0, 32'd0, 32'd0, 1'b1, ADDR_X7, WB_JAL_LINK, ODD_PC);
     isolated_reset();
     drive_writes(1'b0, 5'd0, '0, '0, 1'b1, 5'd7, WB_LUI_X7, ODD_PC);
-    set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_LUI, 5'd0, 5'd0);
+    set_reads_dec(OPC_LOAD, 5'd7, 5'd0, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("WB lui odd",
-      rf_detail("idle even, lui x7, 0x2a, odd_wdata 0x0002a000"),
-      ADDR_X0, ADDR_X0, ADDR_X0, ADDR_X0,
-      32'd0, 32'd0, 32'd0, 32'd0,
+      rf_detail("WB even idle, WB odd lui x7,0x2a, ID even lw x1,0x00(x7), ID odd idle"),
+      ADDR_X7, ADDR_X0, ADDR_X0, ADDR_X0,
+      WB_LUI_X7, 32'd0, 32'd0, 32'd0,
       1'b0, ADDR_X0, 32'd0, 32'd0, 1'b1, ADDR_X7, WB_LUI_X7, ODD_PC);
     isolated_reset();
     drive_writes(1'b0, 5'd0, '0, '0, 1'b1, 5'd7, WB_AUIPC_X7, ODD_PC);
-    set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_AUIPC, 5'd0, 5'd0);
+    set_reads_dec(OPC_LOAD, 5'd7, 5'd0, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("WB auipc odd",
-      rf_detail("idle even, auipc x7, 0x02, odd_wdata 0x00003004"),
-      ADDR_X0, ADDR_X0, ADDR_X0, ADDR_X0,
-      32'd0, 32'd0, 32'd0, 32'd0,
+      rf_detail("WB even idle, WB odd auipc x7,0x02, ID even lw x1,0x00(x7), ID odd idle"),
+      ADDR_X7, ADDR_X0, ADDR_X0, ADDR_X0,
+      WB_AUIPC_X7, 32'd0, 32'd0, 32'd0,
       1'b0, ADDR_X0, 32'd0, 32'd0, 1'b1, ADDR_X7, WB_AUIPC_X7, ODD_PC);
+    $display("");
+    tb_summary(pass_cnt, fail_cnt);
     if (fail_cnt != 0)
       $fatal(1, "register_file_tb failed");
     $finish;
-  end
-
-  final begin
-    $display("");
-    tb_summary(pass_cnt, fail_cnt);
   end
 
 endmodule
