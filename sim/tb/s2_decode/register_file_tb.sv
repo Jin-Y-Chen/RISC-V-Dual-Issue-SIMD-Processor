@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // register_file_tb — isolated per-instruction GPR checks (demo_instructions.asm mnemonics).
-// ID tests: read ports only (wen=0); PRE_* preloaded into regs[], no prior-test carry-over.
+// ID tests: read ports only (wen=0); isolated_reset preloads x1,x5,x6,x7,x9 (x10 per-test).
 // WB tests: drive even_wdata/odd_wdata (32-bit WB data ports on register_file.sv); manual
 //   D0xx_.... payloads — TB stimulus on the write bus, not ALU/LUI decode (≠ asm imm in detail).
 // Read addrs: set_reads_dec() mirrors decode_pkg / decoder_tb rs1/rs2 policy.
@@ -149,8 +149,7 @@ module register_file_tb;
     odd_wpc    = o_wpc;
   endtask
 
-  // Hardware reset — each test starts from empty GPR array (x0 always 0)
-  task automatic isolated_reset;
+  task automatic isolated_reset_bare;
     clear_writes();
     rst_n = 1'b0;
     tick();
@@ -159,12 +158,18 @@ module register_file_tb;
     clear_writes();
   endtask
 
-  // One-cycle preload commit (not part of test under check — sets operand regs only)
   task automatic preload_gpr(input logic [4:0] rd, input reg_t data);
     if (rd == 5'd0) return;
     drive_writes(1'b1, rd, data, '0, 1'b0, 5'd0, '0, '0);
     tick();
     clear_writes();
+  endtask
+
+  task automatic isolated_reset;
+    isolated_reset_bare();
+    drive_writes(1'b1, 5'd1, PRE_X1, '0, 1'b1, 5'd5, PRE_X5, '0); tick(); clear_writes();
+    drive_writes(1'b1, 5'd6, PRE_X6, '0, 1'b1, 5'd7, PRE_X7, '0); tick(); clear_writes();
+    preload_gpr(5'd9, PRE_X9);
   endtask
 
   task automatic tb_field_xreg(input string label, input logic [4:0] got, input logic [4:0] exp);
@@ -247,15 +252,15 @@ module register_file_tb;
     odd_rs2_addr  = 5'd0;
     clear_writes();
 
-    isolated_reset();
+    isolated_reset_bare();
     tb_banner("register_file_tb - isolated insn (ID read + WB), manual expected");
+    tb_info_msg($sformatf("GPR defaults (isolated_reset): x1=%08h x5=%08h x6=%08h x7=%08h x9=%08h",
+                          PRE_X1, PRE_X5, PRE_X6, PRE_X7, PRE_X9));
 
     // =========================================================================
     // ID read-only — even lane (demo even mnemonics), odd idle, wen=0
     // =========================================================================
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_add",
       rf_detail("add x7,x5,x6 | (idle odd)"),
@@ -276,8 +281,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd6, 5'd5, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_sub",
       rf_detail("sub x7,x6,x5 | (idle odd)"),
@@ -288,8 +291,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_sll",
       rf_detail("sll x7,x5,x6 | (idle odd)"),
@@ -300,8 +301,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_slt",
       rf_detail("slt x7,x5,x6 | (idle odd)"),
@@ -312,8 +311,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_xor",
       rf_detail("xor x7,x5,x6 | (idle odd)"),
@@ -324,8 +321,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd6, 5'd5, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_srl",
       rf_detail("srl x7,x6,x5 | (idle odd)"),
@@ -336,8 +331,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd6, 5'd5, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_sra",
       rf_detail("sra x7,x6,x5 | (idle odd)"),
@@ -348,8 +341,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_or",
       rf_detail("or x7,x5,x6 | (idle odd)"),
@@ -360,8 +351,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_and",
       rf_detail("and x7,x5,x6 | (idle odd)"),
@@ -372,7 +361,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
     set_reads_dec(OPC_OP, 5'd0, 5'd5, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("id_even_add_x0_rs1",
       rf_detail("add x7,x0,x5 | (idle odd) — x0 read"),
@@ -397,7 +385,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd7, PRE_X7);
     preload_gpr(5'd10, PRE_X10);
     set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_STORE, 5'd10, 5'd7);
     check_rf("id_odd_sw",
@@ -409,7 +396,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
     set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_BRANCH, 5'd5, 5'd0);
     check_rf("id_odd_beq",
       rf_detail("(idle even) | beq x5,x0,label"),
@@ -420,7 +406,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
     set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_BRANCH, 5'd5, 5'd0);
     check_rf("id_odd_bne",
       rf_detail("(idle even) | bne x5,x0,label"),
@@ -431,8 +416,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_BRANCH, 5'd6, 5'd5);
     check_rf("id_odd_blt",
       rf_detail("(idle even) | blt x6,x5,label"),
@@ -443,8 +426,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_BRANCH, 5'd6, 5'd5);
     check_rf("id_odd_bge",
       rf_detail("(idle even) | bge x6,x5,label"),
@@ -465,7 +446,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd1, PRE_X1);
     set_reads_dec(IDLE_EVEN_OPC, IDLE_EVEN_RS1, IDLE_EVEN_RS2, OPC_JALR, 5'd1, 5'd0);
     check_rf("id_odd_jalr",
       rf_detail("(idle even) | jalr x0,0(x1)"),
@@ -566,8 +546,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     drive_writes(1'b1, 5'd7, WB_X7, 32'h1010, 1'b0, 5'd0, '0, '0);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, IDLE_ODD_OPC, IDLE_ODD_RS1, IDLE_ODD_RS2);
     check_rf("wb_even_add_x7",
@@ -617,8 +595,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd6, PRE_X6);
     preload_gpr(5'd10, PRE_X10);
     drive_writes(1'b1, 5'd0, WB_X0_DEAD, 32'h1058, 1'b0, 5'd0, '0, '0);
     set_reads_dec(OPC_OP, 5'd5, 5'd6, OPC_STORE, 5'd10, 5'd6);
@@ -631,8 +607,6 @@ module register_file_tb;
     tick(); clear_writes();
 
     isolated_reset();
-    preload_gpr(5'd5, PRE_X5);
-    preload_gpr(5'd7, PRE_X7);
     preload_gpr(5'd10, PRE_X10);
     drive_writes(1'b1, 5'd7, WB_X7, 32'h1010, 1'b0, 5'd0, '0, '0);
     set_reads_dec(OPC_OP, 5'd5, 5'd5, OPC_STORE, 5'd10, 5'd7);
@@ -644,8 +618,7 @@ module register_file_tb;
       1'b1, 5'd7, WB_X7, 32'h1010, 1'b0, 5'd0, 32'd0, 32'd0);
     tick(); clear_writes();
 
-    isolated_reset();
-    preload_gpr(5'd9, PRE_X9);
+    isolated_reset_bare();
     drive_writes(1'b1, 5'd11, WB_X11_ADDI, 32'h1038, 1'b1, 5'd11, WB_LW_X11, 32'h103C);
     set_reads_dec(OPC_OP_IMM, 5'd0, 5'd0, OPC_LOAD, 5'd10, 5'd0);
     check_rf("wb_merge_addi_lw_x11",
