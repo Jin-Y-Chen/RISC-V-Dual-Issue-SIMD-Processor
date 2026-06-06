@@ -2,7 +2,8 @@
 
 // Top-level even execution lane: scalar ALU (RV32I OP / OP-IMM integer ops).
 module even_lane
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
+  import decode_pkg::*;
 (
   input  logic        valid,
   input  logic [6:0]  opcode,
@@ -34,7 +35,8 @@ module even_lane
     .alu_result (alu_result)
   );
 
-  assign reg_write = valid && (opcode == OPC_OP || opcode == OPC_OP_IMM) && (rd != 5'd0);
+  assign reg_write = valid && (opcode == OPC_OP || opcode == OPC_OP_IMM) &&
+                     (rd != 5'd0);
   assign rd_out    = rd;
   assign pc_out    = pc;
 

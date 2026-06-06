@@ -5,6 +5,11 @@ Project: RV-DIS — RISC-V Dual-Issue SIMD Processor
 
 Tool: Vivado simulatiion & Vscode Editor
 
+6-4-2026 update:
+    - Scalar GPR RTL + register_file_tb (chained WB/ID checks)
+    - dispatch_hazard_tb golden model; pipeline regs under s1_fetch … s5_wback
+    - See "Pipeline RTL map" and "Verification" sections below
+
 RISC-V 32-bit instructions formate
 
 RV32I Instruction Set Architecture Deisgned:
@@ -41,24 +46,22 @@ Instruction File - Base Instruction Formats (R/I/S/U):
     - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
     - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
       and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
-      rtl/common/spu_lite_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
+      rtl/common/rv_dis_pkg.sv / decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
     - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
     - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
       is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
 
-    RV-DIS stricter policy (this project):
-    - We only fetch 32-bit instructions (no RVC), so PC and branch/jump/load/store offsets should be
-      multiples of 4 (word aligned).
-    - After standard decode, imm_align4() in spu_lite_pkg.sv forces imm[1:0]=00 (clear low two bits).
-      Valid asm (+4, +8, …) is unchanged; an illegal +2 offset would become 0 (truncate down, not round up).
-    - Example: jal r0, 4 → byte offset 4 → insn 0x0040006F; jal r0, 7 bytes is NOT encodable in RV32I
-      (odd offset); use +6 or +8. Next 32-bit insn after PC is jal rd, 4 not jal rd, 2.
+    RV-DIS decode policy (this project):
+    - We only fetch 32-bit instructions (no RVC); PC should stay 4-byte aligned in normal code.
+    - imm_align4() in decode_pkg.sv forces imm[1:0]=00 on branch/jump offsets (B, J, JALR).
+      Load/store/OP-IMM use full sign-extended 32-bit byte offsets (no align4).
+    - B/J still have imm[0]=0 in the ISA encoding; decode appends that bit (see imm_b / imm_j).
 
     Summary table:
     | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
     |--------------------|----------|----------|----------------------|
     | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
-    | RV-DIS imm_align4  | 0        | forced 00| only +4, +8, …      |
+    | RV-DIS imm_align4  | 0        | forced 00| B/J/JALR only        |
 
     Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
     - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
@@ -80,11 +83,17 @@ Integer Computational Instruction
 
         complier decided whether overflow must be checked, inserting overflow branch instruction
 
+Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
+
+        Instruction memory: 8-bit byte map (one address = one byte). Each 32-bit instruction
+        occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
+        RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
+
 Registers File - 32 addressible register:
     // A conventional size that balances encoding, performance, and hardware simplicity
-    a) why more entry (>16) reduce presssure for aggressive compiler optimatizations technieuqes(loops, caching) that uses many temporary register
+    0.1) why more entry (>16) reduce presssure for aggressive compiler optimatizations technieuqes(loops, caching) that uses many temporary register
 
-    b) why less entry (<64) a few register dominate in use, get much of the benefits without needing to use all register equally often
+    0.2) why less entry (<64) a few register dominate in use, get much of the benefits without needing to use all register equally often
     
     1) Register x0 is hardwired with zero
 
@@ -95,35 +104,100 @@ Registers File - 32 addressible register:
         - x2 (sp)  — stack pointer
         - x5 (t0)  — may be used as an alternate link register in some code sequences
 
-        RV-DIS: JAL/JALR write the link (pc+4) to whatever GPR rd encodes — no special x1/x5
+        RV-DIS: JAL/JALR can write the link (pc+4) to whatever GPR rd encodes — no special x1/x5
         hardware; compilers usually pick x1 (ra), but any rd except x0 is valid.
 
-    3) Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
-
-        Instruction memory: 8-bit byte map (one address = one byte). Each 32-bit instruction
-        occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
-        RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
-
-    4) Scalar GPR read ports — 2 (RISC-V) × 2 (dual-issue) = 4
+    3) Scalar GPR ports (RISC-V) x (dual-issue)
 
         a) 2 read ports per instruction (RV32I)
-        - 3-address encoding: rs1, rs2 fields in every format (I-type uses imm for 2nd operand)
-        - One insn needs 0–2 GPR reads (e.g. ADD/BEQ/SW use both; ADDI/LW use rs1 only)
+        - 3-address encoding: rs1, rs2 fields in every format (I-type uses imm, rs2 = 0x0)
+        - Instruction may needs 0–2 GPR reads (e.g. ADD/BEQ/SW use both; ADDI/LW use rs1 only)
 
-        b) × 2 for dual-issue → 4 read ports total
+        b) multiply by 2 for dual-issue as lanes → 4 read ports total
         - Even lane: dedicated rs1 + rs2 ports (ALU / OP-IMM)
         - Odd lane:  dedicated rs1 + rs2 ports (load/store / branch)
-        - Both lanes can read GPR in the same ID cycle (e.g. even ADD + odd SW)
+        - Both lanes can read GPR in the same ID cycle regardless of even or odd
+         (e.g. even ADD + odd SW, even ADD + even SUB, odd BNE + odd BGE)
 
     5) Scalar GPR write ports — 2 (dual-issue)
+        a) 2 write ports for dual-issues as lanes
+        - Both lanes can write GPR in the same WB cycle depending on PC-age(ignore older instruction)
+        - Lanes are differatiated at WB, dedicated even/odd WB with no adventage
+
+    6) structural Hazards, read from register file
+        a) immediate instruction is decoded with r2 as zero register 
+
+            addi x2, x1, 0xaa
+            => even_rs1_addr = x1, even_rs2_addr = x0
+            * immediate value(0xaa) is not visible to the register file
+            * desintation register(x2) is not visible to the register file
+            * rd = rs1/rs2 is structually sounded with read/write port
+
+
+        b) single instruction, read from the same register 
+
+            add x2, x1, x1
+            => even_rs1_addr = x1, even_rs2_addr = x1
+            * in this case even_rs1_data = even_rs2_data
+
+            Likewise: 
+            beq x2, x2, label 
+            => odd_rs1_addr = x2, odd_rs2_addr = x2
+            * always brench to label, since odd_rs1_data = odd_rs2_data
+            * rs1 = rs2 is structually sounded with 2 read ports
+
+        c) dual instructions, both/multiple read from the same register 
+
+            add x3, x3, x1 | bne x3, x2
+            => even_rs1_addr = x3, even_rs2_addr = x1
+            => odd_rs1_addr = x3, odd_rs2_addr = x2
+
+            * fundemental loop exit check routine
+            * in this case even_rs1_data = odd_rs1_data, structually true, but logically fault
+
+            Likewise: 
+            addi x3, x3, 0x0a | sub x3, x3, x1 
+            => even_rs1_addr = x3, even_rs2_addr = x1
+            => odd_rs1_addr = x3, odd_rs2_addr = x2
+            * fundemental loop count down starting from 0x0a
+            * lane are not differatiated yet, this is structurally llegal, but logically fault
+
+    2) data Hazards, write back to register file
+
+        a) immediate or register out data is written back on the same 32-bit odd/even_wdata line
+
+            addi x2, x1, 0xfa0a505f 
+            => even_rd = x2, even_data = 0xfa0a505f
+
+            likewise:
+            add x2, x1, x3, let x2 = 0xfa0a505f 
+            => even_rd = x2, even_data = 0xfa0a505f
+        
+        b) dual instruction, both write to the same register 
+
+            addi x2, x1, 0xaa | lw x2, 0x0(x2) 
+            => even_pc = 0x0, even_rd = x2, even_data = 0xaa
+            => even_pc = 0x4, odd_rd = x2, odd_data = 0xbb, let 0x0(x2) = 0xbb
+
+            Likewise: 
+            * retrive from memory by immediate pointer address
+            * lanes are differatiated, same type both lane is not possible
+            * Only write the youngest instruction(odd_pc = 0x4) data(0xbb) to register address(x2)
+
+    3) control Hazards, stall behavior 
 
         a) One write port per lane, same writeback cycle
         - Even lane writes rd from ALU result (when rd != x0)
         - Odd lane writes rd from load data, JAL/JALR link, or LUI/AUIPC
 
         b) Unified 32×32 GPR; merge rules
-        - Same rd from both lanes on one WB: younger insn wins (compare latched PC)
+        - Same rd from both lanes on one WB: younger insn wins (compare latched PC / wpc)
         - RAW between I0/I1 handled in dispatch (see ID stage); EX/MEM forwarding between lanes
+
+        c) RTL implementation — rtl/s2_decode/register_file.sv
+        - even_rs1/rs2, odd_rs1/rs2 read; even/odd wen, rd, wdata, wpc write
+        - Same-cycle read of rd being written: bypass from WB (both lanes; higher wpc if same rd)
+        - Writes to x0 ignored; always_comb read path for simulator bypass sensitivity
 
     6) Vector register file (SIMD) — separate 8×128-bit VR; extra read/write ports, not in scalar 4+2 above
 
@@ -136,6 +210,7 @@ Decode, dispatch, and issue (ID stage — in-order dual-issue):
     - RAW: I1 uses a register written by I0 → issue only if forwarding can supply it in time
     - Lane conflict: both insns need the same single-issue lane in one cycle → cannot dual-issue
     - If I1 fails either check: grant issue to I0 only
+    - RTL: rtl/issue_dispatch/ (placeholder); golden policy TB: sim/tb/s2_decode/dispatch_hazard_tb.sv
 
     c) Issue vs hold
     - Issued insn → correct ID/EX lane entry (even or odd), valid=1
@@ -147,14 +222,33 @@ Decode, dispatch, and issue (ID stage — in-order dual-issue):
     - Next cycle: dispatch reevaluates only the still-valid unissued insn; issues when lane + hazards clear
     - Preserves program order without an out-of-order scheduler
 
+Data memory (scalar load/store — odd lane, memory_access.sv):
 
+    a) Byte addressing — one address = one 8-bit byte (standard RV32I data memory map)
+    - Address N and N+1 are adjacent bytes, not 16-bit or 32-bit word indices
+    - Effective address: mem_addr = rs1 + imm (byte offset from decode, same unit as PC)
 
+    b) LW / SW (32-bit) — mem_besel selects which bytes out of a 32-bit word lane at mem_addr
+    - Load/store offsets: sign-ext only (no imm_align4); use 4-byte-aligned addresses in software
 
+    c) Instruction and data memory share the same byte-address space concept (8 bits per address)
 
+Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
 
+    On-chip block RAM (FPGA BRAM, not SPI flash):
+    - Device total: ~1,800 Kbit ≈ 225 KiB (50 × 36 Kbit RAMB36 tiles)
+    - RV-DIS on-chip cache SRAM budget must stay within this pool (plus separate BRAM for
+      GPR, pipeline regs, FIFOs — not all 225 KiB is available to caches)
 
+    Planned cache sizes (byte-addressed, 8 bits per address):
+    - L2 data cache (largest): 2^17 bytes = (2 * 64) KiB total
+    - L1 data cache:           2^15 bytes =  32 KiB
+    - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 
-    
+Verification (Vivado behavioral sim):
+
+    See sim/README.md (run commands, file lists, register_file_tb / dispatch_hazard_tb notes).
+    TB layout and logging: sim/tb/README.md
 
 128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
 
@@ -168,7 +262,3 @@ Decode, dispatch, and issue (ID stage — in-order dual-issue):
 
     e) Dual-issue example: vector ALU (even) + vector/scalar load (odd) in same cycle
 
-
-   
-
-    

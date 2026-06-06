@@ -1,31 +1,29 @@
 # Simulation
 
-## Save log
-
-After Vivado **Run Behavioral Simulation** + `run 1000ns`:
+Logs after **Run Behavioral Simulation**:
 
 ```powershell
 .\sim\scripts\copy_logs.ps1
 ```
 
-```
-sim/logs/
-├── latest/
-│   ├── tb.log        full PASS/FAIL transcript
-│   └── summary.txt   label, time, result (one line)
-└── <top>_<time>/     archived copy of the same two files
-```
+Writes `sim/logs/_latest/tb.log` and archives under `sim/logs/<top>_<timestamp>/`. Generated logs are gitignored (see repo `.gitignore`).
 
-## Testbenches
+Design context: [../project_outline.txt](../project_outline.txt) (Verification section).
 
-**Convention:** every `sim/tb/*_tb.sv` must `` `include "tb_console.svh" `` — see [tb/README.md](tb/README.md), copy [tb/tb_template.sv](tb/tb_template.sv) for new TBs.
+---
 
-| Top | Sources |
-|-----|---------|
-| `even_lane_tb` | `spu_lite_pkg.sv`, `scalar_alu.sv`, `even_lane.sv`, `even_lane_tb.sv` |
-| `odd_lane_tb` | `spu_lite_pkg.sv`, `branch_unit.sv`, `memory_access.sv`, `odd_lane.sv`, `odd_lane_tb.sv` |
-| `ex_mem_tb` | `spu_lite_pkg.sv`, `ex_mem_even.sv`, `ex_mem_odd.sv`, `ex_mem_tb.sv` |
+## Verification (Vivado behavioral sim)
 
-Vivado **include path:** `sim/tb`
+### Testbenches
 
-Project path: `scripts/sim_log_paths.cfg`
+| Top | Coverage |
+|-----|----------|
+| `register_file_tb` | Dual-issue GPR |
+| `dispatch_hazard_tb` | Dispatch/issue golden model |
+| `decoder_tb` | Decode fields, `lane_sel`, immediates |
+| `even_lane_tb` | Even execution lane |
+| `odd_lane_tb` | Odd execution lane |
+| `ex_mem_tb` | Per-lane EX/MEM registers |
+
+Per-TB sources, directories, and methodology: [tb/README.md](tb/README.md) (`common/`, `s2_decode/`, `s3_execute/`).
+

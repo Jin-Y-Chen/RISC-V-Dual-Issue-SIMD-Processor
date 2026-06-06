@@ -2,7 +2,7 @@
 
 // Top-level odd execution lane: LW/SW, branches, jumps, LUI/AUIPC (RV32I).
 module odd_lane
-  import spu_lite_pkg::*;
+  import rv_dis_pkg::*;
 (
   input  logic        valid,
   input  logic [6:0]  opcode,
@@ -30,31 +30,32 @@ module odd_lane
 
   logic u_type;
 
-  logic branch_cond;
+  logic brch_cond;
 
   branch_unit u_branch (
     .funct3       (funct3),
     .rs1_data     (rs1_data),
     .rs2_data     (rs2_data),
-    .brch_taken   (branch_cond)
+    .brch_taken   (brch_cond)
   );
+
+  assign mem_write = valid && (opcode == OPC_STORE);
+  assign mem_read  = valid && (opcode == OPC_LOAD);
 
   memory_access u_mem (
     .funct3    (funct3),
     // Store byte-enable: SW only (SB/SH disabled in memory_access)
-    .is_store  (valid && (opcode == OPC_STORE) && (funct3 == F3_SW)),
+    .is_store  (mem_write),
     .rs1_data  (rs1_data),
     .rs2_data  (rs2_data),
     .imm       (imm),
+
     .mem_addr  (mem_addr),
     .mem_wdata (mem_wdata),
-    .mem_besel    (mem_besel)
+    .mem_besel (mem_besel)
   );
 
-  assign mem_read  = valid && (opcode == OPC_LOAD) && (funct3 == F3_LW);
-  assign mem_write = valid && (opcode == OPC_STORE) && (funct3 == F3_SW);
-
-  assign brch_taken  = valid && (opcode == OPC_BRANCH) && branch_cond;
+  assign brch_taken  = valid && (opcode == OPC_BRANCH) && brch_cond;
   assign brch_target = pc + imm;
 
   assign jmp         = valid && (opcode == OPC_JAL || opcode == OPC_JALR);
