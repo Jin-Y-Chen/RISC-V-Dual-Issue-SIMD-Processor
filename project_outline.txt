@@ -89,6 +89,14 @@ Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
         occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
         RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
 
+Dual Decoder :
+
+    1) Parallel decode — two insns per cycle
+    - I0 = older (lower PC), I1 = younger (PC+4): opcode decode, control signals, lane_sel (even / odd)
+
+    2) Lane differatation is determined(lane_sel)
+    - PC age track the order of execution not the lane(even/odd)
+
 Registers File - 32 addressible register:
     // A conventional size that balances encoding, performance, and hardware simplicity
     0.1) why more entry (>16) reduce presssure for aggressive compiler optimatizations technieuqes(loops, caching) that uses many temporary register
@@ -181,46 +189,80 @@ Registers File - 32 addressible register:
 
             Likewise: 
             * retrive from memory by immediate pointer address
-            * lanes are differatiated, same type both lane is not possible
             * Only write the youngest instruction(odd_pc = 0x4) data(0xbb) to register address(x2)
 
-    3) control Hazards, stall behavior 
+Dispatch and forwarding (during ID/EX) — lane checks and hazards
 
-        a) One write port per lane, same writeback cycle
-        - Even lane writes rd from ALU result (when rd != x0)
-        - Odd lane writes rd from load data, JAL/JALR link, or LUI/AUIPC
+    Dispatch runs at ID (before operands enter EX). It decides whether the fetch pair
+    I0 + I1 are issue to the execution lanes. Forwarding supplies operand data
+    when I1 reads a register I0 will write but has not yet committed to the GPR array.
 
-        b) Unified 32×32 GPR; merge rules
-        - Same rd from both lanes on one WB: younger insn wins (compare latched PC / wpc)
-        - RAW between I0/I1 handled in dispatch (see ID stage); EX/MEM forwarding between lanes
+    1) Lane check (structural — can both lanes run this pair?)
 
-        c) RTL implementation — rtl/s2_decode/register_file.sv
-        - even_rs1/rs2, odd_rs1/rs2 read; even/odd wen, rd, wdata, wpc write
-        - Same-cycle read of rd being written: bypass from WB (both lanes; higher wpc if same rd)
-        - Writes to x0 ignored; always_comb read path for simulator bypass sensitivity
+        Lane map (decode_pkg.sv decode_lane_sel):
+        - Even lane: OP, OP-IMM (ALU)
+        - Odd lane:  LOAD, STORE, BRANCH, JAL, JALR, LUI, AUIPC
 
-    6) Vector register file (SIMD) — separate 8×128-bit VR; extra read/write ports, not in scalar 4+2 above
+        Lane conflict: I0 and I1 need the same lane → issue I0 only, block I1
+            add x1,x2,x3 | sub x4,x5,x6
+            => both need LANE_EVEN → no dual-issue
 
-Decode, dispatch, and issue (ID stage — in-order dual-issue):
+        Clean pair:
+            addi x1,x5,0x2c | lw x2,0x00(x5)
+            => I0 even, I1 odd → lane check passes
 
-    a) Parallel decode — two insns per cycle
-    - I0 = older (lower PC), I1 = younger (PC+4): opcode decode, control signals, lane_sel (even / odd)
+    2) RAW hazard (I1 operand depends on I0 destination)
 
-    b) Dispatch (before ID/EX) — hazard and lane checks
-    - RAW: I1 uses a register written by I0 → issue only if forwarding can supply it in time
-    - Lane conflict: both insns need the same single-issue lane in one cycle → cannot dual-issue
-    - If I1 fails either check: grant issue to I0 only
-    - RTL: rtl/issue_dispatch/ (placeholder); golden policy TB: sim/tb/s2_decode/dispatch_hazard_tb.sv
+        RAW: I1 reads rs1 and/or rs2 that equals I0 rd, and I0 performs reg_write (rd != x0)
 
-    c) Issue vs hold
-    - Issued insn → correct ID/EX lane entry (even or odd), valid=1
-    - Blocked I1 stays valid in dispatch buffer (or IF/ID hold); not written to ID/EX yet
-    - Already-issued insns are not redispatched
+            addi x5,x0,0xaa | lw x6,0x00(x5)
+            => I0 rd = x5, I1 rs1 = x5 → RAW
 
-    d) Stall and retry
-    - Stall freezes upstream (PC, IF/ID) so the waiting insn is not overwritten
-    - Next cycle: dispatch reevaluates only the still-valid unissued insn; issues when lane + hazards clear
-    - Preserves program order without an out-of-order scheduler
+        Stall if RAW exists and forwarding cannot supply the value in time
+
+    3) Forwarding (ID/EX — I0 result to I1 operand)
+
+        - If I0 is in EX or MEM, forward its result to I1 rs1/rs2 → dual-issue may proceed
+        - Golden policy: sim/tb/s2_decode/dispatch_hazard_tb.sv; planned RTL: rtl/issue_dispatch/
+
+Execution Flow and Design Reason
+
+    RV-DIS bring-up uses a simple in-order dual-issue pipeline: two fixed lanes (even ALU,
+    odd mem/branch), dispatch stall when both insns need the same lane, and forwarding to
+    hide RAW between I0 and I1. That is the right starting point for Artix-7 — small,
+    deterministic, easy to verify (register_file_tb, dispatch_hazard_tb).
+
+    Longer-term direction (toward out-of-order / superscalar thinking):
+
+    1) Current model — fixed lanes + stall on lane conflict
+
+        a) Issue I0 and I1 into predetermined even/odd slots (decode_lane_sel)
+        b) If both need the same lane (e.g. two scalar ALU ops) → stall I1, issue I0 only
+        c) Throughput limited by lane pairing, not only by true data dependences
+
+    2) Next step — replicate execution resources (port-based EX)
+
+        a) Avoid stall-based lane arbitration where possible by duplicating key units
+           (e.g. multiple integer ALUs) instead of one scalar lane vs one mem/branch lane
+        b) Dispatch insns to any free compatible execution port, not a fixed even/odd slot
+        c) Removes many structural hazards at the cost of more hardware (more ALUs, more muxing)
+
+    3) How real OoO CPUs scale (target mindset, not RV-DIS v1)
+
+        a) Multiple execution ports keep the backend busy without stalling on lane type alone
+        b) Register renaming breaks false WAW/WAR hazards; issue queue holds insns until operands ready
+        c) Reorder buffer commits in program order while execute completes out of order
+        d) Stalls become a scheduling problem (wait for operands / ports), not fixed lane pairing
+
+    4) Design progression summary
+
+        in-order dual-issue (fixed lanes, stall on conflict)
+            → superscalar ports (duplicate ALUs, flexible dispatch)
+            → dynamic scheduling (issue queue, renaming, ROB)
+
+        RV-DIS stays at the first stage for scalar bring-up; SIMD even/odd split mirrors the
+        same lane idea. Port-based EX and OoO scheduling are the architectural path if throughput
+        must grow beyond deterministic dual-issue.
 
 Data memory (scalar load/store — odd lane, memory_access.sv):
 
