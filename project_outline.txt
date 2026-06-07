@@ -191,7 +191,7 @@ Registers File - 32 addressible register:
             * retrive from memory by immediate pointer address
             * Only write the youngest instruction(odd_pc = 0x4) data(0xbb) to register address(x2)
 
-Dispatch and forwarding (during ID/EX) — lane checks and hazards
+Dispatch (during ID/EX) — lane checks and hazards
 
     Dispatch runs at ID (before operands enter EX). It decides whether the fetch pair
     I0 + I1 are issue to the execution lanes. Forwarding supplies operand data
@@ -220,49 +220,16 @@ Dispatch and forwarding (during ID/EX) — lane checks and hazards
 
         Stall if RAW exists and forwarding cannot supply the value in time
 
-    3) Forwarding (ID/EX — I0 result to I1 operand)
-
-        - If I0 is in EX or MEM, forward its result to I1 rs1/rs2 → dual-issue may proceed
-        - Golden policy: sim/tb/s2_decode/dispatch_hazard_tb.sv; planned RTL: rtl/issue_dispatch/
+Forwarding (ID/EX — I0 result to I1 operand)
 
 Execution Flow and Design Reason
 
-    RV-DIS bring-up uses a simple in-order dual-issue pipeline: two fixed lanes (even ALU,
-    odd mem/branch), dispatch stall when both insns need the same lane, and forwarding to
-    hide RAW between I0 and I1. That is the right starting point for Artix-7 — small,
-    deterministic, easy to verify (register_file_tb, dispatch_hazard_tb).
+    1) Deuplicate execution resources (port-based EX)
 
-    Longer-term direction (toward out-of-order / superscalar thinking):
+        a) Avoid stall-based lane arbitration by duplicating excution units on the same lane
+        b) Dispatch both I0, I1 assign to even/odd lane to the (2) copy of execution unit 
+        c) Removes many structural hazards at the cost of more hardware
 
-    1) Current model — fixed lanes + stall on lane conflict
-
-        a) Issue I0 and I1 into predetermined even/odd slots (decode_lane_sel)
-        b) If both need the same lane (e.g. two scalar ALU ops) → stall I1, issue I0 only
-        c) Throughput limited by lane pairing, not only by true data dependences
-
-    2) Next step — replicate execution resources (port-based EX)
-
-        a) Avoid stall-based lane arbitration where possible by duplicating key units
-           (e.g. multiple integer ALUs) instead of one scalar lane vs one mem/branch lane
-        b) Dispatch insns to any free compatible execution port, not a fixed even/odd slot
-        c) Removes many structural hazards at the cost of more hardware (more ALUs, more muxing)
-
-    3) How real OoO CPUs scale (target mindset, not RV-DIS v1)
-
-        a) Multiple execution ports keep the backend busy without stalling on lane type alone
-        b) Register renaming breaks false WAW/WAR hazards; issue queue holds insns until operands ready
-        c) Reorder buffer commits in program order while execute completes out of order
-        d) Stalls become a scheduling problem (wait for operands / ports), not fixed lane pairing
-
-    4) Design progression summary
-
-        in-order dual-issue (fixed lanes, stall on conflict)
-            → superscalar ports (duplicate ALUs, flexible dispatch)
-            → dynamic scheduling (issue queue, renaming, ROB)
-
-        RV-DIS stays at the first stage for scalar bring-up; SIMD even/odd split mirrors the
-        same lane idea. Port-based EX and OoO scheduling are the architectural path if throughput
-        must grow beyond deterministic dual-issue.
 
 Data memory (scalar load/store — odd lane, memory_access.sv):
 

@@ -41,8 +41,7 @@ module decoder
   assign pc_out  = pc;
 
   assign lane_sel   = decode_lane_sel(opcode_raw);
-  assign legal      = insn_legal_scalar(opcode_raw, funct3_raw) && (lane_sel != LANE_NONE);
-  assign valid = legal;
+  assign valid      = insn_legal_scalar(opcode_raw, funct3_raw) && (lane_sel != LANE_NONE);
 
   assign rs1_use    = decode_rs1_use(opcode_raw);
   assign rs2_use    = decode_rs2_use(opcode_raw);
