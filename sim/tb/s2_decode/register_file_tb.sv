@@ -35,7 +35,7 @@ module register_file_tb;
   localparam reg_t WB_X2_LW        = 32'h0000_00bb;
   // Odd-lane insn PC (I1 = PC_BASE+4); wpc on WB bus is this latched PC
   localparam reg_t ODD_PC          = PC_BASE + 32'd4;
-  // jal/jalr Green Card: R[rd] = PC+4 (link only on odd_wdata; PC jump not on GPR bus)
+  // jal/jalr Green Card: R[rd] = PC+4 (link only on i1_wdata; PC jump not on GPR bus)
   localparam reg_t WB_JAL_LINK     = ODD_PC + 32'd4;
   // lui x7,0x2a: R[rd] = imm<<12
   localparam reg_t LUI_IMM_2A      = 32'h0000_002a;
@@ -63,25 +63,25 @@ module register_file_tb;
   logic        clk;
   logic        rst_n;
 
-  logic [4:0]  even_rs1_addr;
-  logic [4:0]  even_rs2_addr;
-  reg_t        even_rs1_data;
-  reg_t        even_rs2_data;
+  logic [4:0]  i0_rs1_addr;
+  logic [4:0]  i0_rs2_addr;
+  reg_t        i0_rs1_data;
+  reg_t        i0_rs2_data;
 
-  logic [4:0]  odd_rs1_addr;
-  logic [4:0]  odd_rs2_addr;
-  reg_t        odd_rs1_data;
-  reg_t        odd_rs2_data;
+  logic [4:0]  i1_rs1_addr;
+  logic [4:0]  i1_rs2_addr;
+  reg_t        i1_rs1_data;
+  reg_t        i1_rs2_data;
 
-  logic        even_wen;
-  logic [4:0]  even_rd;
-  reg_t        even_wdata;
-  reg_t        even_wpc;
+  logic        i0_wen;
+  logic [4:0]  i0_rd;
+  reg_t        i0_wdata;
+  reg_t        i0_wpc;
 
-  logic        odd_wen;
-  logic [4:0]  odd_rd;
-  reg_t        odd_wdata;
-  reg_t        odd_wpc;
+  logic        i1_wen;
+  logic [4:0]  i1_rd;
+  reg_t        i1_wdata;
+  reg_t        i1_wpc;
 
   int pass_cnt;
   int fail_cnt;
@@ -99,14 +99,14 @@ module register_file_tb;
   endtask
 
   task automatic clear_writes;
-    even_wen   = 1'b0;
-    odd_wen    = 1'b0;
-    even_rd    = 5'd0;
-    odd_rd     = 5'd0;
-    even_wdata = '0;
-    odd_wdata  = '0;
-    even_wpc   = '0;
-    odd_wpc    = '0;
+    i0_wen   = 1'b0;
+    i1_wen    = 1'b0;
+    i0_rd    = 5'd0;
+    i1_rd     = 5'd0;
+    i0_wdata = '0;
+    i1_wdata  = '0;
+    i0_wpc   = '0;
+    i1_wpc    = '0;
   endtask
 
   task automatic set_reads(
@@ -115,10 +115,10 @@ module register_file_tb;
     input logic [4:0] o_rs1,
     input logic [4:0] o_rs2
   );
-    even_rs1_addr = e_rs1;
-    even_rs2_addr = e_rs2;
-    odd_rs1_addr  = o_rs1;
-    odd_rs2_addr  = o_rs2;
+    i0_rs1_addr = e_rs1;
+    i0_rs2_addr = e_rs2;
+    i1_rs1_addr  = o_rs1;
+    i1_rs2_addr  = o_rs2;
     #1;
   endtask
 
@@ -161,14 +161,14 @@ module register_file_tb;
     input reg_t        o_wdata,
     input reg_t        o_wpc
   );
-    even_wen   = e_wen;
-    even_rd    = e_rd;
-    even_wdata = e_wdata;
-    even_wpc   = e_wpc;
-    odd_wen    = o_wen;
-    odd_rd     = o_rd;
-    odd_wdata  = o_wdata;
-    odd_wpc    = o_wpc;
+    i0_wen   = e_wen;
+    i0_rd    = e_rd;
+    i0_wdata = e_wdata;
+    i0_wpc   = e_wpc;
+    i1_wen    = o_wen;
+    i1_rd     = o_rd;
+    i1_wdata  = o_wdata;
+    i1_wpc    = o_wpc;
   endtask
 
   // Hardware reset, each test starts from empty GPR array (x0 always 0)
@@ -204,43 +204,43 @@ module register_file_tb;
     input reg_t       exp_e_rs2_data,
     input reg_t       exp_o_rs1_data,
     input reg_t       exp_o_rs2_data,
-    input logic       exp_even_wen,
-    input logic [4:0] exp_even_rd,
-    input reg_t       exp_even_wdata,
-    input reg_t       exp_even_wpc,
-    input logic       exp_odd_wen,
-    input logic [4:0] exp_odd_rd,
-    input reg_t       exp_odd_wdata,
-    input reg_t       exp_odd_wpc
+    input logic       exp_i0_wen,
+    input logic [4:0] exp_i0_rd,
+    input reg_t       exp_i0_wdata,
+    input reg_t       exp_i0_wpc,
+    input logic       exp_i1_wen,
+    input logic [4:0] exp_i1_rd,
+    input reg_t       exp_i1_wdata,
+    input reg_t       exp_i1_wpc
   );
     bit pass;
-    pass = (even_rs1_addr === exp_e_rs1_addr) && (even_rs2_addr === exp_e_rs2_addr) &&
-           (odd_rs1_addr  === exp_o_rs1_addr)  && (odd_rs2_addr  === exp_o_rs2_addr)  &&
-           (even_rs1_data === exp_e_rs1_data) && (even_rs2_data === exp_e_rs2_data) &&
-           (odd_rs1_data  === exp_o_rs1_data)  && (odd_rs2_data  === exp_o_rs2_data)  &&
-           (even_wen      === exp_even_wen)    && (even_rd       === exp_even_rd)    &&
-           (even_wdata    === exp_even_wdata)  && (even_wpc      === exp_even_wpc)    &&
-           (odd_wen       === exp_odd_wen)     && (odd_rd        === exp_odd_rd)     &&
-           (odd_wdata     === exp_odd_wdata)   && (odd_wpc       === exp_odd_wpc);
+    pass = (i0_rs1_addr === exp_e_rs1_addr) && (i0_rs2_addr === exp_e_rs2_addr) &&
+           (i1_rs1_addr  === exp_o_rs1_addr)  && (i1_rs2_addr  === exp_o_rs2_addr)  &&
+           (i0_rs1_data === exp_e_rs1_data) && (i0_rs2_data === exp_e_rs2_data) &&
+           (i1_rs1_data  === exp_o_rs1_data)  && (i1_rs2_data  === exp_o_rs2_data)  &&
+           (i0_wen      === exp_i0_wen)    && (i0_rd       === exp_i0_rd)    &&
+           (i0_wdata    === exp_i0_wdata)  && (i0_wpc      === exp_i0_wpc)    &&
+           (i1_wen       === exp_i1_wen)     && (i1_rd        === exp_i1_rd)     &&
+           (i1_wdata     === exp_i1_wdata)   && (i1_wpc       === exp_i1_wpc);
     tb_report_open(pass, name, detail);
     $display("  read ports ID");
-    tb_field_xreg("even_rs1_addr", even_rs1_addr, exp_e_rs1_addr);
-    tb_field_u32 ("even_rs1_data", even_rs1_data, exp_e_rs1_data);
-    tb_field_xreg("even_rs2_addr", even_rs2_addr, exp_e_rs2_addr);
-    tb_field_u32 ("even_rs2_data", even_rs2_data, exp_e_rs2_data);
-    tb_field_xreg("odd_rs1_addr",  odd_rs1_addr,  exp_o_rs1_addr);
-    tb_field_u32 ("odd_rs1_data",  odd_rs1_data,  exp_o_rs1_data);
-    tb_field_xreg("odd_rs2_addr",  odd_rs2_addr,  exp_o_rs2_addr);
-    tb_field_u32 ("odd_rs2_data",  odd_rs2_data,  exp_o_rs2_data);
+    tb_field_xreg("i0_rs1_addr", i0_rs1_addr, exp_e_rs1_addr);
+    tb_field_u32 ("i0_rs1_data", i0_rs1_data, exp_e_rs1_data);
+    tb_field_xreg("i0_rs2_addr", i0_rs2_addr, exp_e_rs2_addr);
+    tb_field_u32 ("i0_rs2_data", i0_rs2_data, exp_e_rs2_data);
+    tb_field_xreg("i1_rs1_addr",  i1_rs1_addr,  exp_o_rs1_addr);
+    tb_field_u32 ("i1_rs1_data",  i1_rs1_data,  exp_o_rs1_data);
+    tb_field_xreg("i1_rs2_addr",  i1_rs2_addr,  exp_o_rs2_addr);
+    tb_field_u32 ("i1_rs2_data",  i1_rs2_data,  exp_o_rs2_data);
     $display("  write ports WB");
-    tb_field_bit ("even_wen",      even_wen,      exp_even_wen);
-    tb_field_xreg("even_rd",       even_rd,       exp_even_rd);
-    tb_field_u32 ("even_wdata",    even_wdata,    exp_even_wdata);
-    tb_field_u32 ("even_wpc",      even_wpc,      exp_even_wpc);
-    tb_field_bit ("odd_wen",       odd_wen,       exp_odd_wen);
-    tb_field_xreg("odd_rd",        odd_rd,        exp_odd_rd);
-    tb_field_u32 ("odd_wdata",     odd_wdata,     exp_odd_wdata);
-    tb_field_u32 ("odd_wpc",       odd_wpc,       exp_odd_wpc);
+    tb_field_bit ("i0_wen",      i0_wen,      exp_i0_wen);
+    tb_field_xreg("i0_rd",       i0_rd,       exp_i0_rd);
+    tb_field_u32 ("i0_wdata",    i0_wdata,    exp_i0_wdata);
+    tb_field_u32 ("i0_wpc",      i0_wpc,      exp_i0_wpc);
+    tb_field_bit ("i1_wen",       i1_wen,       exp_i1_wen);
+    tb_field_xreg("i1_rd",        i1_rd,        exp_i1_rd);
+    tb_field_u32 ("i1_wdata",     i1_wdata,     exp_i1_wdata);
+    tb_field_u32 ("i1_wpc",       i1_wpc,       exp_i1_wpc);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -266,10 +266,10 @@ module register_file_tb;
     tb_field_u32("WB_X2_IMM",   WB_X2_IMM,   WB_X2_IMM);
     tb_field_u32("WB_X2_ADDI",  WB_X2_ADDI,  WB_X2_ADDI);
     tb_field_u32("WB_X2_LW",    WB_X2_LW,    WB_X2_LW);
-    tb_info_msg("Green Card odd_wdata: jal/jalr R[rd]=insn_PC+4 only");
+    tb_info_msg("Green Card i1_wdata: jal/jalr R[rd]=insn_PC+4 only");
     tb_field_u32("ODD_PC",       ODD_PC,       ODD_PC);
     tb_field_u32("WB_JAL_LINK",  WB_JAL_LINK,  WB_JAL_LINK);
-    tb_info_msg("Green Card odd_wdata: lui R[rd]=imm<<12, auipc R[rd]=insn_PC+(imm<<12)");
+    tb_info_msg("Green Card i1_wdata: lui R[rd]=imm<<12, auipc R[rd]=insn_PC+(imm<<12)");
     tb_field_u32("LUI_IMM_2A",   LUI_IMM_2A,   LUI_IMM_2A);
     tb_field_u32("WB_LUI_X7",    WB_LUI_X7,    WB_LUI_X7);
     tb_field_u32("AUIPC_IMM_2",  AUIPC_IMM_2,  AUIPC_IMM_2);
@@ -296,10 +296,10 @@ module register_file_tb;
     pass_cnt = 0;
     fail_cnt = 0;
 
-    even_rs1_addr = 5'd0;
-    even_rs2_addr = 5'd0;
-    odd_rs1_addr  = 5'd0;
-    odd_rs2_addr  = 5'd0;
+    i0_rs1_addr = 5'd0;
+    i0_rs2_addr = 5'd0;
+    i1_rs1_addr  = 5'd0;
+    i1_rs2_addr  = 5'd0;
     clear_writes();
 
     isolated_reset();
@@ -488,7 +488,7 @@ module register_file_tb;
       1'b1, ADDR_X2, WB_X2_LW, ODD_WPC_4);
     // =========================================================================
     // Odd-lane WB specials (wpc = ODD_PC). Green Card GPR results only:
-    //   jal/jalr: R[rd] = PC+4  -> odd_wdata = ODD_PC+4 (0x1008), not jump target
+    //   jal/jalr: R[rd] = PC+4  -> i1_wdata = ODD_PC+4 (0x1008), not jump target
     //   lui:      R[rd] = imm<<12
     //   auipc:    R[rd] = PC+(imm<<12) using insn PC = ODD_PC
     // =========================================================================

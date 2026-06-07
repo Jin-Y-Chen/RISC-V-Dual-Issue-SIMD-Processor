@@ -7,11 +7,10 @@ module decoder_tb;
 
   `include "../common/tb_console.svh"
 
-  logic        valid_in;
   logic [31:0] instr;
   logic [31:0] pc;
 
-  logic        valid_out;
+  logic        valid;
   lane_sel_e   lane_sel;
   logic [6:0]  opcode;
   logic [2:0]  funct3;
@@ -29,10 +28,9 @@ module decoder_tb;
   int fail_cnt;
 
   decoder dut (
-    .valid_in   (valid_in),
     .instr      (instr),
     .pc         (pc),
-    .valid_out  (valid_out),
+    .valid      (valid),
     .lane_sel   (lane_sel),
     .opcode     (opcode),
     .funct3     (funct3),
@@ -50,7 +48,6 @@ module decoder_tb;
   task automatic run_insn;
     input logic [31:0] insn_i;
     input logic [31:0] pc_i;
-    valid_in = 1'b1;
     instr    = insn_i;
     pc       = pc_i;
     #1;
@@ -74,14 +71,14 @@ module decoder_tb;
     input logic        exp_reg_write
   );
     bit pass;
-    pass = (valid_out === exp_valid && lane_sel === exp_lane &&
+    pass = (valid === exp_valid && lane_sel === exp_lane &&
             opcode === exp_opcode && funct3 === exp_funct3 && funct7 === exp_funct7 &&
             rd === exp_rd && rs1 === exp_rs1 && rs2 === exp_rs2 &&
             imm === exp_imm && pc_out === pc &&
             rs1_use === exp_rs1_use && rs2_use === exp_rs2_use &&
             reg_write === exp_reg_write);
     tb_report_open(pass, name, detail);
-    tb_field_bit("valid_out", valid_out, exp_valid);
+    tb_field_bit("valid", valid, exp_valid);
     tb_field_lane("lane_sel", lane_sel, exp_lane);
     tb_field_op7("opcode", opcode, exp_opcode);
     tb_field_f3("funct3", funct3, exp_funct3);
@@ -100,24 +97,21 @@ module decoder_tb;
 
   task automatic check_reject(input string name, input string detail);
     bit pass;
-    pass = (valid_in === 1'b1 && valid_out === 1'b0);
+    pass = (valid === 1'b0);
     tb_report_open(pass, name, detail);
-    tb_field_bit("valid_in", valid_in, 1'b1);
-    tb_field_bit("valid_out", valid_out, 1'b0);
+    tb_field_bit("valid", valid, 1'b0);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
 
   task automatic check_bubble(input string name, input logic [31:0] insn_i, input logic [31:0] pc_i);
     bit pass;
-    valid_in = 1'b0;
-    instr    = insn_i;
-    pc       = pc_i;
+    instr = insn_i;
+    pc    = pc_i;
     #1;
-    pass = (valid_out === 1'b0);
-    tb_report_open(pass, name, "valid_in=0 bubble");
-    tb_field_bit("valid_in", valid_in, 1'b0);
-    tb_field_bit("valid_out", valid_out, 1'b0);
+    pass = (valid === 1'b0);
+    tb_report_open(pass, name, "flush bubble illegal insn");
+    tb_field_bit("valid", valid, 1'b0);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -289,7 +283,7 @@ module decoder_tb;
     run_insn(32'hFFFF_FFFF, 32'h0000_8000);
     check_reject("bad_opcode", "unknown opcode");
 
-    check_bubble("valid0", 32'h0046_8613, 32'h0000_9000);
+    check_bubble("flush_zero", 32'h0000_0000, 32'h0000_9000);
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);
