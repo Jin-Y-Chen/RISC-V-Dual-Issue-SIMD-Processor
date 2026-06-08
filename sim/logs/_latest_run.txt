@@ -1,1 +1,0 @@
-C:\Users\Jin\Documents\Github\RISC-V-Dual-Issue-SIMD-Processor\sim\logs\register_file_tb_20260606_073726

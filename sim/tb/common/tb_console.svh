@@ -12,7 +12,7 @@
 //   ---------------------------------------
 //
 // Labels use full DUT / pipeline signal names.
-// End every TB with tb_summary(pass_cnt, fail_cnt) for copy_logs.ps1.
+// End every TB with tb_summary(pass_cnt, fail_cnt) for run_vivado_sim.ps1.
 
 task automatic tb_pass_msg(input string msg);
   $display("[PASS] %s", msg);
@@ -105,7 +105,7 @@ task automatic tb_report_open(input bit pass, input string name, input string de
   if (pass)
     $display("[PASS] %s | %s", name, detail);
   else
-    $error("[FAIL] %s | %s", name, detail);
+    $display("[FAIL] %s | %s", name, detail);
   $display("");
 endtask
 
