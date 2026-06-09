@@ -7223,8 +7223,8 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "082a176c-3940-4ec6-ad9e-8fadf9abf810")
-		(property "Reference" "odd_lane0"
-			(at 193.04 72.39 0)
+		(property "Reference" "odd_lane_i0"
+			(at 193.548 72.39 0)
 			(do_not_autoplace yes)
 			(effects
 				(font
@@ -7319,7 +7319,7 @@
 		(instances
 			(project ""
 				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
-					(reference "odd_lane0")
+					(reference "odd_lane_i0")
 					(unit 1)
 				)
 			)
@@ -7334,8 +7334,8 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "2750e24c-fe70-4fb5-98e7-8da428fa27f7")
-		(property "Reference" "even_lane1"
-			(at 193.294 114.3 0)
+		(property "Reference" "even_lane_i1"
+			(at 194.056 114.3 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7405,7 +7405,7 @@
 		(instances
 			(project ""
 				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
-					(reference "even_lane1")
+					(reference "even_lane_i1")
 					(unit 1)
 				)
 			)
@@ -7421,8 +7421,8 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "2d50921b-2abe-478e-be31-6794130a148f")
-		(property "Reference" "even_lane0"
-			(at 193.294 97.79 0)
+		(property "Reference" "even_lane_i0"
+			(at 194.056 97.79 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7492,7 +7492,7 @@
 		(instances
 			(project "rv_dis_schematic"
 				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
-					(reference "even_lane0")
+					(reference "even_lane_i0")
 					(unit 1)
 				)
 			)
@@ -7937,8 +7937,8 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "7df56f45-12be-451c-8513-2744a7278fa0")
-		(property "Reference" "odd_lane1"
-			(at 193.04 51.054 0)
+		(property "Reference" "odd_lane_i1"
+			(at 193.548 50.8 0)
 			(do_not_autoplace yes)
 			(effects
 				(font
@@ -8033,7 +8033,7 @@
 		(instances
 			(project "rv_dis_schematic"
 				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
-					(reference "odd_lane1")
+					(reference "odd_lane_i1")
 					(unit 1)
 				)
 			)

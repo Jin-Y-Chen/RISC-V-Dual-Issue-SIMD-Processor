@@ -6,8 +6,7 @@
 module if_id (
   input  logic        clk,
   input  logic        rst_n,
-  input  logic        stall_if_id,
-  input  logic        flush_if_id,
+  input  logic        flush,
 
   // Fetch stage (IF)
   input  logic [31:0] instr_if,
@@ -25,11 +24,11 @@ module if_id (
       instr_id     <= 32'd0;
       pc_id        <= 32'd0;
       pc_target_id <= 32'd0;
-    end else if (flush_if_id) begin
+    end else if (flush) begin
       instr_id     <= 32'd0;
       pc_id        <= 32'd0;
       pc_target_id <= 32'd0;
-    end else if (!stall_if_id) begin
+    end else begin
       instr_id     <= instr_if;
       pc_id        <= pc_if;
       pc_target_id <= pc_target_if;

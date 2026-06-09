@@ -215,11 +215,29 @@ Dispatch (during ID/EX) — lane checks and hazards
 
         RAW: I1 reads rs1 and/or rs2 that equals I0 rd, and I0 performs reg_write (rd != x0)
 
-            addi x5,x0,0xaa | lw x6,0x00(x5)
-            => I0 rd = x5, I1 rs1 = x5 → RAW
+            intra-dependent RAW hazard
+            addi x5,x0,0xff | xor x6, x6, x5
+            => I0 rd = x5, I1 rs2 = x5
 
-        Stall if RAW exists and forwarding cannot supply the value in time
+            lui x5,x0,0xaa  | lw x6, 0x0(x5)
+            => I0 rd = x5, I1 rs2 = x5
+            
+            or 
 
+            inter-dependent RAW hazard
+            addi x5,x5,0x01 | brne x6, x5, label
+            => I0 rd = x5, I1 rs2 = x5
+
+        if RAW exists and forwarding cannot supply the value in time
+        Option 1: Stall with scorboarding 
+        - Temporay force in-order execution, reduce CPI
+        - flexible for both cases
+
+        Option 2: same-cycle forward during execution
+        - Result forward during execution, longer critical path/logically
+        - addition hardware for inter/intra-dependent result routing 
+
+        
 Forwarding (ID/EX — I0 result to I1 operand)
 
 Execution Flow and Design Reason
