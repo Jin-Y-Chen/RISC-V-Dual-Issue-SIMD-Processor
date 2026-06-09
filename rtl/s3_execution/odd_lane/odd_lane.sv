@@ -4,31 +4,24 @@
 module odd_lane
   import rv_dis_pkg::*;
 (
-  input  logic        valid,
+  input  logic        enable,
   input  logic [6:0]  opcode,
   input  logic [2:0]  funct3,
-  input  logic [4:0]  rd,
   input  logic [31:0] rs1_data,
   input  logic [31:0] rs2_data,
   input  logic [31:0] imm,
   input  logic [31:0] pc,
 
   output logic        brch_taken,
-  output logic [31:0] brch_target,
-  output logic        jmp,
-  output logic [31:0] jmp_target,
-  output logic        mem_read,
-  output logic        mem_write,
+  output logic [31:0] brch_pc,
+  output logic        mem_en,   // memory request valid
+  output logic        mem_act,  // 0 = read (load), 1 = write (store)
   output logic [31:0] mem_addr,
   output logic [31:0] mem_wdata,
   output logic [3:0]  mem_besel,
-  output logic        reg_write,
-  output logic [4:0]  rd_out,
-  output logic [31:0] link_data,
-  output logic [31:0] wb_data
+  output logic [31:0] link_pc,
+  output logic [31:0] alu_result
 );
-
-  logic u_type;
 
   logic brch_cond;
 
@@ -39,13 +32,14 @@ module odd_lane
     .brch_taken   (brch_cond)
   );
 
-  assign mem_write = valid && (opcode == OPC_STORE);
-  assign mem_read  = valid && (opcode == OPC_LOAD);
+  // One request pair: mem_en qualifies the access, mem_act gives direction.
+  assign mem_en  = enable && (opcode == OPC_LOAD || opcode == OPC_STORE);
+  assign mem_act = (opcode == OPC_STORE);
 
   memory_access u_mem (
     .funct3    (funct3),
     // Store byte-enable: SW only (SB/SH disabled in memory_access)
-    .is_store  (mem_write),
+    .is_store  (mem_en && mem_act),
     .rs1_data  (rs1_data),
     .rs2_data  (rs2_data),
     .imm       (imm),
@@ -55,24 +49,14 @@ module odd_lane
     .mem_besel (mem_besel)
   );
 
-  assign brch_taken  = valid && (opcode == OPC_BRANCH) && brch_cond;
-  assign brch_target = pc + imm;
+  // Control-flow redirect: taken branch or jump (JAL/JALR).
+  // JALR target = (rs1 + imm) with LSB cleared; branch/JAL target = pc + imm.
+  assign brch_taken = enable && (((opcode == OPC_BRANCH) && brch_cond) ||
+                                 (opcode == OPC_JAL) || (opcode == OPC_JALR));
+  assign brch_pc    = (opcode == OPC_JALR) ? ((rs1_data + imm) & 32'hFFFFFFFE) : (pc + imm);
 
-  assign jmp         = valid && (opcode == OPC_JAL || opcode == OPC_JALR);
-  assign jmp_target  = (opcode == OPC_JALR) ? ((rs1_data + imm) & 32'hFFFFFFFE) : (pc + imm);
-
-  assign u_type = valid && (opcode == OPC_LUI || opcode == OPC_AUIPC);
-
-  assign reg_write = valid && (
-    ((opcode == OPC_LOAD) && (funct3 == F3_LW)) ||
-    (opcode == OPC_JAL) ||
-    (opcode == OPC_JALR) ||
-    u_type
-  ) && (rd != 5'd0);
-
-  assign rd_out    = rd;
-  assign link_data = pc + 32'd4;
+  assign link_pc = pc + 32'd4;
   // U-type: imm = {instr[31:12], 12'b0} from decode_imm / imm_u
-  assign wb_data   = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
+  assign alu_result   = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
 
 endmodule

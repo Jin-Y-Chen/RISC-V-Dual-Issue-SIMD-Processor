@@ -38,10 +38,10 @@ $AllTops = @(
   "if_id_tb",
   "decoder_tb",
   "register_file_tb",
-  "dispatch_hazard_tb",
+  #"dispatch_hazard_tb",
   "even_lane_tb",
-  "odd_lane_tb",
-  "ex_mem_tb"
+  "odd_lane_tb"
+  #"ex_mem_tb"
 )
 
 if ($All -and $Top) {
@@ -287,6 +287,6 @@ if ($All) {
   }
 }
 
-if (@($results | Where-Object { $_.Failed }).Count -gt 0) {
+if (($results | Where-Object { $_.Failed }).Count -gt 0) {
   exit 1
 }

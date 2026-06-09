@@ -65,11 +65,15 @@ module register_file_tb;
 
   logic [4:0]  i0_rs1_addr;
   logic [4:0]  i0_rs2_addr;
+  logic        i0_rs1_use;
+  logic        i0_rs2_use;
   reg_t        i0_rs1_data;
   reg_t        i0_rs2_data;
 
   logic [4:0]  i1_rs1_addr;
   logic [4:0]  i1_rs2_addr;
+  logic        i1_rs1_use;
+  logic        i1_rs2_use;
   reg_t        i1_rs1_data;
   reg_t        i1_rs2_data;
 
@@ -110,13 +114,21 @@ module register_file_tb;
   endtask
 
   task automatic set_reads(
+    input logic       e_rs1_use,
+    input logic       e_rs2_use,
     input logic [4:0] e_rs1,
     input logic [4:0] e_rs2,
+    input logic       o_rs1_use,
+    input logic       o_rs2_use,
     input logic [4:0] o_rs1,
     input logic [4:0] o_rs2
   );
+    i0_rs1_use  = e_rs1_use;
+    i0_rs2_use  = e_rs2_use;
     i0_rs1_addr = e_rs1;
     i0_rs2_addr = e_rs2;
+    i1_rs1_use  = o_rs1_use;
+    i1_rs2_use  = o_rs2_use;
     i1_rs1_addr  = o_rs1;
     i1_rs2_addr  = o_rs2;
     #1;
@@ -147,8 +159,12 @@ module register_file_tb;
     input logic [4:0] o_rs1_f,
     input logic [4:0] o_rs2_f
   );
-    set_reads(rf_rs1_addr(e_opc, e_rs1_f), rf_rs2_addr(e_opc, e_rs2_f),
-              rf_rs1_addr(o_opc, o_rs1_f), rf_rs2_addr(o_opc, o_rs2_f));
+    set_reads(
+      decode_rs1_use(e_opc), decode_rs2_use(e_opc),
+      rf_rs1_addr(e_opc, e_rs1_f), rf_rs2_addr(e_opc, e_rs2_f),
+      decode_rs1_use(o_opc), decode_rs2_use(o_opc),
+      rf_rs1_addr(o_opc, o_rs1_f), rf_rs2_addr(o_opc, o_rs2_f)
+    );
   endtask
 
   task automatic drive_writes(
@@ -223,6 +239,11 @@ module register_file_tb;
            (i1_wen       === exp_i1_wen)     && (i1_rd        === exp_i1_rd)     &&
            (i1_wdata     === exp_i1_wdata)   && (i1_wpc       === exp_i1_wpc);
     tb_report_open(pass, name, detail);
+    $display("  read ctrl ID");
+    tb_field_line("i0_rs1_use", $sformatf("%0d", i0_rs1_use), "-");
+    tb_field_line("i0_rs2_use", $sformatf("%0d", i0_rs2_use), "-");
+    tb_field_line("i1_rs1_use", $sformatf("%0d", i1_rs1_use), "-");
+    tb_field_line("i1_rs2_use", $sformatf("%0d", i1_rs2_use), "-");
     $display("  read ports ID");
     tb_field_xreg("i0_rs1_addr", i0_rs1_addr, exp_e_rs1_addr);
     tb_field_u32 ("i0_rs1_data", i0_rs1_data, exp_e_rs1_data);
@@ -298,8 +319,12 @@ module register_file_tb;
 
     i0_rs1_addr = 5'd0;
     i0_rs2_addr = 5'd0;
+    i0_rs1_use  = 1'b0;
+    i0_rs2_use  = 1'b0;
     i1_rs1_addr  = 5'd0;
     i1_rs2_addr  = 5'd0;
+    i1_rs1_use   = 1'b0;
+    i1_rs2_use   = 1'b0;
     clear_writes();
 
     isolated_reset();

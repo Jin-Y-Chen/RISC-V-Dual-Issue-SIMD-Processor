@@ -8,7 +8,6 @@ module decoder_tb;
   `include "../common/tb_console.svh"
 
   logic [31:0] instr;
-  logic [31:0] pc;
 
   logic        valid;
   lane_sel_e   lane_sel;
@@ -19,7 +18,6 @@ module decoder_tb;
   logic [4:0]  rs1;
   logic [4:0]  rs2;
   logic [31:0] imm;
-  logic [31:0] pc_out;
   logic        rs1_use;
   logic        rs2_use;
   logic        reg_write;
@@ -29,7 +27,6 @@ module decoder_tb;
 
   decoder dut (
     .instr      (instr),
-    .pc         (pc),
     .valid      (valid),
     .lane_sel   (lane_sel),
     .opcode     (opcode),
@@ -39,7 +36,6 @@ module decoder_tb;
     .rs1        (rs1),
     .rs2        (rs2),
     .imm        (imm),
-    .pc_out     (pc_out),
     .rs1_use    (rs1_use),
     .rs2_use    (rs2_use),
     .reg_write  (reg_write)
@@ -49,7 +45,7 @@ module decoder_tb;
     input logic [31:0] insn_i;
     input logic [31:0] pc_i;
     instr    = insn_i;
-    pc       = pc_i;
+    // pc_i kept in callsites for mnemonic readability; decoder no longer consumes pc.
     #1;
   endtask
 
@@ -74,7 +70,7 @@ module decoder_tb;
     pass = (valid === exp_valid && lane_sel === exp_lane &&
             opcode === exp_opcode && funct3 === exp_funct3 && funct7 === exp_funct7 &&
             rd === exp_rd && rs1 === exp_rs1 && rs2 === exp_rs2 &&
-            imm === exp_imm && pc_out === pc &&
+            imm === exp_imm &&
             rs1_use === exp_rs1_use && rs2_use === exp_rs2_use &&
             reg_write === exp_reg_write);
     tb_report_open(pass, name, detail);
@@ -87,7 +83,6 @@ module decoder_tb;
     tb_field_u5("rs1", rs1, exp_rs1);
     tb_field_u5("rs2", rs2, exp_rs2);
     tb_field_u32("imm", imm, exp_imm);
-    tb_field_u32("pc_out", pc_out, pc);
     tb_field_bit("rs1_use", rs1_use, exp_rs1_use);
     tb_field_bit("rs2_use", rs2_use, exp_rs2_use);
     tb_field_bit("reg_write", reg_write, exp_reg_write);
@@ -107,7 +102,7 @@ module decoder_tb;
   task automatic check_bubble(input string name, input logic [31:0] insn_i, input logic [31:0] pc_i);
     bit pass;
     instr = insn_i;
-    pc    = pc_i;
+    // pc_i kept for callsite consistency; unused by decoder.
     #1;
     pass = (valid === 1'b0);
     tb_report_open(pass, name, "flush bubble illegal insn");

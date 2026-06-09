@@ -22,6 +22,15 @@ sim/logs/_latest/tb.log
 sim/logs/_latest/summary.txt
 sim/logs/_latest_run.txt
 
+# KiCad diagrams (track only openable .kicad_sch / .kicad_pro)
+docs/diagram/**/*-backups/
+docs/diagram/**/\#auto_saved_files\#
+docs/diagram/**/_autosave-*
+docs/diagram/**/*.lck
+docs/diagram/**/*.kicad_prl
+docs/diagram/**/*.kicad_pcb
+docs/diagram/**/fp-info-cache
+
 # Editor / OS
 .vscode/
 *.swp

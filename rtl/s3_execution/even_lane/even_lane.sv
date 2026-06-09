@@ -5,21 +5,17 @@ module even_lane
   import rv_dis_pkg::*;
   import decode_pkg::*;
 (
-  input  logic        valid,
+  input  logic        enable,
   input  logic [6:0]  opcode,
   input  logic [2:0]  funct3,
   input  logic [6:0]  funct7,
-  input  logic [4:0]  rd,
   input  logic [31:0] rs1_data,
   input  logic [31:0] rs2_data,
   input  logic [31:0] imm,
-  input  logic [31:0] pc,       // insn byte address (program-order tag for WB / hazards)
 
   output logic        reg_write,
-  output logic [4:0]  rd_out,
   // EX result: latch as alu_result_ex/mem for forwarding and GPR writeback
-  output logic [31:0] alu_result,
-  output logic [31:0] pc_out    // passthrough; latch in ex_mem_even → WB age vs odd lane
+  output logic [31:0] alu_result
 );
 
   alu_op_e         alu_op;
@@ -35,9 +31,6 @@ module even_lane
     .alu_result (alu_result)
   );
 
-  assign reg_write = valid && (opcode == OPC_OP || opcode == OPC_OP_IMM) &&
-                     (rd != 5'd0);
-  assign rd_out    = rd;
-  assign pc_out    = pc;
+  assign reg_write = enable && (opcode == OPC_OP || opcode == OPC_OP_IMM);
 
 endmodule

@@ -7,7 +7,6 @@ module decoder
   import decode_pkg::*;
 (
   input  logic [31:0] instr,
-  input  logic [31:0] pc,       // byte address of this instruction (program-order tag)
 
   output logic        valid,     // 1 when insn is legal for RV-DIS scalar decode
   output lane_sel_e   lane_sel,
@@ -18,7 +17,6 @@ module decoder
   output logic [4:0]  rs1,
   output logic [4:0]  rs2,
   output logic [31:0] imm,
-  output logic [31:0] pc_out,
   output logic        rs1_use,
   output logic        rs2_use,
   output logic        reg_write
@@ -38,7 +36,6 @@ module decoder
   assign rs1        = decode_rs1_gpr(opcode_raw, instr);
   assign rs2        = decode_rs2_gpr(opcode_raw, instr);
   assign imm        = decode_imm(opcode_raw, funct3_raw, instr);
-  assign pc_out  = pc;
 
   assign lane_sel   = decode_lane_sel(opcode_raw);
   assign valid      = insn_legal_scalar(opcode_raw, funct3_raw) && (lane_sel != LANE_NONE);

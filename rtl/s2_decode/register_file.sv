@@ -9,12 +9,16 @@ module register_file
   input  logic        rst_n,
 
   // I0 lane read (ID) — ALU rs1 / rs2
+  input  logic        i0_rs1_use,
+  input  logic        i0_rs2_use,
   input  logic [4:0]  i0_rs1_addr,
   input  logic [4:0]  i0_rs2_addr,
   output reg_t        i0_rs1_data,
   output reg_t        i0_rs2_data,
 
   // I1 lane read (ID) — load/store / branch rs1 / rs2
+  input  logic        i1_rs1_use,
+  input  logic        i1_rs2_use,
   input  logic [4:0]  i1_rs1_addr,
   input  logic [4:0]  i1_rs2_addr,
   output reg_t        i1_rs1_data,
@@ -53,10 +57,15 @@ module register_file
       rf_array_read = regs[addr];
   endfunction
 
-  function automatic reg_t rf_read_port(input logic [4:0] addr);
+  function automatic reg_t rf_read_port(input logic rs_use, input logic [4:0] addr);
     reg_t         stored;
     logic         i0_byp, i1_byp;
     reg_t         wdata;
+
+    if (!rs_use) begin
+      rf_read_port = '0;
+      return;
+    end
 
     stored  = rf_array_read(addr);
     i0_byp  = i0_wr && (i0_rd == addr);
@@ -76,10 +85,10 @@ module register_file
 
   // always_comb (not assign+function): XSim must see full bypass/write sensitivity
   always_comb begin
-    i0_rs1_data = rf_read_port(i0_rs1_addr);
-    i0_rs2_data = rf_read_port(i0_rs2_addr);
-    i1_rs1_data = rf_read_port(i1_rs1_addr);
-    i1_rs2_data = rf_read_port(i1_rs2_addr);
+    i0_rs1_data = rf_read_port(i0_rs1_use, i0_rs1_addr);
+    i0_rs2_data = rf_read_port(i0_rs2_use, i0_rs2_addr);
+    i1_rs1_data = rf_read_port(i1_rs1_use, i1_rs1_addr);
+    i1_rs2_data = rf_read_port(i1_rs2_use, i1_rs2_addr);
   end
 
   always_ff @(posedge clk or negedge rst_n) begin
