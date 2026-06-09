@@ -173,6 +173,12 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
       ($_ -notmatch '^\s*INFO:\s*\[Common 17-206\]')
     }
 
+    $failLines = $tbLines | Where-Object {
+      ($_ -match '^\s*Error:\s+\[FAIL\]') -or
+      ($_ -match '^\s*\[FAIL\]') -or
+      ($_ -match '^\s*Fatal:')
+    }
+
     $tbLines | Set-Content (Join-Path $tbOutDir "tb.log")
     $summaryLines | Set-Content (Join-Path $tbOutDir "summary.txt")
 
@@ -197,11 +203,18 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
     Write-Host "OK  summary:   $(Join-Path $tbOutDir 'summary.txt')"
     Write-Host "    result:    $result"
 
+    if ($failLines.Count -gt 0) {
+      Write-Host "    fail details:"
+      foreach ($line in $failLines) {
+        Write-Host "      $line"
+      }
+    }
+
     return [pscustomobject]@{
       Top = $TbTop
       Result = $result
       Archive = $tbOutDir
-      Failed = ($result -match '(?i)\bfailed\b')
+      Failed = (($result -match '(?i)failed') -or ($failLines.Count -gt 0))
     }
   }
   finally {
@@ -274,6 +287,6 @@ if ($All) {
   }
 }
 
-if (($results | Where-Object { $_.Failed }).Count -gt 0) {
+if (@($results | Where-Object { $_.Failed }).Count -gt 0) {
   exit 1
 }

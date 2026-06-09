@@ -1,3 +1,0 @@
-top:    register_file_tb
-time:   20260608_130040
-result: 23 passed, 0 failed - OK

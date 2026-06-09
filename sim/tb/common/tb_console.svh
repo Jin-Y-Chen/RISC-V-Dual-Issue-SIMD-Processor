@@ -105,7 +105,7 @@ task automatic tb_report_open(input bit pass, input string name, input string de
   if (pass)
     $display("[PASS] %s | %s", name, detail);
   else
-    $display("[FAIL] %s | %s", name, detail);
+    $error("[FAIL] %s | %s", name, detail);
   $display("");
 endtask
 
