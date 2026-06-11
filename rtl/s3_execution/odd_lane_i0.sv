@@ -1,7 +1,10 @@
 `timescale 1ns / 1ps
 
-// Top-level odd execution lane: LW/SW, branches, jumps, LUI/AUIPC (RV32I).
-module odd_lane
+// Top-level odd execution lane, I0 slot (older insn): LW/SW, branches, jumps, LUI/AUIPC.
+// I0-only output: unit_done flags that the result is final in EX, so it can be
+// forwarded to the younger I1 slot in the same cycle. Loads are NOT done in
+// EX (data returns from memory in MEM), so LW does not assert unit_done.
+module odd_lane_i0
   import rv_dis_pkg::*;
 (
   input  logic        enable,
@@ -12,6 +15,7 @@ module odd_lane
   input  logic [31:0] imm,
   input  logic [31:0] pc,
 
+  output logic        unit_done,  // I0 result final in EX (forwardable to I1)
   output logic        brch_taken,
   output logic [31:0] brch_pc,
   output logic        mem_en,   // memory request valid
@@ -58,5 +62,10 @@ module odd_lane
   assign link_pc = pc + 32'd4;
   // U-type: imm = {instr[31:12], 12'b0} from decode_imm / imm_u
   assign alu_result   = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
+
+  // Result final in EX for JAL/JALR (link_pc) and LUI/AUIPC (alu_result).
+  // LW data only returns in MEM, so loads are not done here.
+  assign unit_done = enable && ((opcode == OPC_JAL)  || (opcode == OPC_JALR) ||
+                              (opcode == OPC_LUI)  || (opcode == OPC_AUIPC));
 
 endmodule
