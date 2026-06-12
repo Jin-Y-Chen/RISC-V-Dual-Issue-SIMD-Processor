@@ -21,6 +21,8 @@ param(
       "dispatch_hazard_tb",
       "even_lane_tb",
       "odd_lane_tb",
+      "id_ex_dispatch_tb",
+      "forward_unit_tb",
       "ex_mem_tb"
     )]
     [string]$Top,
@@ -40,7 +42,9 @@ $AllTops = @(
   "register_file_tb",
   #"dispatch_hazard_tb",
   "even_lane_tb",
-  "odd_lane_tb"
+  "odd_lane_tb",
+  "id_ex_dispatch_tb",
+  "forward_unit_tb"
   #"ex_mem_tb"
 )
 
@@ -107,6 +111,20 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/s3_execution/odd_lane/memory_access.sv",
                 "rtl/s3_execution/odd_lane/odd_lane.sv",
                 "sim/tb/s3_execute/odd_lane_tb.sv"
+            )
+        }
+        "id_ex_dispatch_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s3_execution/id_ex_dispatch.sv",
+                "sim/tb/s3_execute/id_ex_dispatch_tb.sv"
+            )
+        }
+        "forward_unit_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s3_execution/forward_unit.sv",
+                "sim/tb/s3_execute/forward_unit_tb.sv"
             )
         }
         "ex_mem_tb" {
