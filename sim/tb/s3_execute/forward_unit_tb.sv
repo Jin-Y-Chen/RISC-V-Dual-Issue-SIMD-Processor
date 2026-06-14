@@ -266,6 +266,123 @@ module forward_unit_tb;
     #1step;
     check_u32("no_raw_no_ovr", "rd/rs mismatch: ev1 rs1 unchanged",
               "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_1111);
+    next_test();
+
+    // ===================== Edge cases =====================
+
+    // --- 10. Both WB ports, equal pc: tie resolves to wb1 (>= compare) ---
+    od0_enable   = 1'b1;
+    od0_rs1_addr = 5'd7;  od0_rs1_data = 32'hDEAD_DEAD;
+    wb0_reg_write = 1'b1; wb0_rd_addr = 5'd7;
+    wb0_data = 32'h0000_00C0; wb0_pc = 32'h0000_0100;
+    wb1_reg_write = 1'b1; wb1_rd_addr = 5'd7;
+    wb1_data = 32'h0000_00C1; wb1_pc = 32'h0000_0100;
+    #1;
+    check_u32("wb_pc_tie", "equal WB pc: tie goes to wb1",
+              "od0_rs1_data_fwd", od0_rs1_data_fwd, 32'h0000_00C1);
+    next_test();
+
+    // --- 11. I0 override outranks a WB hit on the same register (EX newer) ---
+    wb0_reg_write = 1'b1; wb0_rd_addr = 5'd5;
+    wb0_data = 32'h0000_0BAD; wb0_pc = 32'h0000_0100;  // older value of x5
+    i0_reg_write  = 1'b1;  i0_rd_addr = 5'd5;
+    ev0_unit_done = 1'b1;  ev0_result = 32'h0000_600D; // newest value of x5
+    ev1_enable    = 1'b1;
+    ev1_rs1_addr  = 5'd5;  ev1_rs1_data = 32'hDEAD_DEAD;
+    #1;
+    check_u32("ovr_vs_wb_half1", "first half: WB value bridges the gap",
+              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_0BAD);
+    @(negedge clk);
+    #1step;
+    check_u32("ovr_vs_wb_half2", "second half: I0 result outranks WB hit",
+              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_600D);
+    next_test();
+
+    // --- 12. RAW on both rs1 and rs2 of the same consumer ---
+    i0_reg_write  = 1'b1;  i0_rd_addr = 5'd4;
+    ev0_unit_done = 1'b1;  ev0_result = 32'h0000_4444;
+    ev1_enable    = 1'b1;
+    ev1_rs1_addr  = 5'd4;  ev1_rs1_data = 32'hDEAD_DEAD;
+    ev1_rs2_addr  = 5'd4;  ev1_rs2_data = 32'hDEAD_DEAD;
+    #1;
+    check_bit("dual_raw_no_stall", "both ports RAW, producer done: no stall",
+              "i1_stall", i1_stall, 1'b0);
+    @(negedge clk);
+    #1step;
+    check_u32("dual_raw_rs1", "rs1 takes I0 result",
+              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_4444);
+    check_u32("dual_raw_rs2", "rs2 takes I0 result",
+              "ev1_rs2_data_fwd", ev1_rs2_data_fwd, 32'h0000_4444);
+    next_test();
+
+    // --- 13. unit_done without reg_write (no GPR producer): no override ---
+    i0_reg_write  = 1'b0;  i0_rd_addr = 5'd6;
+    ev0_unit_done = 1'b1;  ev0_result = 32'hBAD0_BAD0;
+    od1_enable    = 1'b1;
+    od1_rs1_addr  = 5'd6;  od1_rs1_data = 32'h0000_0606;
+    #1;
+    check_bit("no_rw_no_stall", "address match but i0_reg_write=0: no stall",
+              "i1_stall", i1_stall, 1'b0);
+    @(negedge clk);
+    #1step;
+    check_u32("no_rw_no_ovr", "no GPR producer: od1 rs1 unchanged",
+              "od1_rs1_data_fwd", od1_rs1_data_fwd, 32'h0000_0606);
+    next_test();
+
+    // --- 14. RAW address match but consumer disabled: no stall ---
+    i0_reg_write  = 1'b1;  i0_rd_addr = 5'd8;     // not done (LW-like)
+    od1_enable    = 1'b0;
+    od1_rs1_addr  = 5'd8;  od1_rs1_data = 32'hDEAD_DEAD;
+    #1;
+    check_bit("disabled_no_stall", "consumer disabled: RAW ignored, no stall",
+              "i1_stall", i1_stall, 1'b0);
+    next_test();
+
+    // --- 15. Stale override leak: back-to-back pairs on the same register.
+    //     Cycle A latches an override for x12; cycle B issues an independent
+    //     I1 reading x12 with fresh GPR data and no RAW. The flag only
+    //     recomputes at cycle B's negedge, so the first half-cycle can show
+    //     cycle A's result. Lanes are sampled at posedge after settle, so
+    //     this is benign for data - probe and report it. ---
+    i0_reg_write  = 1'b1;  i0_rd_addr = 5'd12;
+    ev0_unit_done = 1'b1;  ev0_result = 32'h0000_C0DE;
+    ev1_enable    = 1'b1;
+    ev1_rs1_addr  = 5'd12; ev1_rs1_data = 32'hDEAD_DEAD;
+    @(negedge clk);
+    #1step;                                       // cycle A: override latched
+    i0_reg_write  = 1'b0;
+    ev0_unit_done = 1'b0;
+    ev1_rs1_data  = 32'h0000_7777;                // cycle B: fresh, no RAW
+    @(posedge clk);
+    #1;
+    if (ev1_rs1_data_fwd !== 32'h0000_7777) begin
+      tb_warn_msg($sformatf(
+        "stale override in first half-cycle: ev1_rs1_data_fwd=0x%08h (fresh value 0x00007777)",
+        ev1_rs1_data_fwd));
+      tb_info_msg("benign for registered consumers; combinational uses (e.g. brch_taken) would glitch in the first half");
+    end else begin
+      tb_info_msg("no stale first-half override observed");
+    end
+    @(negedge clk);
+    #1step;
+    check_u32("stale_ovr_recovers", "second half: flag recomputed, fresh operand",
+              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_7777);
+    next_test();
+
+    // --- 16. Contract probe: WB write to x0 (decode_reg_write gates rd==x0,
+    //     so this never reaches the forward unit). fwd_port has no x0 check;
+    //     observe whether a forged x0 write would corrupt an x0 read. ---
+    ev0_enable   = 1'b1;
+    ev0_rs1_addr = 5'd0;  ev0_rs1_data = 32'h0000_0000;  // x0 reads as 0
+    wb0_reg_write = 1'b1; wb0_rd_addr = 5'd0;
+    wb0_data = 32'hBAD0_BAD0; wb0_pc = 32'h0000_0100;
+    #1;
+    if (ev0_rs1_data_fwd !== 32'h0000_0000) begin
+      tb_warn_msg("x0 probe: forged WB write to x0 forwards onto an x0 read");
+      tb_info_msg("safe only because decode_reg_write forces reg_write=0 for rd==x0");
+    end else begin
+      tb_info_msg("x0 probe: x0 read stays zero under WB write to x0");
+    end
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

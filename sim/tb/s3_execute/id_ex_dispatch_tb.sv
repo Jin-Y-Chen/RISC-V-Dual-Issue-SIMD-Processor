@@ -423,6 +423,65 @@ module id_ex_dispatch_tb;
     check_enables("post_flush_en", "pipeline captures again after flush",
                   1'b1, 1'b0, 1'b0, 1'b1);
 
+    // ===================== Edge cases =====================
+
+    // --- I0 invalid, I1 valid: only the slot-1 copy fires ---
+    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1028);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h102C);
+    tick();
+    check_enables("i0_invalid_en", "I0 valid=0: only ev1 fires",
+                  1'b0, 1'b1, 1'b0, 1'b0);
+    check_wb_ctrl("i0_invalid_wb", "invalid I0 cannot reg_write",
+                  1'b0, 1'b1, 32'h1028, 32'h102C);
+
+    // --- Both slots invalid: full bubble (pc payload still flows, harmless) ---
+    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1030);
+    set_slot1(1'b0, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1034);
+    tick();
+    check_enables("bubble_en", "no valid insn: all four copies idle",
+                  1'b0, 1'b0, 1'b0, 1'b0);
+    check_wb_ctrl("bubble_wb", "bubble pair cannot reg_write",
+                  1'b0, 1'b0, 32'h1030, 32'h1034);
+
+    // --- Back-to-back pairs: payload swaps every cycle, no stale state ---
+    set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1038);
+    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
+              5'd0, 5'd5, 5'd1, 1'b0, 32'd16, 32'h3000, 32'hF00D, 32'h103C);
+    tick();
+    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd8, 5'd5, 5'd0, 1'b1, 32'd20, 32'h4000, 32'h0, 32'h1040);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd9, 5'd8, 5'd0, 1'b1, 32'd1, 32'h99, 32'h0, 32'h1044);
+    tick();
+    check_enables("b2b_en", "second pair replaces first with no idle cycle",
+                  1'b0, 1'b1, 1'b1, 1'b0);
+    check_od0("b2b_od0", "od0 carries second-pair I0 LW x8,20(x5)",
+              OPC_LOAD, F3_LW, 5'd8, 32'd20, 32'h4000, 32'h0, 32'h1040);
+    check_wb_ctrl("b2b_wb", "WB controls track the newest pair",
+                  1'b1, 1'b1, 32'h1040, 32'h1044);
+
+    // --- Contract probe: valid=1 with LANE_NONE (decoder never emits this:
+    //     valid = legal && lane_sel != LANE_NONE). No copy may fire; observe
+    //     whether the slot's reg_write would still reach WB. ---
+    set_slot0(1'b1, LANE_NONE, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd3, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1048);
+    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h104C);
+    tick();
+    check_enables("lane_none_en", "LANE_NONE routes to no lane copy",
+                  1'b0, 1'b0, 1'b0, 1'b0);
+    if (i0_reg_write_ex === 1'b1) begin
+      tb_warn_msg("lane_none probe: i0_reg_write_ex=1 while no lane copy executes");
+      tb_info_msg("safe only because decoder forces valid=0 for LANE_NONE; WB would write a stale result if that gate were removed");
+    end else begin
+      tb_info_msg("lane_none probe: i0_reg_write_ex stays low without a lane");
+    end
+
     $display("");
     tb_summary(pass_cnt, fail_cnt);
     if (fail_cnt != 0)
