@@ -102,6 +102,63 @@ module forward_unit_tb;
     #1step;
   endtask
 
+  // --- Full DUT signal dump (inputs + outputs, DUT port names) ---
+
+  task automatic dump_lane(
+    input string       prefix,
+    input logic        enable,
+    input logic [4:0]  rs1_addr,
+    input logic [4:0]  rs2_addr,
+    input logic [31:0] rs1_data,
+    input logic [31:0] rs2_data
+  );
+    $display("    %0s_enable    = %0d", prefix, enable);
+    $display("    %0s_rs1_addr  = x%0d", prefix, rs1_addr);
+    $display("    %0s_rs2_addr  = x%0d", prefix, rs2_addr);
+    $display("    %0s_rs1_data  = 0x%08h", prefix, rs1_data);
+    $display("    %0s_rs2_data  = 0x%08h", prefix, rs2_data);
+  endtask
+
+  task automatic dump_inputs;
+    $display("  -- WB write ports --");
+    $display("    wb0_reg_write = %0d", wb0_reg_write);
+    $display("    wb0_rd_addr   = x%0d", wb0_rd_addr);
+    $display("    wb0_data      = 0x%08h", wb0_data);
+    $display("    wb0_pc        = 0x%08h", wb0_pc);
+    $display("    wb1_reg_write = %0d", wb1_reg_write);
+    $display("    wb1_rd_addr   = x%0d", wb1_rd_addr);
+    $display("    wb1_data      = 0x%08h", wb1_data);
+    $display("    wb1_pc        = 0x%08h", wb1_pc);
+    $display("  -- I0 producer --");
+    $display("    i0_reg_write  = %0d", i0_reg_write);
+    $display("    i0_rd_addr    = x%0d", i0_rd_addr);
+    $display("    ev0_unit_done = %0d", ev0_unit_done);
+    $display("    ev0_result    = 0x%08h", ev0_result);
+    $display("    od0_unit_done = %0d", od0_unit_done);
+    $display("    od0_result    = 0x%08h", od0_result);
+    $display("  -- ev0 operands --");
+    dump_lane("ev0", ev0_enable, ev0_rs1_addr, ev0_rs2_addr, ev0_rs1_data, ev0_rs2_data);
+    $display("  -- ev1 operands --");
+    dump_lane("ev1", ev1_enable, ev1_rs1_addr, ev1_rs2_addr, ev1_rs1_data, ev1_rs2_data);
+    $display("  -- od0 operands --");
+    dump_lane("od0", od0_enable, od0_rs1_addr, od0_rs2_addr, od0_rs1_data, od0_rs2_data);
+    $display("  -- od1 operands --");
+    dump_lane("od1", od1_enable, od1_rs1_addr, od1_rs2_addr, od1_rs1_data, od1_rs2_data);
+  endtask
+
+  task automatic dump_outputs;
+    $display("  -- forwarded operands --");
+    $display("    ev0_rs1_data_fwd = 0x%08h", ev0_rs1_data_fwd);
+    $display("    ev0_rs2_data_fwd = 0x%08h", ev0_rs2_data_fwd);
+    $display("    ev1_rs1_data_fwd = 0x%08h", ev1_rs1_data_fwd);
+    $display("    ev1_rs2_data_fwd = 0x%08h", ev1_rs2_data_fwd);
+    $display("    od0_rs1_data_fwd = 0x%08h", od0_rs1_data_fwd);
+    $display("    od0_rs2_data_fwd = 0x%08h", od0_rs2_data_fwd);
+    $display("    od1_rs1_data_fwd = 0x%08h", od1_rs1_data_fwd);
+    $display("    od1_rs2_data_fwd = 0x%08h", od1_rs2_data_fwd);
+    $display("    i1_stall           = %0d", i1_stall);
+  endtask
+
   task automatic check_u32(
     input string       name,
     input string       detail,
@@ -112,6 +169,8 @@ module forward_unit_tb;
     bit pass;
     pass = (got === exp);
     tb_report_open(pass, name, detail);
+    dump_inputs();
+    dump_outputs();
     tb_field_u32(label, got, exp);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
@@ -127,9 +186,42 @@ module forward_unit_tb;
     bit pass;
     pass = (got === exp);
     tb_report_open(pass, name, detail);
+    dump_inputs();
+    dump_outputs();
     tb_field_bit(label, got, exp);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
+  endtask
+
+  task automatic check_u32_pair(
+    input string       name,
+    input string       detail,
+    input string       label_a,
+    input logic [31:0] got_a,
+    input logic [31:0] exp_a,
+    input string       label_b,
+    input logic [31:0] got_b,
+    input logic [31:0] exp_b
+  );
+    bit pass;
+    pass = (got_a === exp_a) && (got_b === exp_b);
+    tb_report_open(pass, name, detail);
+    dump_inputs();
+    dump_outputs();
+    tb_field_u32(label_a, got_a, exp_a);
+    tb_field_u32(label_b, got_b, exp_b);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
+  endtask
+
+  task automatic report_probe(
+    input string name,
+    input string detail
+  );
+    tb_report_open(1, name, detail);
+    dump_inputs();
+    dump_outputs();
+    tb_report_close(1);
   endtask
 
   initial begin
@@ -150,12 +242,20 @@ module forward_unit_tb;
     ev0_rs1_addr = 5'd2;  ev0_rs1_data = 32'h0000_00AA;
     ev0_rs2_addr = 5'd3;  ev0_rs2_data = 32'h0000_00BB;
     #1;
-    check_u32("passthrough_rs1", "no WB hit: ev0 rs1 unchanged",
-              "ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h0000_00AA);
-    check_u32("passthrough_rs2", "no WB hit: ev0 rs2 unchanged",
-              "ev0_rs2_data_fwd", ev0_rs2_data_fwd, 32'h0000_00BB);
-    check_bit("passthrough_stall", "no RAW: i1_stall low",
-              "i1_stall", i1_stall, 1'b0);
+    begin
+      bit pass;
+      pass = (ev0_rs1_data_fwd === 32'h0000_00AA) &&
+             (ev0_rs2_data_fwd === 32'h0000_00BB) &&
+             (i1_stall === 1'b0);
+      tb_report_open(pass, "passthrough", "no hazard: operands unchanged, i1_stall low");
+      dump_inputs();
+      dump_outputs();
+      tb_field_u32("ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h0000_00AA);
+      tb_field_u32("ev0_rs2_data_fwd", ev0_rs2_data_fwd, 32'h0000_00BB);
+      tb_field_bit("i1_stall", i1_stall, 1'b0);
+      tb_report_close(pass);
+      if (pass) pass_cnt++; else fail_cnt++;
+    end
     next_test();
 
     // --- 2. WB0 hit replaces only the matching read port ---
@@ -165,10 +265,9 @@ module forward_unit_tb;
     wb0_reg_write = 1'b1; wb0_rd_addr = 5'd2;
     wb0_data = 32'h1234_5678; wb0_pc = 32'h0000_0100;
     #1;
-    check_u32("wb0_hit_rs1", "WB0 x2 hit: ev0 rs1 takes wb0_data",
-              "ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h1234_5678);
-    check_u32("wb0_miss_rs2", "WB0 x2 hit: ev0 rs2 (x3) unaffected",
-              "ev0_rs2_data_fwd", ev0_rs2_data_fwd, 32'h0000_00BB);
+    check_u32_pair("wb0_hit", "WB0 x2 hit on rs1 only; rs2 (x3) unaffected",
+                   "ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h1234_5678,
+                   "ev0_rs2_data_fwd", ev0_rs2_data_fwd, 32'h0000_00BB);
     next_test();
 
     // --- 3. WB1 hit on an odd-copy read port ---
@@ -218,16 +317,22 @@ module forward_unit_tb;
     ev1_rs1_addr  = 5'd5;  ev1_rs1_data = 32'hDEAD_DEAD;  // stale GPR read
     ev1_rs2_addr  = 5'd6;  ev1_rs2_data = 32'h0000_0066;
     #1;
-    check_u32("i0i1_first_half", "before negedge: ev1 rs1 still stale",
-              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'hDEAD_DEAD);
-    check_bit("i0i1_no_stall", "producer done: no replay needed",
-              "i1_stall", i1_stall, 1'b0);
+    begin
+      bit pass;
+      pass = (ev1_rs1_data_fwd === 32'hDEAD_DEAD) && (i1_stall === 1'b0);
+      tb_report_open(pass, "i0i1_first_half", "before negedge: stale rs1, no stall");
+      dump_inputs();
+      dump_outputs();
+      tb_field_u32("ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'hDEAD_DEAD);
+      tb_field_bit("i1_stall", i1_stall, 1'b0);
+      tb_report_close(pass);
+      if (pass) pass_cnt++; else fail_cnt++;
+    end
     @(negedge clk);
     #1step;
-    check_u32("i0i1_second_half", "after negedge: ev1 rs1 takes ev0_result",
-              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_55AA);
-    check_u32("i0i1_rs2_intact", "non-RAW port (x6) unaffected",
-              "ev1_rs2_data_fwd", ev1_rs2_data_fwd, 32'h0000_0066);
+    check_u32_pair("i0i1_second_half", "after negedge: rs1 forwarded, rs2 intact",
+                   "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_55AA,
+                   "ev1_rs2_data_fwd", ev1_rs2_data_fwd, 32'h0000_0066);
     next_test();
 
     // --- 7. Odd producer (JAL link) forwards to od1 consumer ---
@@ -305,14 +410,21 @@ module forward_unit_tb;
     ev1_rs1_addr  = 5'd4;  ev1_rs1_data = 32'hDEAD_DEAD;
     ev1_rs2_addr  = 5'd4;  ev1_rs2_data = 32'hDEAD_DEAD;
     #1;
-    check_bit("dual_raw_no_stall", "both ports RAW, producer done: no stall",
-              "i1_stall", i1_stall, 1'b0);
+    begin
+      bit pass;
+      pass = (i1_stall === 1'b0);
+      tb_report_open(pass, "dual_raw_no_stall", "both ports RAW, producer done: no stall");
+      dump_inputs();
+      dump_outputs();
+      tb_field_bit("i1_stall", i1_stall, 1'b0);
+      tb_report_close(pass);
+      if (pass) pass_cnt++; else fail_cnt++;
+    end
     @(negedge clk);
     #1step;
-    check_u32("dual_raw_rs1", "rs1 takes I0 result",
-              "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_4444);
-    check_u32("dual_raw_rs2", "rs2 takes I0 result",
-              "ev1_rs2_data_fwd", ev1_rs2_data_fwd, 32'h0000_4444);
+    check_u32_pair("dual_raw_fwd", "rs1 and rs2 both take I0 result",
+                   "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_4444,
+                   "ev1_rs2_data_fwd", ev1_rs2_data_fwd, 32'h0000_4444);
     next_test();
 
     // --- 13. unit_done without reg_write (no GPR producer): no override ---
@@ -355,6 +467,7 @@ module forward_unit_tb;
     ev1_rs1_data  = 32'h0000_7777;                // cycle B: fresh, no RAW
     @(posedge clk);
     #1;
+    report_probe("stale_ovr_first_half", "cycle B posedge: first half-cycle snapshot");
     if (ev1_rs1_data_fwd !== 32'h0000_7777) begin
       tb_warn_msg($sformatf(
         "stale override in first half-cycle: ev1_rs1_data_fwd=0x%08h (fresh value 0x00007777)",
@@ -377,6 +490,7 @@ module forward_unit_tb;
     wb0_reg_write = 1'b1; wb0_rd_addr = 5'd0;
     wb0_data = 32'hBAD0_BAD0; wb0_pc = 32'h0000_0100;
     #1;
+    report_probe("x0_probe", "forged WB write to x0 with rs1=x0 read");
     if (ev0_rs1_data_fwd !== 32'h0000_0000) begin
       tb_warn_msg("x0 probe: forged WB write to x0 forwards onto an x0 read");
       tb_info_msg("safe only because decode_reg_write forces reg_write=0 for rd==x0");

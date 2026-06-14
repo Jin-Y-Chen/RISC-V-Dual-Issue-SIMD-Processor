@@ -4,6 +4,7 @@
 *.pb
 *.wdb
 *.str
+dfx_runtime.txt
 Xilinx/
 .xsim/
 xsim.dir/

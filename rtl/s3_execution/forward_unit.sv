@@ -49,6 +49,7 @@ module forward_unit (
 
   // --- I0 producer (EX): destination + per-copy result/done ---
   // i0_rd_addr: ev0_rd_ex == od0_rd_ex (both copies carry I0's rd).
+  // ev0_unit_done: even ALU single-cycle — connect to ev0_enable at top level.
   // od0_result wiring: link_pc for JAL/JALR, alu_result for LUI/AUIPC.
   input  logic        i0_reg_write,   // I0 writes a GPR (id_ex_dispatch i0_reg_write_ex)
   input  logic [4:0]  i0_rd_addr,

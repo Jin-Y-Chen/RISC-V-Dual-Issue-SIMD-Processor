@@ -197,11 +197,12 @@ module register_file_tb;
     clear_writes();
   endtask
 
-  // One-cycle preload commit (sets operand regs only, not the check under test)
+  // Preload commit at RF negedge write (sets operand regs only, not the check under test)
   task automatic preload_gpr(input logic [4:0] rd, input reg_t data);
     if (rd == 5'd0) return;
     drive_writes(1'b1, rd, data, '0, 1'b0, 5'd0, '0, '0);
-    tick();
+    @(negedge clk);
+    #1step;  // let regs[] NBA commit before wen deassert (same negedge race)
     clear_writes();
   endtask
 

@@ -465,6 +465,42 @@ module id_ex_dispatch_tb;
     check_wb_ctrl("b2b_wb", "WB controls track the newest pair",
                   1'b1, 1'b1, 32'h1040, 32'h1044);
 
+    // --- Memory RAR: dual LW same eff. addr -> I1 port only (outline §3) ---
+    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd5, 5'd6, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1050);
+    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1054);
+    tick();
+    check_enables("mem_rar_same_en", "RAR same addr: od0 off, od1 on",
+                  1'b0, 1'b0, 1'b0, 1'b1);
+
+    // --- Memory WAW: dual SW same eff. addr -> I1 write only (outline §6) ---
+    set_slot0(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
+              5'd0, 5'd5, 5'd6, 1'b0, 32'd0, 32'h2000, 32'hAAA0_AAA6, 32'h1058);
+    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
+              5'd0, 5'd5, 5'd7, 1'b0, 32'd0, 32'h2000, 32'hBBB0_BBB7, 32'h105C);
+    tick();
+    check_enables("mem_waw_same_en", "WAW same addr: od0 off, od1 on",
+                  1'b0, 1'b0, 1'b0, 1'b1);
+
+    // --- Dual LW different eff. addr -> both odd copies on ---
+    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd5, 5'd6, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1060);
+    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h2000, 32'h0, 32'h1064);
+    tick();
+    check_enables("mem_rar_diff_en", "different eff. addr: od0 and od1 on",
+                  1'b0, 1'b0, 1'b1, 1'b1);
+
+    // --- LW + SW same addr (mixed): no od0 suppress ---
+    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h3000, 32'h0, 32'h1068);
+    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
+              5'd0, 5'd5, 5'd7, 1'b0, 32'd0, 32'h3000, 32'hDEAD_BEEF, 32'h106C);
+    tick();
+    check_enables("mem_mixed_same_en", "LW+SW same addr: od0 and od1 on",
+                  1'b0, 1'b0, 1'b1, 1'b1);
+
     // --- Contract probe: valid=1 with LANE_NONE (decoder never emits this:
     //     valid = legal && lane_sel != LANE_NONE). No copy may fire; observe
     //     whether the slot's reg_write would still reach WB. ---

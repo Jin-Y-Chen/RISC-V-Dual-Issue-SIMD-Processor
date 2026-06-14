@@ -13,7 +13,6 @@ module even_lane_i1
   input  logic [31:0] rs2_data,
   input  logic [31:0] imm,
 
-  output logic        reg_write,
   // EX result: latch as alu_result_ex/mem for forwarding and GPR writeback
   output logic [31:0] alu_result
 );
@@ -30,7 +29,5 @@ module even_lane_i1
     .operand_b  (operand_b),
     .alu_result (alu_result)
   );
-
-  assign reg_write = enable && (opcode == OPC_OP || opcode == OPC_OP_IMM);
 
 endmodule

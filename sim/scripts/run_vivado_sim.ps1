@@ -23,7 +23,8 @@ param(
       "odd_lane_tb",
       "id_ex_dispatch_tb",
       "forward_unit_tb",
-      "ex_mem_tb"
+      "ex_mem_tb",
+      "memory_cache_tb"
     )]
     [string]$Top,
 
@@ -44,8 +45,9 @@ $AllTops = @(
   "even_lane_tb",
   "odd_lane_tb",
   "id_ex_dispatch_tb",
-  "forward_unit_tb"
-  #"ex_mem_tb"
+  "forward_unit_tb",
+  "ex_mem_tb",
+  "memory_cache_tb"
 )
 
 if ($All -and $Top) {
@@ -130,9 +132,15 @@ function Get-TbSources([string]$TbTop) {
         "ex_mem_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/s4_memory/ex_mem_even.sv",
-                "rtl/s4_memory/ex_mem_odd.sv",
+                "rtl/s4_memory/ex_mem.sv",
                 "sim/tb/s4_memory/ex_mem_tb.sv"
+            )
+        }
+        "memory_cache_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s4_memory/memory_cache.sv",
+                "sim/tb/s4_memory/memory_cache_tb.sv"
             )
         }
         default {
@@ -204,7 +212,8 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
       "xvlog.log", "xvlog.pb",
       "xelab.log", "xelab.pb",
       "xsim.log",  "xsim.jou",
-      "xsim_*.backup.log", "xsim_*.backup.jou"
+      "xsim_*.backup.log", "xsim_*.backup.jou",
+      "dfx_runtime.txt"
     )
 
     Remove-Item (Join-Path $RepoRoot "xsim.dir") -Recurse -Force -ErrorAction SilentlyContinue

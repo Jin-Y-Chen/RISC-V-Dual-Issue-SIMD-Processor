@@ -2,6 +2,9 @@
 
 // Dual-issue scalar GPR (32x32): 4 read + 2 write ports (project_outline SS4-5).
 // x0 reads as zero; writes to x0 ignored. Same-cycle write to same rd: higher wpc wins.
+//
+// Timing: regs[] commits on negedge; read ports are combinational with WB bypass so
+// ID/EX operands still see WB data in the same cycle before the falling-edge commit.
 module register_file
   import rv_dis_pkg::*;
 (
@@ -91,7 +94,7 @@ module register_file
     i1_rs2_data = rf_read_port(i1_rs2_use, i1_rs2_addr);
   end
 
-  always_ff @(posedge clk or negedge rst_n) begin
+  always_ff @(negedge clk or negedge rst_n) begin
     if (!rst_n) begin
       for (int i = 1; i < NUM_GPR; i++)
         regs[i] <= '0;

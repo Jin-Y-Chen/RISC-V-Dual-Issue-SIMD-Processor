@@ -14,6 +14,11 @@ module id_ex_dispatch
   input  logic        rst_n,
   input  logic        flush,
 
+  //input logic stall_od0,
+  //input logic stall_od1, 
+  //input logic stall_ev0,
+  //input logic stall_ev1,
+
   // --- I0 slot (older insn) from S2: decoder + register file + pc ---
   input  logic        i0_valid_id,
   input  lane_sel_e   i0_lane_sel_id,
@@ -111,9 +116,36 @@ module id_ex_dispatch
   logic od1_enable_next;
 
   assign ev0_enable_next = i0_valid_id && (i0_lane_sel_id == LANE_EVEN);
-  assign od0_enable_next = i0_valid_id && (i0_lane_sel_id == LANE_ODD);
   assign ev1_enable_next = i1_valid_id && (i1_lane_sel_id == LANE_EVEN);
   assign od1_enable_next = i1_valid_id && (i1_lane_sel_id == LANE_ODD);
+
+  // ---------------------------------------------------------------------
+  // Dual-issue memory port arbitration (same eff. byte addr at ID)
+  // RAR: lw + lw  -> I1 read only (clear od0_enable)
+  // WAW: sw + sw  -> I1 write only (clear od0_enable)
+  // ---------------------------------------------------------------------
+  logic        i0_load_id;
+  logic        i0_store_id;
+  logic        i1_load_id;
+  logic        i1_store_id;
+  logic [31:0] i0_eff_addr_id;
+  logic [31:0] i1_eff_addr_id;
+  logic        mem_same_addr_id;
+  logic        suppress_od0_mem_port;
+
+  assign i0_load_id  = i0_valid_id && (i0_lane_sel_id == LANE_ODD) && (i0_opcode_id == OPC_LOAD);
+  assign i0_store_id = i0_valid_id && (i0_lane_sel_id == LANE_ODD) && (i0_opcode_id == OPC_STORE);
+  assign i1_load_id  = i1_valid_id && (i1_lane_sel_id == LANE_ODD) && (i1_opcode_id == OPC_LOAD);
+  assign i1_store_id = i1_valid_id && (i1_lane_sel_id == LANE_ODD) && (i1_opcode_id == OPC_STORE);
+
+  assign i0_eff_addr_id = i0_rs1_data_id + i0_imm_id;
+  assign i1_eff_addr_id = i1_rs1_data_id + i1_imm_id;
+  assign mem_same_addr_id = (i0_eff_addr_id == i1_eff_addr_id);
+
+  assign suppress_od0_mem_port = mem_same_addr_id &&
+                                 ((i0_load_id && i1_load_id) || (i0_store_id && i1_store_id));
+
+  assign od0_enable_next = i0_valid_id && (i0_lane_sel_id == LANE_ODD) && !suppress_od0_mem_port;
 
   // ---------------------------------------------------------------------
   // ID/EX pipeline register
