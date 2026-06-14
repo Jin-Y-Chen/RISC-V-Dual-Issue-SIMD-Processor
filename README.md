@@ -61,10 +61,10 @@ read_verilog -f sim/filelists/<top>.f
 
 See [sim/README.md](sim/README.md) and [sim/tb/README.md](sim/tb/README.md) for all TBs, logging, and `register_file_tb` chained-state methodology.
 
-After simulation:
+Run and archive TB logs:
 
 ```powershell
-.\sim\scripts\copy_logs.ps1
+.\sim\scripts\run_vivado_sim.ps1 -Top pc_tb
 ```
 
 ---

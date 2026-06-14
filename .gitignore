@@ -4,8 +4,11 @@
 *.pb
 *.wdb
 *.str
+dfx_runtime.txt
 Xilinx/
 .xsim/
+xsim.dir/
+sim/xsim.dir/
 
 # Local sim log archives (keep scripts/config tracked)
 sim/logs/register_file_tb_*/
@@ -14,9 +17,16 @@ sim/logs/dispatch_hazard_tb_*/
 sim/logs/even_lane_tb_*/
 sim/logs/odd_lane_tb_*/
 sim/logs/ex_mem_tb_*/
+sim/logs/pc_tb_*/
+sim/logs/if_id_tb_*/
 sim/logs/_latest/tb.log
 sim/logs/_latest/summary.txt
 sim/logs/_latest_run.txt
+
+# KiCad diagrams (track only the .kicad_sch schematics)
+docs/diagram/**
+!docs/diagram/**/
+!docs/diagram/**/*.kicad_sch
 
 # Editor / OS
 .vscode/

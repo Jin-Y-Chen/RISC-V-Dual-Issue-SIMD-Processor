@@ -1,0 +1,1871 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "f8bb78f3-53b1-48bb-976c-7ca56381b79f")
+	(paper "A4")
+	(title_block
+		(title "RISC-V Dual-Issue SIMD Processor")
+		(date "2026-06-12")
+		(rev "v1.0")
+	)
+	(lib_symbols
+		(symbol "RV-DIS:ID_EX_dispatch"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "ID_EX_dispatch"
+				(at 0 8.636 0)
+				(do_not_autoplace)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "~"
+				(at 0 8.89 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "ID_EX_dispatch_0_1"
+				(rectangle
+					(start -11.43 6.35)
+					(end 11.43 -87.63)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type color)
+						(color 194 194 194 1)
+					)
+				)
+			)
+			(symbol "ID_EX_dispatch_1_1"
+				(pin input line
+					(at -13.97 5.08 0)
+					(length 2.54)
+					(name "i0_pc_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 3.81 0)
+					(length 2.54)
+					(name "i1_pc_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 1.27 0)
+					(length 2.54)
+					(name "i0_reg_write_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 0 0)
+					(length 2.54)
+					(name "i1_reg_write_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -20.32 0)
+					(length 2.54)
+					(name "i0_valid_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -21.59 0)
+					(length 2.54)
+					(name "i0_lane_sel_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -22.86 0)
+					(length 2.54)
+					(name "i0_opcode_id[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -24.13 0)
+					(length 2.54)
+					(name "i0_funct3_id[2:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -25.4 0)
+					(length 2.54)
+					(name "i0_funct7_id[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -26.67 0)
+					(length 2.54)
+					(name "i0_rd_addr_id[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -27.94 0)
+					(length 2.54)
+					(name "i0_rs1_addr_id[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -29.21 0)
+					(length 2.54)
+					(name "i0_rs2_addr_id[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -30.48 0)
+					(length 2.54)
+					(name "i0_imm_id[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -34.29 0)
+					(length 2.54)
+					(name "i0_rs1_data_id[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -35.56 0)
+					(length 2.54)
+					(name "i0_rs2_data_id[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -39.37 0)
+					(length 2.54)
+					(name "i1_rs2_data_id[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -40.64 0)
+					(length 2.54)
+					(name "i1_rs1_data_id[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -44.45 0)
+					(length 2.54)
+					(name "i1_imm_id[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -45.72 0)
+					(length 2.54)
+					(name "i1_rs2_addr_id[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -46.99 0)
+					(length 2.54)
+					(name "i1_rs1_addr_id[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -48.26 0)
+					(length 2.54)
+					(name "i1_rd_addr_id[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -49.53 0)
+					(length 2.54)
+					(name "i1_funct7_id[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -50.8 0)
+					(length 2.54)
+					(name "i1_funct3_id[2:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -52.07 0)
+					(length 2.54)
+					(name "i1_opcode_id[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -53.34 0)
+					(length 2.54)
+					(name "i1_lane_sel_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -13.97 -54.61 0)
+					(length 2.54)
+					(name "i1_valid_id"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input inverted
+					(at -13.97 -85.09 0)
+					(length 2.54)
+					(name "rst_n"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input clock
+					(at -13.97 -86.36 0)
+					(length 2.54)
+					(name "clk"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 5.08 180)
+					(length 2.54)
+					(name "i0_pc_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 3.81 180)
+					(length 2.54)
+					(name "i1_pc_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 1.27 180)
+					(length 2.54)
+					(name "i0_reg_write_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 0 180)
+					(length 2.54)
+					(name "i1_reg_write_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -13.97 180)
+					(length 2.54)
+					(name "od1_opcode_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -15.24 180)
+					(length 2.54)
+					(name "od1_funct3_ex[2:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -16.51 180)
+					(length 2.54)
+					(name "od1_funct7_ex[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -17.78 180)
+					(length 2.54)
+					(name "od1_imm_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -20.32 180)
+					(length 2.54)
+					(name "od0_opcode_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -21.59 180)
+					(length 2.54)
+					(name "od0_funct3_ex[2:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -22.86 180)
+					(length 2.54)
+					(name "od0_funct7_ex[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -24.13 180)
+					(length 2.54)
+					(name "od0_imm_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -27.94 180)
+					(length 2.54)
+					(name "od1_enable_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -29.21 180)
+					(length 2.54)
+					(name "od1_rd_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -30.48 180)
+					(length 2.54)
+					(name "od1_rs1_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -31.75 180)
+					(length 2.54)
+					(name "od1_rs2_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -33.02 180)
+					(length 2.54)
+					(name "od1_rs2_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -34.29 180)
+					(length 2.54)
+					(name "od1_rs1_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -36.83 180)
+					(length 2.54)
+					(name "od0_enable_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -38.1 180)
+					(length 2.54)
+					(name "od0_rd_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -39.37 180)
+					(length 2.54)
+					(name "od0_rs1_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -40.64 180)
+					(length 2.54)
+					(name "od0_rs2_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -41.91 180)
+					(length 2.54)
+					(name "od0_rs2_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -43.18 180)
+					(length 2.54)
+					(name "od0_rs1_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -45.72 180)
+					(length 2.54)
+					(name "ev0_enable_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -46.99 180)
+					(length 2.54)
+					(name "ev0_rd_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -48.26 180)
+					(length 2.54)
+					(name "ev0_rs1_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -49.53 180)
+					(length 2.54)
+					(name "ev0_rs2_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -50.8 180)
+					(length 2.54)
+					(name "ev0_rs2_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -52.07 180)
+					(length 2.54)
+					(name "ev0_rs1_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -54.61 180)
+					(length 2.54)
+					(name "ev1_enable_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -55.88 180)
+					(length 2.54)
+					(name "ev1_rd_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -57.15 180)
+					(length 2.54)
+					(name "ev1_rs1_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -58.42 180)
+					(length 2.54)
+					(name "ev1_rs2_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -59.69 180)
+					(length 2.54)
+					(name "ev1_rs2_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -60.96 180)
+					(length 2.54)
+					(name "ev1_rs1_data_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -76.2 180)
+					(length 2.54)
+					(name "ev0_opcode_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -77.47 180)
+					(length 2.54)
+					(name "ev0_funct3_ex[2:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -78.74 180)
+					(length 2.54)
+					(name "ev0_funct7_ex[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -80.01 180)
+					(length 2.54)
+					(name "ev0_imm_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -82.55 180)
+					(length 2.54)
+					(name "ev1_opcode_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -83.82 180)
+					(length 2.54)
+					(name "ev1_funct3_ex[2:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -85.09 180)
+					(length 2.54)
+					(name "ev1_funct7_ex[6:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 13.97 -86.36 180)
+					(length 2.54)
+					(name "ev1_imm_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "RV-DIS:ID_EX_dispatch")
+		(at 142.24 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "076925fd-21e2-46fd-a2e4-65f14885ea0a")
+		(property "Reference" "ID_EX_dispatch"
+			(at 142.24 28.194 0)
+			(do_not_autoplace yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "~"
+			(at 142.24 27.94 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 142.24 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 142.24 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 142.24 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin ""
+			(uuid "fd0f6236-be07-4f54-a567-17f499eedc98")
+		)
+		(pin ""
+			(uuid "f84b9b45-3951-4dc0-9097-acb111585d6c")
+		)
+		(pin ""
+			(uuid "390c7468-498d-4ab6-b6b7-e0fd58bdad3c")
+		)
+		(pin ""
+			(uuid "260613a6-6a12-4942-8406-1eab76d6c26f")
+		)
+		(pin ""
+			(uuid "a1dce3d8-609f-45be-868a-e42e0fc4a7ff")
+		)
+		(pin ""
+			(uuid "e6d2d180-341b-480f-93e3-3468bdc80820")
+		)
+		(pin ""
+			(uuid "cffde82b-8db7-4211-b636-d30d9326ad43")
+		)
+		(pin ""
+			(uuid "364ad6ff-41a2-4d12-8241-79281bf0fc0a")
+		)
+		(pin ""
+			(uuid "130dd361-f593-433d-8aac-3da4cd711528")
+		)
+		(pin ""
+			(uuid "bf3b1da2-bfd2-45a5-9e2f-3d49c76956a5")
+		)
+		(pin ""
+			(uuid "c99a1df7-cbfe-48ba-bbe4-65de32e4716b")
+		)
+		(pin ""
+			(uuid "29d11922-5295-4b37-afd9-02ab1aa22f84")
+		)
+		(pin ""
+			(uuid "d7cf6946-2e5e-48f4-8d80-a827229a3ef4")
+		)
+		(pin ""
+			(uuid "cfe398b2-7101-4545-9e7d-42775ba09a3c")
+		)
+		(pin ""
+			(uuid "cf0ed23d-4db1-4b49-a223-cfd21d825bd2")
+		)
+		(pin ""
+			(uuid "48e6c3c3-ea4e-42f9-88f5-8bba0c6b0f38")
+		)
+		(pin ""
+			(uuid "aec654b2-06a4-4300-bbac-d05560fc2b40")
+		)
+		(pin ""
+			(uuid "1ab3fbde-84c1-4ec5-a247-4a8d35554d38")
+		)
+		(pin ""
+			(uuid "1461f361-52f6-4bcd-a9e9-aef97e8a0c44")
+		)
+		(pin ""
+			(uuid "816270c7-4497-4c85-be51-294b77c7b42d")
+		)
+		(pin ""
+			(uuid "37dee092-c60e-422d-b2bc-ad01b9b73fd7")
+		)
+		(pin ""
+			(uuid "8c91bafe-a33a-47c2-9cd2-08feef918647")
+		)
+		(pin ""
+			(uuid "89ee704f-e57f-4c98-a346-fc18762d8268")
+		)
+		(pin ""
+			(uuid "008c47d3-a4bd-40a0-8848-18c07d10efc2")
+		)
+		(pin ""
+			(uuid "a1313d8a-eb6d-4966-9d4b-e5a95561ba18")
+		)
+		(pin ""
+			(uuid "f9cf743f-c0ac-4bc9-8d52-5c999ae47491")
+		)
+		(pin ""
+			(uuid "b9f1d920-e371-4cf9-a506-f91296be3820")
+		)
+		(pin ""
+			(uuid "f4941e38-f5b8-475d-ba57-7f9a7411d27f")
+		)
+		(pin ""
+			(uuid "8334dd3b-2717-433a-8fbb-26822208fc0c")
+		)
+		(pin ""
+			(uuid "91d670b5-77b6-4a9d-9890-470a72138173")
+		)
+		(pin ""
+			(uuid "e51a9cf2-10ab-4ade-8b07-7fd58d8c4e2f")
+		)
+		(pin ""
+			(uuid "60eef505-2ad3-4216-824e-c2e4249be697")
+		)
+		(pin ""
+			(uuid "2af1a32c-036f-4695-9eee-7b35f0ec7c50")
+		)
+		(pin ""
+			(uuid "edb7bcea-e327-4c91-88e3-8a1010013f60")
+		)
+		(pin ""
+			(uuid "82708bfd-f749-4715-9f4e-935ec0488d47")
+		)
+		(pin ""
+			(uuid "1282478b-b91f-47b9-b687-49bb11fdef4a")
+		)
+		(pin ""
+			(uuid "f064aa2a-7959-4df2-b699-79f0906b5eb5")
+		)
+		(pin ""
+			(uuid "8fd67e16-4c25-4280-a45f-43a70e12da00")
+		)
+		(pin ""
+			(uuid "3618db54-c359-49e0-beab-6eb05b95a7e8")
+		)
+		(pin ""
+			(uuid "1154bc66-10c7-46bf-84d7-905703ab5754")
+		)
+		(pin ""
+			(uuid "567837d9-82a2-4a94-9c59-fab81cd14a64")
+		)
+		(pin ""
+			(uuid "169b4034-67c5-413e-b191-e8e700c20f3a")
+		)
+		(pin ""
+			(uuid "06fff5d5-c5a4-43c1-8d78-9c31192ab6cf")
+		)
+		(pin ""
+			(uuid "daadab36-09f9-467e-bf85-25f09bb9aeb8")
+		)
+		(pin ""
+			(uuid "9b82aae6-bb22-42c7-b32c-30db055093c1")
+		)
+		(pin ""
+			(uuid "b92e79f6-587b-4708-be01-ca0715d82dbd")
+		)
+		(pin ""
+			(uuid "8d7d6899-b54f-4430-adce-b56c00d7f83d")
+		)
+		(pin ""
+			(uuid "efa5a646-111f-440f-8dbd-0ab7d3a78159")
+		)
+		(pin ""
+			(uuid "232cdcb7-caa9-4bdd-8c5b-c25c3fd32519")
+		)
+		(pin ""
+			(uuid "ac5c23ec-8c13-485c-9603-d52a06cc6da8")
+		)
+		(pin ""
+			(uuid "b06c8f17-4817-44c7-aa92-9dbf19a072cd")
+		)
+		(pin ""
+			(uuid "f08c43fd-62f6-4769-9cd2-570e16721fa2")
+		)
+		(pin ""
+			(uuid "b75222c6-1ba3-4729-bbc7-b05135b540af")
+		)
+		(pin ""
+			(uuid "7afd1758-a976-48e9-bd18-137e2785d8aa")
+		)
+		(pin ""
+			(uuid "b3743e2d-f7eb-429a-9d1c-1e03c7ab0d47")
+		)
+		(pin ""
+			(uuid "2d655d8e-0ece-4078-b550-9cb13a515833")
+		)
+		(pin ""
+			(uuid "d8ab3791-b859-4cd1-8493-88fa8e0fd793")
+		)
+		(pin ""
+			(uuid "c8137c7c-2cb6-496b-a9c2-56d3d4451ee1")
+		)
+		(pin ""
+			(uuid "8972503a-fcfd-4d40-af57-43c5d3e850df")
+		)
+		(pin ""
+			(uuid "8691d8b4-63eb-4697-aa27-280dde3278bf")
+		)
+		(pin ""
+			(uuid "8fafc1ff-52ec-446b-bd50-866cdeea34ce")
+		)
+		(pin ""
+			(uuid "8f1dfe56-99de-47df-a172-f3140bebc65c")
+		)
+		(pin ""
+			(uuid "9c535ca9-3752-4754-a55e-676d46c78744")
+		)
+		(pin ""
+			(uuid "d2b554be-75b2-4cc5-ba2a-3fa3ed0eac04")
+		)
+		(pin ""
+			(uuid "bff82829-586b-47f2-b117-f364c430c61b")
+		)
+		(pin ""
+			(uuid "79b4be3d-4f88-4998-93a6-7e071444719c")
+		)
+		(pin ""
+			(uuid "a4fdba2a-2c46-47ad-85bc-ac60b0c2376a")
+		)
+		(pin ""
+			(uuid "c457f192-fb17-4be2-8331-2e82aa67154d")
+		)
+		(pin ""
+			(uuid "944ffe2f-c867-4c72-9eb0-86c1d9064e0b")
+		)
+		(pin ""
+			(uuid "f234fb73-2a22-4350-8124-5e93a1cf427a")
+		)
+		(pin ""
+			(uuid "b9859378-d946-48aa-98a7-bf8075564309")
+		)
+		(pin ""
+			(uuid "81775b99-4aca-4fed-b070-e86b465f5d58")
+		)
+		(instances
+			(project ""
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(reference "ID_EX_dispatch")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(sheet
+		(at 234.95 51.562)
+		(size 28.448 48.514)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "0952fa05-0006-492a-917f-dae70e49983e")
+		(property "Sheetname" "s4_memory"
+			(at 234.95 50.8504 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "s4_memory.kicad_sch"
+			(at 234.95 100.6606 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "rv_dis_schematic"
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(page "5")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 90.932 136.144)
+		(size 187.452 21.082)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "5275ce0d-acbd-4395-a513-f2937a040cca")
+		(property "Sheetname" "s5_wback"
+			(at 90.932 135.4324 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "s5_wback.kicad_sch"
+			(at 90.932 157.8106 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "rv_dis_schematic"
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(page "6")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 23.876 53.594)
+		(size 24.384 49.53)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "58fd828e-8460-4219-93a6-9d19ea5eb081")
+		(property "Sheetname" "s1_fetch"
+			(at 23.876 52.8824 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "s1_fetch.kicad_sch"
+			(at 23.876 103.7086 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "rv_dis_schematic"
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 91.44 52.324)
+		(size 29.718 49.784)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "84ab8be2-8cca-4ad0-a86b-65d9dec20f8e")
+		(property "Sheetname" "s2_decode"
+			(at 91.44 51.6124 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "s2_decode.kicad_sch"
+			(at 91.44 102.6926 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "rv_dis_schematic"
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 162.306 52.324)
+		(size 29.972 47.752)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "e61d25ed-bdb1-43db-aae6-0705c0ad2c33")
+		(property "Sheetname" "s3_execute"
+			(at 162.306 51.6124 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "s3_execute.kicad_sch"
+			(at 162.306 100.6606 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "rv_dis_schematic"
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(page "4")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

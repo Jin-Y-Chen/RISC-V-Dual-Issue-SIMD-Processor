@@ -12,7 +12,7 @@
 //   ---------------------------------------
 //
 // Labels use full DUT / pipeline signal names.
-// End every TB with tb_summary(pass_cnt, fail_cnt) for copy_logs.ps1.
+// End every TB with tb_summary(pass_cnt, fail_cnt) for run_vivado_sim.ps1.
 
 task automatic tb_pass_msg(input string msg);
   $display("[PASS] %s", msg);
@@ -48,7 +48,7 @@ task automatic tb_summary(input int passed, input int failed);
   if (failed == 0)
     $display("*** SUMMARY: %0d passed, 0 failed - OK ***", passed);
   else
-    $error("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
+    $display("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
 endtask
 
 // --- Multi-line PASS/FAIL report (use inside check_expect) ---

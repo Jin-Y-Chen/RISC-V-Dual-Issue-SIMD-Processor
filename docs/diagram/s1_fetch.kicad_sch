@@ -1,0 +1,22 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "f8bb78f3-53b1-48bb-976c-7ca56381b79f")
+	(paper "A4")
+	(title_block
+		(title "RISC-V Dual-Issue SIMD Processor")
+		(date "2026-06-12")
+		(rev "v1.0")
+	)
+	(lib_symbols)
+	(bus_entry
+		(at 205.74 2.54)
+		(size 2.54 2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7bfd728c-508a-429e-b0fb-0a85157a16ab")
+	)
+)
