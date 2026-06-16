@@ -1,9 +1,15 @@
 # Simulation
 
-Run simulation + archive logs in one command:
+Run simulation + archive logs in one command (tools run in `sim/build/`, not repo root):
 
 ```powershell
 .\sim\scripts\run_vivado_sim.ps1 -Top pc_tb
+```
+
+If `xvlog.log`, `xsim.dir`, or similar appear in the repo root, remove them and do not run Vivado tools from the root:
+
+```powershell
+.\sim\scripts\clean_vivado_artifacts.ps1
 ```
 
 Run all testbenches:
@@ -30,7 +36,7 @@ At the start of each command run:
 2) all existing `sim/logs/current/` contents are moved to `sim/logs/temp/`,
 3) new simulation logs are written to `sim/logs/current/`.
 
-The script removes simulator working artifacts (`xsim.dir`, root `xsim.log/.jou/.pb/.wdb`) after log extraction, so only post-simulation TB logs remain in `sim/logs/`.
+The script runs Vivado tools inside `sim/build/` and deletes that directory (including `xsim.dir`) after log extraction. It also removes any stray root-level simulator artifacts (`xsim.dir`, `xsim.log/.jou/.pb/.wdb`, `xvlog.*`, `xelab.*`, `dfx_runtime.txt`).
 
 Options:
 - `-Top <tb_top>`: testbench top (`pc_tb`, `if_id_tb`, `decoder_tb`, `register_file_tb`, `dispatch_hazard_tb`, `even_lane_tb`, `odd_lane_tb`, `ex_mem_tb`)

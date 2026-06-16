@@ -3,9 +3,9 @@
 // L1 data cache model (RV32I byte-addressed, dual-port).
 // - L2 backing array holds data; l1_valid tracks resident 32-byte lines
 // - Miss: assert stall_p0/stall_p1, wait L2_FILL_CYCLES, then set line valid
-// - RAW/WAR: same-word load/store pair stalls p1 (younger) until p0 completes
 // - Hit: combinational read / posedge write on l2 backing store
-// - Write conflict: p1 byte lanes win over p0 on overlap
+// - Memory RAW/WAR/WAW ordering is enforced in-order at dispatch before requests
+//   reach this block; no same-word hazard logic here.
 //
 // Port map: p0 = I0 (older), p1 = I1 (younger).
 module memory_cache
@@ -68,11 +68,6 @@ module memory_cache
   logic                     miss_stall_p1_q;
   logic                     fill_done;
 
-  logic                     same_word_access;
-  logic                     raw_hazard;
-  logic                     war_hazard;
-  logic                     order_stall_p1;
-
   logic [LINE_IDX_AW-1:0] p0_line_idx;
   logic [LINE_IDX_AW-1:0] p1_line_idx;
   logic                   p0_l1_hit;
@@ -117,13 +112,8 @@ module memory_cache
   assign p0_wbase = byte_word_base(p0_addr);
   assign p1_wbase = byte_word_base(p1_addr);
 
-  assign same_word_access = (p0_wbase == p1_wbase) && p0_req && p1_req;
-  assign raw_hazard       = same_word_access && p0_read_en && p1_write_en && (|p1_besel);
-  assign war_hazard       = same_word_access && p0_write_en && (|p0_besel) && p1_read_en;
-  assign order_stall_p1   = raw_hazard || war_hazard;
-
   assign stall_p0 = miss_stall_p0_q;
-  assign stall_p1 = miss_stall_p1_q || order_stall_p1;
+  assign stall_p1 = miss_stall_p1_q;
 
   assign fill_done = (fill_state == ST_FILL) && (fill_cnt == FILL_LAST);
 

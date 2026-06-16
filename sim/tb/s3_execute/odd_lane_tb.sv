@@ -15,6 +15,7 @@ module odd_lane_tb;
   logic [31:0] imm;
   logic [31:0] pc;
 
+  logic        unit_done;
   logic        brch_taken;
   logic [31:0] brch_pc;
   logic        mem_en;

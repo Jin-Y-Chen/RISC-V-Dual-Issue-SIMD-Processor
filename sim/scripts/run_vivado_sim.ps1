@@ -6,11 +6,11 @@
 #   .\sim\scripts\run_vivado_sim.ps1 -All -DeleteOddLogs
 #
 # Behavior:
-# - Runs xvlog/xelab/xsim from repo root
+# - Runs xvlog/xelab/xsim from sim/build (no tool logs in repo root)
 # - Writes full simulation output log to sim/logs
 # - Writes current run logs to sim/logs/current/<tb_top>/
 # - Moves previous current run logs to sim/logs/temp/
-# - Removes xsim.dir and root-generated simulator artifacts by default
+# - Removes sim/build (including xsim.dir) and any stray Vivado artifacts after each run
 
 param(
     [ValidateSet(
@@ -100,24 +100,25 @@ function Get-TbSources([string]$TbTop) {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
                 "rtl/s2_decode/decode_pkg.sv",
-                "rtl/s3_execution/even_lane/scalar_alu.sv",
-                "rtl/s3_execution/even_lane/even_lane.sv",
+                "rtl/s3_execution/even_funct/scalar_alu.sv",
+                "rtl/s3_execution/even_lane.sv",
                 "sim/tb/s3_execute/even_lane_tb.sv"
             )
         }
         "odd_lane_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/decode_pkg.sv",
-                "rtl/s3_execution/odd_lane/branch_unit.sv",
-                "rtl/s3_execution/odd_lane/memory_access.sv",
-                "rtl/s3_execution/odd_lane/odd_lane.sv",
+                "rtl/s3_execution/odd_funct/branch_unit.sv",
+                "rtl/s3_execution/odd_funct/memory_access.sv",
+                "rtl/s3_execution/odd_lane.sv",
                 "sim/tb/s3_execute/odd_lane_tb.sv"
             )
         }
         "id_ex_dispatch_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
+                "rtl/s3_execution/dispatch_funct/insn_buffer.sv",
+                "rtl/s3_execution/dispatch_funct/scoreboard.sv",
                 "rtl/s3_execution/id_ex_dispatch.sv",
                 "sim/tb/s3_execute/id_ex_dispatch_tb.sv"
             )
@@ -149,9 +150,12 @@ function Get-TbSources([string]$TbTop) {
     }
 }
 
+. (Join-Path $PSScriptRoot "vivado_artifacts.ps1")
+
 function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [string]$SettingsBat) {
   $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
   $tbOutDir = Join-Path $CurrentDir $TbTop
+  $buildDir = Join-Path $RepoRoot "sim\build"
 
   $srcs = Get-TbSources $TbTop
   foreach ($src in $srcs) {
@@ -162,19 +166,21 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
   }
 
   New-Item -ItemType Directory -Force -Path $tbOutDir | Out-Null
+  Remove-VivadoBuildDir -BuildDir $buildDir
+  New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
   $snapshot = "${TbTop}_sim"
-  $srcArg = ($srcs -join " ")
-  $runCmd = "xvlog --sv -i sim/tb $srcArg && xelab $TbTop -s $snapshot && xsim $snapshot -runall"
+  $srcArg = (($srcs | ForEach-Object { "../../$_" }) -join " ")
+  $runCmd = "xvlog --sv -i ../../sim/tb $srcArg && xelab $TbTop -s $snapshot && xsim $snapshot -runall"
 
-  Push-Location $RepoRoot
+  Push-Location $buildDir
   try {
     cmd /c """$SettingsBat"" && $runCmd"
     if ($LASTEXITCODE -ne 0) {
       throw "Vivado simulation failed for top '$TbTop' (exit $LASTEXITCODE)."
     }
 
-    $xsimLog = Join-Path $RepoRoot "xsim.log"
+    $xsimLog = Join-Path $buildDir "xsim.log"
     if (-not (Test-Path $xsimLog)) {
       throw "xsim.log not found after simulation."
     }
@@ -208,22 +214,9 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
     $tbLines | Set-Content (Join-Path $tbOutDir "tb.log")
     $summaryLines | Set-Content (Join-Path $tbOutDir "summary.txt")
 
-    $artifactNames = @(
-      "xvlog.log", "xvlog.pb",
-      "xelab.log", "xelab.pb",
-      "xsim.log",  "xsim.jou",
-      "xsim_*.backup.log", "xsim_*.backup.jou",
-      "dfx_runtime.txt"
-    )
-
-    Remove-Item (Join-Path $RepoRoot "xsim.dir") -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item (Join-Path $RepoRoot "sim\xsim.dir") -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item (Join-Path $RepoRoot "$snapshot.wdb") -Force -ErrorAction SilentlyContinue
-
-    foreach ($pattern in $artifactNames) {
-      Get-ChildItem -Path $RepoRoot -Filter $pattern -ErrorAction SilentlyContinue |
-        Remove-Item -Force -ErrorAction SilentlyContinue
-    }
+    Remove-Item (Join-Path $buildDir "$snapshot.wdb") -Force -ErrorAction SilentlyContinue
+    Remove-VivadoBuildDir -BuildDir $buildDir
+    Remove-VivadoRootArtifacts -RepoRoot $RepoRoot
 
     Write-Host "OK  top:       $TbTop"
     Write-Host "OK  tb.log:    $(Join-Path $tbOutDir 'tb.log')"
@@ -246,6 +239,8 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
   }
   finally {
     Pop-Location
+    Remove-VivadoBuildDir -BuildDir $buildDir
+    Remove-VivadoRootArtifacts -RepoRoot $RepoRoot
   }
 }
 
@@ -278,6 +273,7 @@ if (-not (Test-Path $settingsBat)) {
 }
 
 Rotate-CurrentToTemp -LogsRoot $logsRoot
+Remove-VivadoRootArtifacts -RepoRoot $repoRoot
 
 if ($DeleteOddLogs) {
   Get-ChildItem -Path $logsRoot -Directory -Filter "odd_lane_tb_*" -ErrorAction SilentlyContinue |

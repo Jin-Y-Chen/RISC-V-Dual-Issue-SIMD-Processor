@@ -182,46 +182,6 @@ module memory_cache_tb;
     tick();
     check_rdata("write_then_read", "written word visible on L1 read",
                 32'h1122_3344, 32'd0);
-
-    // --- RAW: p0 load then p1 store same word (outline case 4) ---
-    drive_p0_read(TEST_ADDR);
-    p1_write_en = 1'b1;
-    p1_addr     = TEST_ADDR;
-    p1_wdata    = 32'hAABB_CCDD;
-    p1_besel    = 4'b1111;
-    tick();
-    check_stall("raw_stall_p1", "LW+SW same addr: stall younger port",
-                1'b0, 1'b1);
-    check_rdata("raw_p0_first", "older load sees memory before younger store",
-                32'h1122_3344, 32'd0);
-    p0_read_en  = 1'b0;
-    tick();
-    check_stall("raw_store_after", "younger store proceeds after load",
-                1'b0, 1'b0);
-    drive_p0_read(TEST_ADDR);
-    tick();
-    check_rdata("raw_store_visible", "store from stalled port visible",
-                32'hAABB_CCDD, 32'd0);
-    clear_ports();
-    tick();
-
-    // --- WAR: p0 store then p1 load same word (outline case 5) ---
-    p0_write_en = 1'b1;
-    p0_addr     = TEST_ADDR2;
-    p0_wdata    = 32'h1111_2222;
-    p0_besel    = 4'b1111;
-    p1_read_en  = 1'b1;
-    p1_addr     = TEST_ADDR2;
-    p1_besel    = 4'b1111;
-    tick();
-    check_stall("war_stall_p1", "SW+LW same addr: stall younger port",
-                1'b0, 1'b1);
-    p0_write_en = 1'b0;
-    tick();
-    check_stall("war_load_after", "younger load proceeds after store",
-                1'b0, 1'b0);
-    check_rdata("war_load_data", "load sees store from older port",
-                32'd0, 32'h1111_2222);
     clear_ports();
     tick();
 

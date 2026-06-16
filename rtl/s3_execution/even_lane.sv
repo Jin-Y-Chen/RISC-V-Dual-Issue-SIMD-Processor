@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 
-// Top-level even execution lane, I0 slot (older insn): scalar ALU (RV32I OP / OP-IMM).
-// ALU ops are single-cycle: when enable is set, alu_result is final in EX.
-module even_lane_i0
+// Even execution lane: scalar ALU (RV32I OP / OP-IMM). Instantiates per slot (I0/I1).
+module even_lane
   import rv_dis_pkg::*;
   import decode_pkg::*;
 (
@@ -14,12 +13,14 @@ module even_lane_i0
   input  logic [31:0] rs2_data,
   input  logic [31:0] imm,
 
+  output logic        reg_write,
   output logic [31:0] alu_result
 );
 
-  alu_op_e         alu_op;
-  logic [31:0]     operand_b;
+  alu_op_e     alu_op;
+  logic [31:0] operand_b;
 
+  assign reg_write = enable && ((opcode == OPC_OP) || (opcode == OPC_OP_IMM));
   assign alu_op    = decode_alu_op(opcode, funct3, funct7);
   assign operand_b = (opcode == OPC_OP_IMM) ? imm : rs2_data;
 

@@ -23,6 +23,8 @@ module id_ex_dispatch_tb;
   logic [4:0]  i0_rd_addr_id;
   logic [4:0]  i0_rs1_addr_id;
   logic [4:0]  i0_rs2_addr_id;
+  logic        i0_rs1_use_id;
+  logic        i0_rs2_use_id;
   logic        i0_reg_write_id;
   logic [31:0] i0_imm_id;
   logic [31:0] i0_rs1_data_id;
@@ -38,11 +40,27 @@ module id_ex_dispatch_tb;
   logic [4:0]  i1_rd_addr_id;
   logic [4:0]  i1_rs1_addr_id;
   logic [4:0]  i1_rs2_addr_id;
+  logic        i1_rs1_use_id;
+  logic        i1_rs2_use_id;
   logic        i1_reg_write_id;
   logic [31:0] i1_imm_id;
   logic [31:0] i1_rs1_data_id;
   logic [31:0] i1_rs2_data_id;
   logic [31:0] i1_pc_id;
+
+  logic        stall_mem;
+  logic        mem0_reg_write;
+  logic [4:0]  mem0_rd;
+  logic        mem1_reg_write;
+  logic [4:0]  mem1_rd;
+  logic        wb0_reg_write;
+  logic [4:0]  wb0_rd;
+  logic        wb1_reg_write;
+  logic [4:0]  wb1_rd;
+
+  logic        stall_id;
+  logic        i1_hold_active;
+  logic        bundle_raw;
 
   // Per-slot WB controls
   logic        i0_reg_write_ex;
@@ -103,6 +121,8 @@ module id_ex_dispatch_tb;
 
   id_ex_dispatch dut (.*);
 
+  assign stall_mem = 1'b0;
+
   initial begin
     clk = 1'b0;
     forever #(CLK_PERIOD/2) clk = ~clk;
@@ -126,7 +146,9 @@ module id_ex_dispatch_tb;
     input logic [31:0] imm,
     input logic [31:0] rs1_data,
     input logic [31:0] rs2_data,
-    input logic [31:0] pc
+    input logic [31:0] pc,
+    input logic        rs1_use = 1'b1,
+    input logic        rs2_use = 1'b1
   );
     i0_valid_id     = valid;
     i0_lane_sel_id  = lane;
@@ -136,6 +158,8 @@ module id_ex_dispatch_tb;
     i0_rd_addr_id   = rd;
     i0_rs1_addr_id  = rs1;
     i0_rs2_addr_id  = rs2;
+    i0_rs1_use_id   = rs1_use;
+    i0_rs2_use_id   = rs2_use;
     i0_reg_write_id = reg_write;
     i0_imm_id       = imm;
     i0_rs1_data_id  = rs1_data;
@@ -156,7 +180,9 @@ module id_ex_dispatch_tb;
     input logic [31:0] imm,
     input logic [31:0] rs1_data,
     input logic [31:0] rs2_data,
-    input logic [31:0] pc
+    input logic [31:0] pc,
+    input logic        rs1_use = 1'b1,
+    input logic        rs2_use = 1'b1
   );
     i1_valid_id     = valid;
     i1_lane_sel_id  = lane;
@@ -166,11 +192,51 @@ module id_ex_dispatch_tb;
     i1_rd_addr_id   = rd;
     i1_rs1_addr_id  = rs1;
     i1_rs2_addr_id  = rs2;
+    i1_rs1_use_id   = rs1_use;
+    i1_rs2_use_id   = rs2_use;
     i1_reg_write_id = reg_write;
     i1_imm_id       = imm;
     i1_rs1_data_id  = rs1_data;
     i1_rs2_data_id  = rs2_data;
     i1_pc_id        = pc;
+  endtask
+
+  task automatic check_stall(
+    input string name,
+    input string detail,
+    input logic  exp_stall_id,
+    input logic  exp_i1_hold,
+    input logic  exp_bundle_raw
+  );
+    bit pass;
+    pass = (stall_id === exp_stall_id) && (i1_hold_active === exp_i1_hold) &&
+           (bundle_raw === exp_bundle_raw);
+    tb_report_open(pass, name, detail);
+    tb_field_bit("stall_id", stall_id, exp_stall_id);
+    tb_field_bit("i1_hold_active", i1_hold_active, exp_i1_hold);
+    tb_field_bit("bundle_raw", bundle_raw, exp_bundle_raw);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
+  endtask
+
+  task automatic flush_busy;
+    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
+              1'b0, 1'b0);
+    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
+              1'b0, 1'b0);
+    flush = 1'b1;
+    tick();
+    flush = 1'b0;
+    mem0_reg_write = 1'b0;
+    mem1_reg_write = 1'b0;
+    wb0_reg_write  = 1'b0;
+    wb1_reg_write  = 1'b0;
+    mem0_rd        = 5'd0;
+    mem1_rd        = 5'd0;
+    wb0_rd         = 5'd0;
+    wb1_rd         = 5'd0;
   endtask
 
   task automatic check_enables(
@@ -340,7 +406,16 @@ module id_ex_dispatch_tb;
     pass_cnt = 0;
     fail_cnt = 0;
 
-    tb_banner("id_ex_dispatch_tb - fixed slot routing, WB controls, reset/flush");
+    mem0_reg_write = 1'b0;
+    mem1_reg_write = 1'b0;
+    wb0_reg_write  = 1'b0;
+    wb1_reg_write  = 1'b0;
+    mem0_rd        = 5'd0;
+    mem1_rd        = 5'd0;
+    wb0_rd         = 5'd0;
+    wb1_rd         = 5'd0;
+
+    tb_banner("id_ex_dispatch_tb - routing, scoreboard, reset/flush");
 
     // --- Reset clears all lane enables ---
     rst_n = 1'b0;
@@ -348,7 +423,8 @@ module id_ex_dispatch_tb;
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1000);
     set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1004);
+              5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1004,
+              1'b1, 1'b0);
     tick();
     check_enables("reset_clear", "reset disables all four lane copies",
                   1'b0, 1'b0, 1'b0, 1'b0);
@@ -356,6 +432,9 @@ module id_ex_dispatch_tb;
                   1'b0, 1'b0, 32'd0, 32'd0);
 
     rst_n = 1'b1;
+    flush = 1'b1;
+    tick();
+    flush = 1'b0;
 
     // --- Mixed pair: I0 ADD (even) + I1 LW (odd) -> ev0 + od1 ---
     tick();
@@ -369,11 +448,12 @@ module id_ex_dispatch_tb;
     check_wb_ctrl("dual_mixed_wb", "both slots reg_write, pc per slot",
                   1'b1, 1'b1, 32'h1000, 32'h1004);
 
-    // --- Even/even pair: I0 ADD + I1 SUB -> ev0 + ev1 (no structural block) ---
+    // --- Even/even pair without same-bundle RAW (distinct rd / rs) ---
+    flush_busy();
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1008);
     set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, F7_SUB,
-              5'd4, 5'd1, 5'd2, 1'b1, 32'd0, 32'hB0, 32'hB1, 32'h100C);
+              5'd4, 5'd10, 5'd11, 1'b1, 32'd0, 32'hB0, 32'hB1, 32'h100C);
     tick();
     check_enables("even_pair_en", "ADD+SUB both even: ev0 and ev1 fire",
                   1'b1, 1'b1, 1'b0, 1'b0);
@@ -381,11 +461,13 @@ module id_ex_dispatch_tb;
               OPC_OP, F3_ADD_SUB, F7_SUB, 5'd4,
               32'd0, 32'hB0, 32'hB1, 32'h100C);
 
-    // --- Odd/odd pair: I0 LW + I1 SW -> od0 + od1; SW has no reg_write ---
+    // --- Odd/odd pair: I0 LW + I1 SW (store data reg != I0 rd) ---
+    flush_busy();
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd7, 5'd5, 5'd0, 1'b1, 32'd8, 32'h3000, 32'h0, 32'h1010);
+              5'd7, 5'd5, 5'd0, 1'b1, 32'd8, 32'h3000, 32'h0, 32'h1010,
+              1'b1, 1'b0);
     set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd7, 1'b0, 32'd12, 32'h3000, 32'hDEAD_BEEF, 32'h1014);
+              5'd0, 5'd5, 5'd12, 1'b0, 32'd12, 32'h3000, 32'hDEAD_BEEF, 32'h1014);
     tick();
     check_enables("odd_pair_en", "LW+SW both odd: od0 and od1 fire",
                   1'b0, 1'b0, 1'b1, 1'b1);
@@ -396,14 +478,15 @@ module id_ex_dispatch_tb;
 
     // --- I1 invalid: only I0 issues ---
     set_slot0(1'b1, LANE_ODD, OPC_JAL, 3'd0, 7'd0,
-              5'd1, 5'd0, 5'd0, 1'b1, 32'h100, 32'h0, 32'h0, 32'h1018);
+              5'd1, 5'd0, 5'd0, 1'b1, 32'h100, 32'h0, 32'h0, 32'h1018,
+              1'b0, 1'b0);
     set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd9, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h101C);
     tick();
     check_enables("i1_invalid_en", "I1 valid=0: only od0 fires",
                   1'b0, 1'b0, 1'b1, 1'b0);
     check_wb_ctrl("i1_invalid_wb", "invalid I1 cannot reg_write",
-                  1'b1, 1'b0, 32'h1018, 32'h101C);
+                  1'b1, 1'b0, 32'h1018, 32'd0);
 
     // --- Flush clears enables and WB controls ---
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
@@ -429,12 +512,13 @@ module id_ex_dispatch_tb;
     set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1028);
     set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h102C);
+              5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h102C,
+              1'b1, 1'b0);
     tick();
     check_enables("i0_invalid_en", "I0 valid=0: only ev1 fires",
                   1'b0, 1'b1, 1'b0, 1'b0);
     check_wb_ctrl("i0_invalid_wb", "invalid I0 cannot reg_write",
-                  1'b0, 1'b1, 32'h1028, 32'h102C);
+                  1'b0, 1'b1, 32'd0, 32'h102C);
 
     // --- Both slots invalid: full bubble (pc payload still flows, harmless) ---
     set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
@@ -445,18 +529,19 @@ module id_ex_dispatch_tb;
     check_enables("bubble_en", "no valid insn: all four copies idle",
                   1'b0, 1'b0, 1'b0, 1'b0);
     check_wb_ctrl("bubble_wb", "bubble pair cannot reg_write",
-                  1'b0, 1'b0, 32'h1030, 32'h1034);
+                  1'b0, 1'b0, 32'd0, 32'd0);
 
     // --- Back-to-back pairs: payload swaps every cycle, no stale state ---
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1038);
     set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd1, 1'b0, 32'd16, 32'h3000, 32'hF00D, 32'h103C);
+              5'd0, 5'd5, 5'd9, 1'b0, 32'd16, 32'h3000, 32'hF00D, 32'h103C);
     tick();
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
               5'd8, 5'd5, 5'd0, 1'b1, 32'd20, 32'h4000, 32'h0, 32'h1040);
     set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd9, 5'd8, 5'd0, 1'b1, 32'd1, 32'h99, 32'h0, 32'h1044);
+              5'd9, 5'd5, 5'd0, 1'b1, 32'd1, 32'h99, 32'h0, 32'h1044,
+              1'b1, 1'b0);
     tick();
     check_enables("b2b_en", "second pair replaces first with no idle cycle",
                   1'b0, 1'b1, 1'b1, 1'b0);
@@ -464,6 +549,8 @@ module id_ex_dispatch_tb;
               OPC_LOAD, F3_LW, 5'd8, 32'd20, 32'h4000, 32'h0, 32'h1040);
     check_wb_ctrl("b2b_wb", "WB controls track the newest pair",
                   1'b1, 1'b1, 32'h1040, 32'h1044);
+
+    flush_busy();
 
     // --- Memory RAR: dual LW same eff. addr -> I1 port only (outline §3) ---
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
@@ -496,14 +583,14 @@ module id_ex_dispatch_tb;
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
               5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h3000, 32'h0, 32'h1068);
     set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd7, 1'b0, 32'd0, 32'h3000, 32'hDEAD_BEEF, 32'h106C);
+              5'd0, 5'd6, 5'd7, 1'b0, 32'd0, 32'h3000, 32'hDEAD_BEEF, 32'h106C,
+              1'b1, 1'b0);
     tick();
     check_enables("mem_mixed_same_en", "LW+SW same addr: od0 and od1 on",
                   1'b0, 1'b0, 1'b1, 1'b1);
 
-    // --- Contract probe: valid=1 with LANE_NONE (decoder never emits this:
-    //     valid = legal && lane_sel != LANE_NONE). No copy may fire; observe
-    //     whether the slot's reg_write would still reach WB. ---
+    // --- Contract probe: valid=1 with LANE_NONE ---
+    flush_busy();
     set_slot0(1'b1, LANE_NONE, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd3, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1048);
     set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
@@ -511,12 +598,57 @@ module id_ex_dispatch_tb;
     tick();
     check_enables("lane_none_en", "LANE_NONE routes to no lane copy",
                   1'b0, 1'b0, 1'b0, 1'b0);
-    if (i0_reg_write_ex === 1'b1) begin
-      tb_warn_msg("lane_none probe: i0_reg_write_ex=1 while no lane copy executes");
-      tb_info_msg("safe only because decoder forces valid=0 for LANE_NONE; WB would write a stale result if that gate were removed");
-    end else begin
-      tb_info_msg("lane_none probe: i0_reg_write_ex stays low without a lane");
-    end
+    check_wb_ctrl("lane_none_wb", "LANE_NONE cannot reg_write",
+                  1'b0, 1'b0, 32'd0, 32'd0);
+
+    // ===================== Scoreboard — same-bundle RAW =====================
+
+    flush_busy();
+
+    // addi x5 | xor uses x5 — cycle 0: I0 only, hold I1
+    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h1070,
+              1'b1, 1'b0);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h1074);
+    tick();
+    check_stall("raw_bundle_stall", "same-bundle RAW: stall_id, hold I1",
+                1'b1, 1'b1, 1'b1);
+    check_enables("raw_bundle_issue_i0", "cycle 0 issues I0 addi only",
+                  1'b1, 1'b0, 1'b0, 1'b0);
+
+    // cycle 1: MEM forward for x5 lets held I1 issue
+    mem0_reg_write = 1'b1;
+    mem0_rd        = 5'd5;
+    tick();
+    check_stall("raw_bundle_replay", "held I1 issues when forward ready",
+                1'b0, 1'b0, 1'b1);
+    check_enables("raw_bundle_issue_i1", "cycle 1 issues held xor from ev1",
+                  1'b0, 1'b1, 1'b0, 1'b0);
+    check_ev1("raw_bundle_ev1", "held I1 xor x7,x6,x5 payload",
+              OPC_OP, F3_ADD_SUB, 7'd0, 5'd7,
+              32'd0, 32'h60, 32'h50, 32'h1074);
+    mem0_reg_write = 1'b0;
+
+    // even | odd inter-dependent: addi x5 | branch uses x5
+    flush_busy();
+    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd5, 5'd5, 5'd0, 1'b1, 32'd1, 32'h70, 32'h0, 32'h1080,
+              1'b1, 1'b0);
+    set_slot1(1'b1, LANE_ODD, OPC_BRANCH, F3_BEQ, 7'd0,
+              5'd0, 5'd6, 5'd5, 1'b0, 32'd0, 32'h80, 32'h90, 32'h1084);
+    tick();
+    check_stall("raw_inter_stall", "even|odd same-bundle RAW on x5",
+                1'b1, 1'b1, 1'b1);
+    check_enables("raw_inter_i0", "branch pair: issue addi on od0 path via ev0",
+                  1'b1, 1'b0, 1'b0, 1'b0);
+
+    mem0_reg_write = 1'b1;
+    mem0_rd        = 5'd5;
+    tick();
+    check_enables("raw_inter_i1", "held branch issues on od1",
+                  1'b0, 1'b0, 1'b0, 1'b1);
+    mem0_reg_write = 1'b0;
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);
