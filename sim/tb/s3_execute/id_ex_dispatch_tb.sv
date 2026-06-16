@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// id_ex_dispatch_tb - lane routing (fixed slot map), per-slot WB controls,
+// id_ex_dispatch_tb — lane routing, scoreboard + I1 buffer node (counter stall),
 // reset / flush behavior of the ID/EX dispatch register.
 module id_ex_dispatch_tb;
 
@@ -47,16 +47,6 @@ module id_ex_dispatch_tb;
   logic [31:0] i1_rs1_data_id;
   logic [31:0] i1_rs2_data_id;
   logic [31:0] i1_pc_id;
-
-  logic        stall_mem;
-  logic        mem0_reg_write;
-  logic [4:0]  mem0_rd;
-  logic        mem1_reg_write;
-  logic [4:0]  mem1_rd;
-  logic        wb0_reg_write;
-  logic [4:0]  wb0_rd;
-  logic        wb1_reg_write;
-  logic [4:0]  wb1_rd;
 
   logic        stall_id;
   logic        i1_hold_active;
@@ -120,8 +110,6 @@ module id_ex_dispatch_tb;
   int fail_cnt;
 
   id_ex_dispatch dut (.*);
-
-  assign stall_mem = 1'b0;
 
   initial begin
     clk = 1'b0;
@@ -229,14 +217,6 @@ module id_ex_dispatch_tb;
     flush = 1'b1;
     tick();
     flush = 1'b0;
-    mem0_reg_write = 1'b0;
-    mem1_reg_write = 1'b0;
-    wb0_reg_write  = 1'b0;
-    wb1_reg_write  = 1'b0;
-    mem0_rd        = 5'd0;
-    mem1_rd        = 5'd0;
-    wb0_rd         = 5'd0;
-    wb1_rd         = 5'd0;
   endtask
 
   task automatic check_enables(
@@ -406,16 +386,7 @@ module id_ex_dispatch_tb;
     pass_cnt = 0;
     fail_cnt = 0;
 
-    mem0_reg_write = 1'b0;
-    mem1_reg_write = 1'b0;
-    wb0_reg_write  = 1'b0;
-    wb1_reg_write  = 1'b0;
-    mem0_rd        = 5'd0;
-    mem1_rd        = 5'd0;
-    wb0_rd         = 5'd0;
-    wb1_rd         = 5'd0;
-
-    tb_banner("id_ex_dispatch_tb - routing, scoreboard, reset/flush");
+    tb_banner("id_ex_dispatch_tb - routing, scoreboard, I1 buffer, reset/flush");
 
     // --- Reset clears all lane enables ---
     rst_n = 1'b0;
@@ -558,8 +529,8 @@ module id_ex_dispatch_tb;
     set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
               5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1054);
     tick();
-    check_enables("mem_rar_same_en", "RAR same addr: od0 off, od1 on",
-                  1'b0, 1'b0, 1'b0, 1'b1);
+    check_enables("mem_rar_same_en", "RAR same addr: both odd lanes issue",
+                  1'b0, 1'b0, 1'b1, 1'b1);
 
     // --- Memory WAW: dual SW same eff. addr -> I1 write only (outline §6) ---
     set_slot0(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
@@ -567,8 +538,8 @@ module id_ex_dispatch_tb;
     set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
               5'd0, 5'd5, 5'd7, 1'b0, 32'd0, 32'h2000, 32'hBBB0_BBB7, 32'h105C);
     tick();
-    check_enables("mem_waw_same_en", "WAW same addr: od0 off, od1 on",
-                  1'b0, 1'b0, 1'b0, 1'b1);
+    check_enables("mem_waw_same_en", "WAW same addr: both issue; memory suppresses I0 write",
+                  1'b0, 1'b0, 1'b1, 1'b1);
 
     // --- Dual LW different eff. addr -> both odd copies on ---
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
@@ -605,32 +576,32 @@ module id_ex_dispatch_tb;
 
     flush_busy();
 
-    // addi x5 | xor uses x5 — cycle 0: I0 only, hold I1
+    // addi x5 | xor uses x5 — cycle 0: I0 only, buffer I1 (stall_remain=1)
     set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h1070,
               1'b1, 1'b0);
     set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h1074);
     tick();
-    check_stall("raw_bundle_stall", "same-bundle RAW: stall_id, hold I1",
+    check_stall("raw_bundle_stall", "same-bundle RAW: stall_id, buffer I1",
                 1'b1, 1'b1, 1'b1);
     check_enables("raw_bundle_issue_i0", "cycle 0 issues I0 addi only",
                   1'b1, 1'b0, 1'b0, 1'b0);
 
-    // cycle 1: MEM forward for x5 lets held I1 issue
-    mem0_reg_write = 1'b1;
-    mem0_rd        = 5'd5;
+    // cycle 1: wait_cnt hits 1, replay on next edge
     tick();
-    check_stall("raw_bundle_replay", "held I1 issues when forward ready",
+
+    // cycle 2: replay buffered I1
+    tick();
+    check_stall("raw_bundle_replay", "held I1 issues after 1-cycle stall",
                 1'b0, 1'b0, 1'b1);
     check_enables("raw_bundle_issue_i1", "cycle 1 issues held xor from ev1",
                   1'b0, 1'b1, 1'b0, 1'b0);
     check_ev1("raw_bundle_ev1", "held I1 xor x7,x6,x5 payload",
               OPC_OP, F3_ADD_SUB, 7'd0, 5'd7,
               32'd0, 32'h60, 32'h50, 32'h1074);
-    mem0_reg_write = 1'b0;
 
-    // even | odd inter-dependent: addi x5 | branch uses x5
+    // even | odd inter-dependent: addi x5 | branch uses x5 (1-cycle stall)
     flush_busy();
     set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd5, 5'd5, 5'd0, 1'b1, 32'd1, 32'h70, 32'h0, 32'h1080,
@@ -640,15 +611,67 @@ module id_ex_dispatch_tb;
     tick();
     check_stall("raw_inter_stall", "even|odd same-bundle RAW on x5",
                 1'b1, 1'b1, 1'b1);
-    check_enables("raw_inter_i0", "branch pair: issue addi on od0 path via ev0",
+    check_enables("raw_inter_i0", "branch pair: issue addi on ev0",
                   1'b1, 1'b0, 1'b0, 1'b0);
 
-    mem0_reg_write = 1'b1;
-    mem0_rd        = 5'd5;
     tick();
-    check_enables("raw_inter_i1", "held branch issues on od1",
+
+    tick();
+    check_enables("raw_inter_i1", "held branch issues on od1 after 1 stall",
                   1'b0, 1'b0, 1'b0, 1'b1);
-    mem0_reg_write = 1'b0;
+
+    // load-use: lw x2 | addi x1,x2 — 2-cycle stall before replay
+    flush_busy();
+    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'hA0, 32'h0, 32'h10A0,
+              1'b1, 1'b0);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd2, 5'd0, 1'b1, 32'h2C, 32'h0, 32'h0, 32'h10A4);
+    tick();
+    check_stall("load_use_stall0", "load-use RAW: buffer addi, stall 2",
+                1'b1, 1'b1, 1'b1);
+    check_enables("load_use_i0", "cycle 0 issues lw on od0 only",
+                  1'b0, 1'b0, 1'b1, 1'b0);
+
+    tick();
+    check_stall("load_use_stall1", "cycle 1: still stalling (stall_remain=1)",
+                1'b1, 1'b1, 1'b1);
+    check_enables("load_use_wait", "cycle 1: od0 holds lw in EX, no new issue",
+                  1'b0, 1'b0, 1'b1, 1'b0);
+
+    tick();
+
+    tick();
+    check_stall("load_use_replay", "cycle 3: replay buffered addi",
+                1'b0, 1'b0, 1'b1);
+    check_enables("load_use_i1", "held addi issues on ev1",
+                  1'b0, 1'b1, 1'b0, 1'b0);
+    check_ev1("load_use_ev1", "held addi x1,x2,0x2c payload",
+              OPC_OP_IMM, F3_ADD_SUB, 7'd0, 5'd1,
+              32'h2C, 32'h0, 32'h0, 32'h10A4);
+
+    // --- Flush clears I1 buffer ---
+    flush_busy();
+    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h1090,
+              1'b1, 1'b0);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h1094);
+    tick();
+    check_stall("hold_set_before_flush", "same-bundle RAW latches I1 buffer",
+                1'b1, 1'b1, 1'b1);
+    flush = 1'b1;
+    tick();
+    flush = 1'b0;
+    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
+              1'b0, 1'b0);
+    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
+              1'b0, 1'b0);
+    tick();
+    check_stall("flush_clears_i1_hold", "flush drops buffered I1 before replay",
+                1'b0, 1'b0, 1'b0);
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

@@ -254,7 +254,7 @@ Dispatch (during ID/EX) — lane checks and hazards
         - resolve by pipeline staging
 
         c) WAW (Write After Write), same memory word (same rd handled at WB — §4.c)
-        - resolve at write back, kill older (I0) i.e dont't wback the older instruction
+        - resolve at write back, wback only the youngest instruction
 
         d) RAW (Read After Write): I1 reads rs1/rs2 that equals an in-flight rd
         - reader needs the writer's new value; 
@@ -270,9 +270,9 @@ Dispatch (during ID/EX) — lane checks and hazards
             => I0 rd = x5, I1 rs2 = x5
 
         - hazard unit / scoreboard at ID→EX: detect I1 rs1/rs2 == I0 rd (I0 reg_write, rd != x0)
-        - same cycle: issue I0 only; hold I1 in ID (stall IF/ID as needed)
-        - next cycle: forward_unit supplies I0's result from MEM stage (mem0/mem1); then issue I1
-        - no WB bypass; no falling-edge forward; no same-bundle EX forward (see §6)
+        - same cycle: issue I0 only; buffer I1 in dispatch; stall_id=1 for full wait
+        - replay I1 when wait_cnt reaches 1 (init wait_cnt = stall_cycles + 1)
+        - no same-bundle EX forward; forward_unit WB bypass only for cross-bundle cases (see §6)
 
         d.2) 2 stall required - read/write to memory 
 
@@ -284,129 +284,102 @@ Dispatch (during ID/EX) — lane checks and hazards
             lw x2,0x00(x5) | lw x5,0x00(x2)
             => I0 rd = x2, I1 rs1 = x2
 
-        - load data is not available until s4_memory; MEM-stage forward cannot help same cycle
-        - I1 must be buffered and pipeline stalled until x2 is ready
+        - load data is not available until WB; I1 buffered with stall_remain=2
+        - full dispatch stall until counter expires, then replay buffered I1
         - stall required for all cases of load from memory is the first instruction
-
-        e) Memory RAW / WAR — same eff. addr, load/store ordering (2 stall, buffered at dispatch)
-
-            WAR — I0 load, I1 store same word:
-            lw x7, 0(x5) | sw x6, 0(x5)
-
-            RAW — I0 store, I1 load same word:
-            sw x6, 0(x5) | lw x7, 0(x5)
-
-        - Detect at dispatch (eff. addr match: rs1+imm, same 32-bit word)
-        - In-order pipeline: issue I0 only; buffer I1 in dispatch hold (same mechanism as d.1/d.2)
-        - 2 stall cycles until I0 memory op completes (store visible / load data returned)
-        - Then replay I1 — memory_cache receives ordered requests only; no RAW/WAR logic in cache
-        - Same-bundle memory WAW: kill I0 write at issue (see c, Cache §6) — not stalled, suppressed
 
     5) control hazard - 
             
         Odd then even - no stall branch instruction
             brne x5,x6,label | addi x6 
 
-    6) Scoreboard (issue gate at ID→EX) 
+    -) Scoreboard (issue gate at ID→EX) 
 
         Purpose:
         - Central in-order issue gate for GPR RAW hazards
-        - Same-bundle RAW (d.1): single-issue I0, push suppressed insn into insn_buffer (4 deep)
-        - In-flight RAW: operand ready = !busy[rs] OR MEM forward hit (mem0/mem1 only)
-        - Load-use (d.2): rd stays busy until WB retire; replay when load data on MEM stage
-        - stall_id to IF/ID; stall_mem ORs memory_cache miss back-pressure only
+        - Same-bundle RAW (d.1): single-issue I0, buffer I1, stall_remain=1
+        - Load-use (d.2): buffer I1, stall_remain=2 (I0 opcode == load)
+        - stall_id asserted only by dispatch (GPR RAW / I1 buffer wait); no external stall inputs
 
-        busy[31:0]:
-        - Set when an instruction with reg_write (rd != x0) issues into EX
-        - Cleared when that rd retires at WB (ex_mem_wb merged wb0/wb1)
-
-        insn_buffer — 4-entry FIFO (dispatch_funct/insn_buffer.sv, in id_ex_dispatch):
-        - Holds individual suppressed instructions in program order (head = oldest)
-        - Push on set_i1_hold: full ID bundle + producer_rd (I0 rd) + bundle PC tags
-        - Pop on issue_i1_from_hold when head operands ready (MEM fwd_hit on producer_rd)
-        - push_ok when count <= DEPTH-2 (>=2 free slots); else global stall_id on all front-end stages
-        - While push_ok=0: stall fetch/decode; replay buffer head when ready to drain (stall_id stays 1)
-        - Shared queue for scoreboard GPR RAW (§4.d) and future dispatch memory holds (§4.e)
-        - i1_hold_active = !empty (legacy name: any buffered insn waiting)
-        - suppress_bundle_raw_q: after head replays, ignore same PC pair until IF/ID advances
+        I1 buffer node — single entry (i1_buffer_node_t in id_ex_dispatch.sv):
+        - Holds at most one suppressed I1 from the current fetch pair
+        - Latch on set_i1_hold: full ID bundle + producer_rd + bundle PC tags + wait_cnt
+        - wait_cnt init = i1_stall_cycles+1 (ALU:2, load:3); decrements while >1; replay at 1
+        - Clear on issue_i1_from_hold or flush
+        - buf_q.valid drives i1_hold_active
 
         Module ports (scoreboard.sv):
-        - ID bundle I0/I1: valid, reg_write, rd, rs1/rs2, rs1_use/rs2_use
-        - insn_buffer head: rs1/rs2 use+addr, producer_valid/rd; buf_empty, buf_push_ok
-        - Forward-ready: mem0/mem1 reg_write+rd only (fwd_hit); no wb0/wb1 forward path
-        - stall_mem external; suppress_bundle_raw; hold_replay_block (push cycle)
-        - Outputs: issue_i0, issue_i1, stall_id, set_i1_hold, issue_i1_from_hold, bundle_raw
+        - ID pair: i0_valid/reg_write/rd/opcode; i1_valid/rs1/rs2 use+addr
+        - Buffer: buf_valid, issue_i1_from_hold (from dispatch wait_cnt)
+        - suppress_bundle_raw
+        - Outputs: issue_i0, issue_i1, stall_id, set_i1_hold, bundle_raw, i1_stall_cycles
 
         Hazard ownership (id_ex_dispatch vs scoreboard):
 
         scoreboard.sv — GPR register RAW only (§4.d):
-        - d.1 same-bundle (1 stall): single-issue I0, hold I1, replay when MEM fwd_hit
-        - d.2 load-use (2 stall): busy[rd] until WB retire; hold I1 until load data ready
+        - d.1 same-bundle (1 stall): partial I0, buffer I1, wait_cnt-based replay
+        - d.2 load-use (2 stall): buffer I1, wait_cnt init 3
 
         id_ex_dispatch — checked at dispatch, not in scoreboard:
-        - Memory RAW/WAR (§4.e): same eff. addr (rs1+imm); single-issue I0; buffer I1;
+        - Memory RAW/WAR (Cache §4): same eff. addr (rs1+imm); single-issue I0; hold I1;
           2-stall in-order replay when I0 mem op completes; memory_cache sees ordered ports only
         - GPR WAW: no dispatch check; register_file wpc merge at WB (§4.c)
         - Memory WAW (§4.c, Cache §6): kill I0 store at issue (od0 mem_en=0)
           (reg_write=0 / mem_en=0) — redundant write never executes
 
         Other:
-        - EX operand mux: forward_unit MEM stage only (mem0/mem1); no WB bypass; no falling-edge forward
-        - memory_cache: L1 miss back-pressure (stall_mem) only
+        - EX operand mux: forward_unit WB stage only (wb0/wb1); no falling-edge forward
+        - memory_cache: cache_busy status only; L1 miss stall folded into dispatch when integrated
 
-    7) Stall methods
+    -) Stall methods
 
-        Default: global front-end stall (b). Same-bundle RAW (§4.d.1) also uses partial issue (a).
+        Default: global front-end stall. Same-bundle RAW uses partial I0 issue on capture cycle.
 
-        a) Partial issue — one fetch pair only
-            - Same-bundle RAW: issue I0; push I1 to insn_buffer (4-deep FIFO); replay head on MEM fwd_hit
+        a) Partial issue + buffer — one fetch pair only
+            - Same-bundle RAW: issue I0; buffer I1 with stall_remain (1 or 2); full stall until replay
             - Cross-bundle lane run-ahead not supported
 
             Example — even|even RAW (§4.d.1):
                 addi x5, x4, x3 | xor x7, x6, x5
-                c0: issue ev0 (addi); push xor to buffer; stall_id=1
-                c1: mem0 forwards x5 → replay head on ev1; stall_id=0
+                c0: issue ev0 (addi); buffer xor; stall_id=1; wait_cnt=2
+                c1: wait_cnt→1 (stall)
+                c2: replay xor on ev1
 
             Example — even|odd RAW:
                 addi x5, x5, 1 | bne x6, x5, label
-                c0: issue ev0; buffer branch (od1); stall_id=1
-                c1: mem0 forwards x5 → replay head on od1
+                c0: issue ev0; buffer branch; wait_cnt=2
+                c1–c2: stall then replay branch on od1
 
         b) Global stall_id — IF/ID bubble until dispatch can proceed
-            - insn_buffer head not ready (MEM fwd / load data)
-            - push_ok=0 (<2 free buffer slots): stall fetch; replay head to drain; stall_id stays 1
-            - load-use (§4.d.2), memory RAW/WAR (§4.e), cache miss (stall_mem)
+            - while buf_q.valid && wait_cnt > 1: full stall
+            - load-use (§4.d.2), memory RAW/WAR (Cache §4); future L1 miss handled inside dispatch
             - stall_id && !issue_i0 && !issue_i1 → hold EX registers
 
             Example — load-use (§4.d.2):
                 lw x2, 0(x5) | addi x1, x2, 0x2c
-                c0: issue od0 (lw); push addi to buffer; stall_id=1
-                c1–N: stall until x2 at MEM/WB → replay addi on ev1
+                c0: issue od0 (lw); buffer addi; stall_id=1; wait_cnt=3
+                c1–c2: stall (wait_cnt counts down)
+                c3: replay addi on ev1
 
-            Example — buffer backpressure (push_ok=0, depth 4):
-                buffer holds 3+ insns → <2 free slots
-                stall_id=1 (no new fetch); replay head each cycle when ready until count≤2
-
-            Example — memory RAW (§4.e):
+            Example — memory RAW (Cache §4):
                 sw x6, 0(x5) | lw x7, 0(x5)
-                c0: issue od0 (sw); buffer lw; stall_id=1
+                c0: issue od0 (sw); hold lw in dispatch; stall_id=1
                 c1–N: stall until store completes → replay lw on od1
 
         c) Back-end per-slot freeze (optional, inactive)
-            - ex_mem stall_od0/od1, ex_mem_wb stall_i0/i1 — one slot only; miss uses stall_mem today
+            - ex_mem stall_od0/od1, ex_mem_wb stall_i0/i1 — not used; dispatch owns stall_id
 
         | Situation                      | Method                          |
         |--------------------------------|---------------------------------|
-        | Same-bundle RAW (d.1)          | (a) partial issue + buffer push |
-        | Buffer <2 free slots           | (b) global stall_id             |
-        | Load-use / mem order / L1 miss | (b) global stall_id             |
+        | Same-bundle RAW (d.1)          | (a) partial issue + I1 buffer     |
+        | Load-use / mem order / L1 miss | (b) global stall_id (dispatch)  |
         | Cross-bundle independent lanes | not supported                   |
 
-        Signals: stall_id, stall_mem; issue_i0/i1, set_i1_hold, issue_i1_from_hold; stall_od0/od1, stall_i0/i1
+        Signals: stall_id (dispatch out); issue_i0/i1, set_i1_hold, issue_i1_from_hold
 
 
         
-Forwarding (EX operand mux — MEM stage only)
+Forwarding (EX operand mux — WB stage only)
 
     Policy — not used in RV-DIS:
         - no WB bypass on GPR read ports (no same-cycle wen→read short-circuit for EX)
@@ -414,14 +387,15 @@ Forwarding (EX operand mux — MEM stage only)
 
     forward_unit muxes EX rs operands from:
         a) ID/EX GPR operand (combinational read of regs[] — stale if producer still in flight)
-        b) MEM stage mem0/mem1: ex_mem_wb EX bank (even) or odd mem mux
-        - youngest PC wins when mem0 and mem1 both match the same rs
+        b) WB stage wb0/wb1: ex_mem_wb retire candidates
+        - youngest PC wins when wb0 and wb1 both match the same rs
         - after WB negedge commit, the next ID read sees the new value in regs[] (no forward needed)
         - does not resolve same-bundle I0→I1 RAW; scoreboard stalls that case (d.1)
         - same-bundle GPR WAW: both issue; younger wpc wins at register_file WB
         - same-bundle memory WAW: I0 store suppressed at dispatch (od0 off) — §4.c, Cache §6
 
 
+    
 
 Execution Flow and Design:
 
@@ -466,21 +440,29 @@ Cache Memory Design:
 
     - disable redundant I0 mem port at dispatch when appropriate
 
-    4) WAR (Write After Read) — I0 read, I1 write, same memory word (anti-dependency)
+    4) Memory WAR / RAW — same eff. addr, load/store ordering (2 stall, held at dispatch)
 
-        lw x7, 0(x5) | sw x6, 0(x5)
-        => I0 load must read memory before I1 store overwrites the word
+        a) WAR (Write After Read) — I0 read, I1 write, same memory word (anti-dependency)
 
-    - dispatch: detect same eff. addr; single-issue I0; buffer I1 (2-stall in-order path)
-    - replay I1 after I0 load completes; memory_cache assumes ordered requests only
+            lw x7, 0(x5) | sw x6, 0(x5)
+            => I0 load must read memory before I1 store overwrites the word
 
-    5) RAW (Read After Write) — I0 write, I1 read, same memory word (true dependency)
+        - dispatch: detect same eff. addr; single-issue I0; hold I1 (2-stall in-order path)
+        - replay I1 after I0 load completes; memory_cache assumes ordered requests only
 
-        sw x6, 0(x5) | lw x7, 0(x5)
-        => I1 load depends on the value I0 store writes to the word
-    
-    - dispatch: detect same eff. addr; single-issue I0; buffer I1 (2-stall in-order path)
-    - replay I1 after I0 store completes; memory_cache assumes ordered requests only
+        b) RAW (Read After Write) — I0 write, I1 read, same memory word (true dependency)
+
+            sw x6, 0(x5) | lw x7, 0(x5)
+            => I1 load depends on the value I0 store writes to the word
+        
+        - dispatch: detect same eff. addr; single-issue I0; hold I1 (2-stall in-order path)
+        - replay I1 after I0 store completes; memory_cache assumes ordered requests only
+
+    - Detect at dispatch (eff. addr match: rs1+imm, same 32-bit word)
+    - In-order pipeline: issue I0 only; hold I1 in dispatch (same single-entry hold as §4.d)
+    - 2 stall cycles until I0 memory op completes (store visible / load data returned)
+    - Then replay I1 — memory_cache receives ordered requests only; no RAW/WAR logic in cache
+    - Same-bundle memory WAW: kill I0 write at issue (see c, Cache §6) — not stalled, suppressed
 
     6) WAW (Write After Write) — dual-issue write same memory word
 
@@ -495,9 +477,9 @@ Cache Memory Design:
 
 Even lane at EX/WB (skips MEM)
 
-    1) even-lane ALU result latches in ex_mem_wb EX bank at posedge (no memory access)
-    2) odd-lane reg_write uses ex_mem_wb MEM bank (ex_mem → load/JAL/LUI mux)
-    3) ex_mem_wb merges even or odd per slot to GPR write ports
+    1) even-lane ALU → ex_mem_wb EX bank (ev0/ev1); odd-lane → MEM bank (od0/od1)
+    2) ex_mem_wb: 4-port enable merge → push0/push1 retire candidates
+    3) ex_mem_wb retire merge → GPR i0/i1 write ports (2 per cycle, register_file wpc merge)
 
 
 Memory hierarchy — Basys 3 (XC7A35T / Artix-7):

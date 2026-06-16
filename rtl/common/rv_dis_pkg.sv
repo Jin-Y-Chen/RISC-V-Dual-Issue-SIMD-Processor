@@ -119,6 +119,30 @@ package rv_dis_pkg;
     LANE_ODD  = 2'b10
   } lane_sel_e;
 
+  // Single I1 slot buffered at dispatch for in-order hazard replay (depth 1).
+  typedef struct packed {
+    logic        valid;
+    lane_sel_e   lane;
+    logic [6:0]  opcode;
+    logic [2:0]  funct3;
+    logic [6:0]  funct7;
+    logic [4:0]  rd;
+    logic [4:0]  rs1;
+    logic [4:0]  rs2;
+    logic        rs1_use;
+    logic        rs2_use;
+    logic        reg_write;
+    logic [31:0] imm;
+    logic [31:0] rs1_data;
+    logic [31:0] rs2_data;
+    logic [31:0] pc;
+    logic [4:0]  producer_rd;
+    logic [31:0] bundle_i0_pc;
+    logic [31:0] bundle_i1_pc;
+    logic [1:0]  wait_total;  // 1=ALU RAW, 2=load-use
+    logic [1:0]  wait_cnt;
+  } i1_buffer_node_t;
+
   // No functions in this package — types/constants only.
   // Scalar decode: rtl/s2_decode/decode_pkg.sv
 

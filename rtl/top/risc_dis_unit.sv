@@ -3,6 +3,7 @@
 // RV-DIS scalar core slice: ID through MEM/WB (no fetch yet).
 // Dual decoders + GPR + ID/EX dispatch + forward unit + four lane copies.
 // Even-lane ALU uses ex_mem_wb EX bank; odd-lane uses ex_mem → ex_mem_wb MEM bank.
+// WB retire: ex_mem_wb push candidates drive GPR i0/i1 write ports directly.
 module risc_dis_unit
   import rv_dis_pkg::*;
 (
@@ -91,15 +92,6 @@ module risc_dis_unit
   logic [4:0]  ev1_rd_addr_exwb;
   logic [31:0] ev1_wdata_exwb;
   logic [31:0] ev1_pc_exwb;
-
-  logic        mem0_reg_write_fwd;
-  logic [4:0]  mem0_rd_fwd;
-  logic [31:0] mem0_data_fwd;
-  logic [31:0] mem0_pc_fwd;
-  logic        mem1_reg_write_fwd;
-  logic [4:0]  mem1_rd_fwd;
-  logic [31:0] mem1_data_fwd;
-  logic [31:0] mem1_pc_fwd;
 
   logic        i0_reg_write_wb;
   logic [4:0]  i0_rd_addr_wb;
@@ -195,21 +187,27 @@ module risc_dis_unit
   logic [31:0] od1_pc_ex;
 
   logic        stall_id;
-  logic        stall_mem;
-  logic [31:0] od0_load_rdata_mem;
-  logic [31:0] od1_load_rdata_mem;
+  logic [31:0] od0_load_mem_data;
+  logic [31:0] od1_load_mem_data;
   logic [31:0] od0_wdata_mem_fwd;
   logic [31:0] od1_wdata_mem_fwd;
 
-  assign stall_mem = 1'b0;  // tie memory_cache stall_p* here when integrated
-  assign od0_load_rdata_mem = 32'd0;  // tie memory_cache load return here
-  assign od1_load_rdata_mem = 32'd0;
+  logic        wb_push0_valid;
+  logic [4:0]  wb_push0_rd;
+  logic [31:0] wb_push0_wdata;
+  logic [31:0] wb_push0_pc;
+  logic        wb_push1_valid;
+  logic [4:0]  wb_push1_rd;
+  logic [31:0] wb_push1_wdata;
+  logic [31:0] wb_push1_pc;
+
+  assign od0_load_mem_data = 32'd0;  // tie memory_cache load return here
+  assign od1_load_mem_data = 32'd0;
 
   id_ex_dispatch u_dispatch (
     .clk             (clk),
     .rst_n           (rst_n),
     .flush           (flush),
-    .stall_mem       (stall_mem),
     .i0_valid_id     (i0_valid_dec),
     .i0_lane_sel_id  (i0_lane_sel_dec),
     .i0_opcode_id    (i0_opcode_dec),
@@ -240,14 +238,6 @@ module risc_dis_unit
     .i1_rs1_data_id  (i1_rs1_data),
     .i1_rs2_data_id  (i1_rs2_data),
     .i1_pc_id        (i1_pc_id),
-    .mem0_reg_write  (mem0_reg_write_fwd),
-    .mem0_rd         (mem0_rd_fwd),
-    .mem1_reg_write  (mem1_reg_write_fwd),
-    .mem1_rd         (mem1_rd_fwd),
-    .wb0_reg_write   (i0_reg_write_wb),
-    .wb0_rd          (i0_rd_addr_wb),
-    .wb1_reg_write   (i1_reg_write_wb),
-    .wb1_rd          (i1_rd_addr_wb),
     .stall_id        (stall_id),
     .i0_reg_write_ex (i0_reg_write_ex),
     .i1_reg_write_ex (i1_reg_write_ex),
@@ -303,7 +293,6 @@ module risc_dis_unit
   logic [31:0] ev0_alu_result;
   logic [31:0] ev1_alu_result;
 
-  logic        od0_unit_done;
   logic        od0_brch_taken;
   logic [31:0] od0_brch_pc;
   logic        od0_mem_en;
@@ -342,7 +331,7 @@ module risc_dis_unit
                            ((od1_opcode_ex == OPC_JAL) || (od1_opcode_ex == OPC_JALR));
 
   // -------------------------------------------------------------------------
-  // Forward unit — MEM-stage (ex_mem_wb EX bank + odd mem mux) + WB wb0/wb1
+  // Forward unit — WB wb0/wb1 -> EX operand bypass
   // -------------------------------------------------------------------------
   forward_unit u_forward (
     .ev0_enable       (ev0_enable_ex),
@@ -365,14 +354,6 @@ module risc_dis_unit
     .od1_rs2_addr     (od1_rs2_addr_ex),
     .od1_rs1_data     (od1_rs1_data_ex),
     .od1_rs2_data     (od1_rs2_data_ex),
-    .mem0_reg_write   (mem0_reg_write_fwd),
-    .mem0_rd_addr     (mem0_rd_fwd),
-    .mem0_data        (mem0_data_fwd),
-    .mem0_pc          (mem0_pc_fwd),
-    .mem1_reg_write   (mem1_reg_write_fwd),
-    .mem1_rd_addr     (mem1_rd_fwd),
-    .mem1_data        (mem1_data_fwd),
-    .mem1_pc          (mem1_pc_fwd),
     .wb0_reg_write    (i0_reg_write_wb),
     .wb0_rd_addr      (i0_rd_addr_wb),
     .wb0_data         (i0_wdata_wb),
@@ -421,7 +402,6 @@ module risc_dis_unit
     .rs2_data   (od0_rs2_data_fwd),
     .imm        (od0_imm_ex),
     .pc         (od0_pc_ex),
-    .unit_done  (od0_unit_done),
     .brch_taken (od0_brch_taken),
     .brch_pc    (od0_brch_pc),
     .mem_en     (od0_mem_en),
@@ -430,7 +410,7 @@ module risc_dis_unit
     .mem_wdata  (od0_mem_wdata),
     .mem_besel  (od0_mem_besel),
     .link_pc    (od0_link_pc),
-    .wb_data    (od0_alu_result)
+    .reg_wdata  (od0_alu_result)
   );
 
   odd_lane u_od1 (
@@ -441,7 +421,6 @@ module risc_dis_unit
     .rs2_data   (od1_rs2_data_fwd),
     .imm        (od1_imm_ex),
     .pc         (od1_pc_ex),
-    .unit_done  (),
     .brch_taken (od1_brch_taken),
     .brch_pc    (od1_brch_pc),
     .mem_en     (od1_mem_en),
@@ -450,7 +429,7 @@ module risc_dis_unit
     .mem_wdata  (od1_mem_wdata),
     .mem_besel  (od1_mem_besel),
     .link_pc    (od1_link_pc),
-    .wb_data    (od1_alu_result)
+    .reg_wdata  (od1_alu_result)
   );
 
   // -------------------------------------------------------------------------
@@ -569,7 +548,7 @@ module risc_dis_unit
     .od0_alu_result_mem (od0_alu_result_mem),
     .od0_mem_en_mem     (od0_mem_en_mem),
     .od0_mem_act_mem    (od0_mem_act_mem),
-    .od0_load_rdata     (od0_load_rdata_mem),
+    .od0_load_mem_data     (od0_load_mem_data),
     .od1_reg_write_mem  (od1_reg_write_mem),
     .od1_rd_addr_mem    (od1_rd_mem),
     .od1_pc_mem         (od1_pc_mem),
@@ -577,7 +556,7 @@ module risc_dis_unit
     .od1_alu_result_mem (od1_alu_result_mem),
     .od1_mem_en_mem     (od1_mem_en_mem),
     .od1_mem_act_mem    (od1_mem_act_mem),
-    .od1_load_rdata     (od1_load_rdata_mem),
+    .od1_load_mem_data     (od1_load_mem_data),
     .ev0_reg_write_exwb (ev0_reg_write_exwb),
     .ev0_rd_addr_exwb   (ev0_rd_addr_exwb),
     .ev0_wdata_exwb     (ev0_wdata_exwb),
@@ -588,25 +567,23 @@ module risc_dis_unit
     .ev1_pc_exwb        (ev1_pc_exwb),
     .od0_wdata_mem      (od0_wdata_mem_fwd),
     .od1_wdata_mem      (od1_wdata_mem_fwd),
-    .i0_reg_write_wb    (i0_reg_write_wb),
-    .i0_rd_addr_wb      (i0_rd_addr_wb),
-    .i0_wdata_wb        (i0_wdata_wb),
-    .i0_pc_wb           (i0_pc_wb),
-    .i1_reg_write_wb    (i1_reg_write_wb),
-    .i1_rd_addr_wb      (i1_rd_addr_wb),
-    .i1_wdata_wb        (i1_wdata_wb),
-    .i1_pc_wb           (i1_pc_wb)
+    .push0_valid        (wb_push0_valid),
+    .push0_rd           (wb_push0_rd),
+    .push0_wdata        (wb_push0_wdata),
+    .push0_pc           (wb_push0_pc),
+    .push1_valid        (wb_push1_valid),
+    .push1_rd           (wb_push1_rd),
+    .push1_wdata        (wb_push1_wdata),
+    .push1_pc           (wb_push1_pc)
   );
 
-  // MEM-stage forward: ex_mem_wb EX bank (even) or odd MEM mux
-  assign mem0_reg_write_fwd = ev0_reg_write_exwb | od0_reg_write_mem;
-  assign mem0_rd_fwd        = ev0_reg_write_exwb ? ev0_rd_addr_exwb : od0_rd_mem;
-  assign mem0_data_fwd      = ev0_reg_write_exwb ? ev0_wdata_exwb    : od0_wdata_mem_fwd;
-  assign mem0_pc_fwd        = ev0_reg_write_exwb ? ev0_pc_exwb       : od0_pc_mem;
-
-  assign mem1_reg_write_fwd = ev1_reg_write_exwb | od1_reg_write_mem;
-  assign mem1_rd_fwd        = ev1_reg_write_exwb ? ev1_rd_addr_exwb : od1_rd_mem;
-  assign mem1_data_fwd      = ev1_reg_write_exwb ? ev1_wdata_exwb    : od1_wdata_mem_fwd;
-  assign mem1_pc_fwd        = ev1_reg_write_exwb ? ev1_pc_exwb       : od1_pc_mem;
+  assign i0_reg_write_wb = wb_push0_valid;
+  assign i0_rd_addr_wb   = wb_push0_rd;
+  assign i0_wdata_wb     = wb_push0_wdata;
+  assign i0_pc_wb        = wb_push0_pc;
+  assign i1_reg_write_wb = wb_push1_valid;
+  assign i1_rd_addr_wb   = wb_push1_rd;
+  assign i1_wdata_wb     = wb_push1_wdata;
+  assign i1_pc_wb        = wb_push1_pc;
 
 endmodule

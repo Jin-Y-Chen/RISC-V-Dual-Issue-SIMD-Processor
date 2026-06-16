@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// forward_unit_tb — MEM fastpath + WB -> EX combinational bypass.
+// forward_unit_tb — WB wb0/wb1 -> EX combinational bypass.
 module forward_unit_tb;
 
   import rv_dis_pkg::*;
@@ -40,15 +40,6 @@ module forward_unit_tb;
   logic [31:0] wb1_data;
   logic [31:0] wb1_pc;
 
-  logic        mem0_reg_write;
-  logic [4:0]  mem0_rd_addr;
-  logic [31:0] mem0_data;
-  logic [31:0] mem0_pc;
-  logic        mem1_reg_write;
-  logic [4:0]  mem1_rd_addr;
-  logic [31:0] mem1_data;
-  logic [31:0] mem1_pc;
-
   logic [31:0] ev0_rs1_data_fwd;
   logic [31:0] ev0_rs2_data_fwd;
   logic [31:0] ev1_rs1_data_fwd;
@@ -74,8 +65,6 @@ module forward_unit_tb;
     od1_rs1_data = '0; od1_rs2_data = '0;
     wb0_reg_write = 1'b0; wb0_rd_addr = '0; wb0_data = '0; wb0_pc = '0;
     wb1_reg_write = 1'b0; wb1_rd_addr = '0; wb1_data = '0; wb1_pc = '0;
-    mem0_reg_write = 1'b0; mem0_rd_addr = '0; mem0_data = '0; mem0_pc = '0;
-    mem1_reg_write = 1'b0; mem1_rd_addr = '0; mem1_data = '0; mem1_pc = '0;
   endtask
 
   task automatic check_u32(
@@ -117,7 +106,7 @@ module forward_unit_tb;
     fail_cnt = 0;
     clear_inputs();
 
-    tb_banner("forward_unit_tb - MEM fastpath + WB bypass");
+    tb_banner("forward_unit_tb - WB wb0/wb1 bypass");
 
     ev0_enable   = 1'b1;
     ev0_rs1_addr  = 5'd2;  ev0_rs1_data = 32'h0000_00AA;
@@ -170,12 +159,12 @@ module forward_unit_tb;
     clear_inputs();
     ev1_enable     = 1'b1;
     ev1_rs1_addr   = 5'd5;  ev1_rs1_data = 32'hDEAD_DEAD;
-    mem1_reg_write = 1'b1; mem1_rd_addr = 5'd5;
-    mem1_data = 32'h0000_600D; mem1_pc = 32'h0000_0104;
     wb0_reg_write  = 1'b1; wb0_rd_addr = 5'd5;
     wb0_data = 32'h0000_0BAD; wb0_pc = 32'h0000_0100;
+    wb1_reg_write  = 1'b1; wb1_rd_addr = 5'd5;
+    wb1_data = 32'h0000_600D; wb1_pc = 32'h0000_0104;
     #1;
-    check_u32("mem1_over_wb", "MEM fastpath younger than WB on same rd",
+    check_u32("wb1_over_wb0", "wb1 younger wpc wins on same rd",
               "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_600D);
 
     clear_inputs();

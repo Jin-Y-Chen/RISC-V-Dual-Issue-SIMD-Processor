@@ -1,9 +1,7 @@
 `timescale 1ns / 1ps
 
-// EX/WB + MEM/WB pipeline registers — dual slot (I0 / I1).
-// Even lane: ev0/ev1 EX inputs → exwb register (skips MEM).
-// Odd lane:  od0/od1 MEM inputs → memwb register (from ex_mem + load return).
-// GPR write ports: merge exwb (even) or memwb (odd); at most one active per slot.
+// EX/MEM-WB pipeline registers — 4 lane copies (ev0/ev1 EX bank, od0/od1 MEM bank).
+// Odd lane WB mux + forward tap. Retire candidates (push0/push1) connect directly to GPR ports in top.
 module ex_mem_wb
   import rv_dis_pkg::*;
 (
@@ -32,7 +30,7 @@ module ex_mem_wb
   input  reg_t        od0_alu_result_mem,
   input  logic        od0_mem_en_mem,
   input  logic        od0_mem_act_mem,
-  input  reg_t        od0_load_rdata,
+  input  reg_t        od0_load_mem_data,
 
   input  logic        od1_reg_write_mem,
   input  logic [4:0]  od1_rd_addr_mem,
@@ -41,7 +39,7 @@ module ex_mem_wb
   input  reg_t        od1_alu_result_mem,
   input  logic        od1_mem_en_mem,
   input  logic        od1_mem_act_mem,
-  input  reg_t        od1_load_rdata,
+  input  reg_t        od1_load_mem_data,
 
   // --- EX/WB stage (even forward / mem0) ---
   output logic        ev0_reg_write_exwb,
@@ -58,16 +56,16 @@ module ex_mem_wb
   output reg_t        od0_wdata_mem,
   output reg_t        od1_wdata_mem,
 
-  // --- Merged WB (GPR ports / forward wb0/wb1, slot I0 / I1) ---
-  output logic        i0_reg_write_wb,
-  output logic [4:0]  i0_rd_addr_wb,
-  output reg_t        i0_wdata_wb,
-  output reg_t        i0_pc_wb,
+  // --- 4→2 retire push (slot I0 then I1, when pipeline advances) ---
+  output logic        push0_valid,
+  output logic [4:0]  push0_rd,
+  output reg_t        push0_wdata,
+  output reg_t        push0_pc,
 
-  output logic        i1_reg_write_wb,
-  output logic [4:0]  i1_rd_addr_wb,
-  output reg_t        i1_wdata_wb,
-  output reg_t        i1_pc_wb
+  output logic        push1_valid,
+  output logic [4:0]  push1_rd,
+  output reg_t        push1_wdata,
+  output reg_t        push1_pc
 );
 
   logic        od0_odd_load_mem;
@@ -83,15 +81,14 @@ module ex_mem_wb
   reg_t        od1_wdata_memwb;
   reg_t        od1_pc_memwb;
 
-  // Odd WB mux: load_rdata | link (pc+4) | LUI/AUIPC imm path
   assign od0_odd_load_mem = od0_reg_write_mem && od0_mem_en_mem && !od0_mem_act_mem;
   assign od1_odd_load_mem = od1_reg_write_mem && od1_mem_en_mem && !od1_mem_act_mem;
 
-  assign od0_wdata_mem = od0_odd_load_mem ? od0_load_rdata :
+  assign od0_wdata_mem = od0_odd_load_mem ? od0_load_mem_data :
                          od0_use_link_mem ? (od0_pc_mem + 32'd4) :
                          od0_alu_result_mem;
 
-  assign od1_wdata_mem = od1_odd_load_mem ? od1_load_rdata :
+  assign od1_wdata_mem = od1_odd_load_mem ? od1_load_mem_data :
                          od1_use_link_mem ? (od1_pc_mem + 32'd4) :
                          od1_alu_result_mem;
 
@@ -153,15 +150,15 @@ module ex_mem_wb
     end
   end
 
-  // WB merge — even (exwb) or odd (memwb), slot I0 / I1
-  assign i0_reg_write_wb = ev0_reg_write_exwb | od0_reg_write_memwb;
-  assign i0_rd_addr_wb   = ev0_reg_write_exwb ? ev0_rd_addr_exwb   : od0_rd_addr_memwb;
-  assign i0_wdata_wb     = ev0_reg_write_exwb ? ev0_wdata_exwb     : od0_wdata_memwb;
-  assign i0_pc_wb        = ev0_reg_write_exwb ? ev0_pc_exwb        : od0_pc_memwb;
+  // 4-port enable merge → slot I0/I1 retire when pipeline advances (direct GPR write in top)
+  assign push0_valid = !stall_i0 && (ev0_reg_write_ex | od0_reg_write_mem);
+  assign push0_rd    = ev0_reg_write_ex ? ev0_rd_addr_ex : od0_rd_addr_mem;
+  assign push0_wdata = ev0_reg_write_ex ? ev0_wdata_ex   : od0_wdata_mem;
+  assign push0_pc    = ev0_reg_write_ex ? ev0_pc_ex      : od0_pc_mem;
 
-  assign i1_reg_write_wb = ev1_reg_write_exwb | od1_reg_write_memwb;
-  assign i1_rd_addr_wb   = ev1_reg_write_exwb ? ev1_rd_addr_exwb   : od1_rd_addr_memwb;
-  assign i1_wdata_wb     = ev1_reg_write_exwb ? ev1_wdata_exwb     : od1_wdata_memwb;
-  assign i1_pc_wb        = ev1_reg_write_exwb ? ev1_pc_exwb        : od1_pc_memwb;
+  assign push1_valid = !stall_i1 && (ev1_reg_write_ex | od1_reg_write_mem);
+  assign push1_rd    = ev1_reg_write_ex ? ev1_rd_addr_ex : od1_rd_addr_mem;
+  assign push1_wdata = ev1_reg_write_ex ? ev1_wdata_ex   : od1_wdata_mem;
+  assign push1_pc    = ev1_reg_write_ex ? ev1_pc_ex      : od1_pc_mem;
 
 endmodule

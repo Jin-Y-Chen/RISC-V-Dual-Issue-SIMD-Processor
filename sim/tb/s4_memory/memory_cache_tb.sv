@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// memory_cache_tb — L1 miss stall, L2 fill, hit path.
+// memory_cache_tb — L1 miss busy, hit path, WAW suppress, WAR read-then-write.
 module memory_cache_tb;
 
   import rv_dis_pkg::*;
@@ -16,22 +16,19 @@ module memory_cache_tb;
   logic        clk;
   logic        rst_n;
 
-  logic        p0_read_en;
-  logic        p0_write_en;
-  logic [31:0] p0_addr;
-  logic [31:0] p0_wdata;
-  logic [3:0]  p0_besel;
-  logic [31:0] p0_rdata;
+  logic        i0_act;
+  logic [31:0] i0_addr;
+  logic [31:0] i0_wdata;
+  logic [3:0]  i0_besel;
+  logic [31:0] i0_mem_data;
 
-  logic        p1_read_en;
-  logic        p1_write_en;
-  logic [31:0] p1_addr;
-  logic [31:0] p1_wdata;
-  logic [3:0]  p1_besel;
-  logic [31:0] p1_rdata;
+  logic        i1_act;
+  logic [31:0] i1_addr;
+  logic [31:0] i1_wdata;
+  logic [3:0]  i1_besel;
+  logic [31:0] i1_mem_data;
 
-  logic        stall_p0;
-  logic        stall_p1;
+  logic        cache_busy;
 
   int pass_cnt;
   int fail_cnt;
@@ -52,16 +49,14 @@ module memory_cache_tb;
   endtask
 
   task automatic clear_ports;
-    p0_read_en  = 1'b0;
-    p0_write_en = 1'b0;
-    p0_addr     = '0;
-    p0_wdata    = '0;
-    p0_besel    = '0;
-    p1_read_en  = 1'b0;
-    p1_write_en = 1'b0;
-    p1_addr     = '0;
-    p1_wdata    = '0;
-    p1_besel    = '0;
+    i0_act      = 1'b0;
+    i0_addr     = '0;
+    i0_wdata    = '0;
+    i0_besel    = '0;
+    i1_act      = 1'b0;
+    i1_addr     = '0;
+    i1_wdata    = '0;
+    i1_besel    = '0;
   endtask
 
   task automatic preload_l2_word(input logic [31:0] byte_addr, input logic [31:0] word);
@@ -73,52 +68,45 @@ module memory_cache_tb;
     dut.l2_array[base + 3] = word[31:24];
   endtask
 
-  task automatic drive_p0_read(input logic [31:0] addr);
-    p0_read_en  = 1'b1;
-    p0_write_en = 1'b0;
-    p0_addr     = addr;
-    p0_besel    = 4'b1111;
+  task automatic drive_i0_read(input logic [31:0] addr);
+    i0_act      = 1'b0;
+    i0_addr     = addr;
+    i0_besel    = 4'b1111;
   endtask
 
-  task automatic check_stall(
+  task automatic fill_line(input logic [31:0] addr);
+    drive_i0_read(addr);
+    while (cache_busy) tick();
+    clear_ports();
+    tick();
+  endtask
+
+  task automatic check_busy(
     input string name,
     input string detail,
-    input logic  exp_p0,
-    input logic  exp_p1
+    input logic  exp_busy
   );
     bit pass;
-    pass = (stall_p0 === exp_p0) && (stall_p1 === exp_p1);
+    pass = (cache_busy === exp_busy);
     tb_report_open(pass, name, detail);
-    tb_field_bit("stall_p0", stall_p0, exp_p0);
-    tb_field_bit("stall_p1", stall_p1, exp_p1);
+    tb_field_bit("cache_busy", cache_busy, exp_busy);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
 
-  task automatic check_rdata(
+  task automatic check_mem_data(
     input string       name,
     input string       detail,
-    input logic [31:0] exp_p0,
-    input logic [31:0] exp_p1
+    input logic [31:0] exp_i0,
+    input logic [31:0] exp_i1
   );
     bit pass;
-    pass = (p0_rdata === exp_p0) && (p1_rdata === exp_p1);
+    pass = (i0_mem_data === exp_i0) && (i1_mem_data === exp_i1);
     tb_report_open(pass, name, detail);
-    tb_field_u32("p0_rdata", p0_rdata, exp_p0);
-    tb_field_u32("p1_rdata", p1_rdata, exp_p1);
+    tb_field_u32("i0_mem_data", i0_mem_data, exp_i0);
+    tb_field_u32("i1_mem_data", i1_mem_data, exp_i1);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic wait_until_no_stall;
-    int guard;
-    guard = 0;
-    while ((stall_p0 || stall_p1) && guard < 20) begin
-      tick();
-      guard++;
-    end
-    if (guard >= 20)
-      $fatal(1, "wait_until_no_stall timeout");
   endtask
 
   initial begin
@@ -131,57 +119,91 @@ module memory_cache_tb;
     preload_l2_word(TEST_ADDR, L2_WORD);
     preload_l2_word(TEST_ADDR2, 32'hCAFE_BABE);
 
-    tb_banner("memory_cache_tb - L1 miss stall / L2 fill");
+    tb_banner("memory_cache_tb - miss busy / hit / WAW / WAR");
 
-    // COLD_L1_RESET: all lines invalid; L2 preloaded but not visible until fill.
-    drive_p0_read(TEST_ADDR);
+    // --- L1 miss: cache_busy until fill completes (status only) ---
+    drive_i0_read(TEST_ADDR);
     tick();
-    check_stall("miss_stall_start", "first touch misses L1: stall_p0 asserted",
-                1'b1, 1'b0);
-    repeat (L2_FILL_CYCLES - 1) begin
+    check_busy("miss_busy_start", "first touch misses L1: cache_busy asserted", 1'b1);
+    repeat (L2_FILL_CYCLES - 2) begin
       tick();
-      check_stall("miss_stall_hold", "hold request while L2 fills",
-                  1'b1, 1'b0);
+      check_busy("miss_busy_hold", "hold while L2 fills", 1'b1);
     end
     tick();
-    check_stall("miss_stall_end", "fill complete: stall deasserts",
-                1'b0, 1'b0);
-    check_rdata("miss_rdata", "read data from filled L1 line",
-                L2_WORD, 32'd0);
+    check_busy("miss_busy_end", "fill complete: cache_busy deasserts", 1'b0);
+    check_mem_data("miss_mem_data", "read data from filled L1 line",
+                   L2_WORD, 32'd0);
 
     tick();
-    check_stall("hit_no_stall", "second read same line is L1 hit",
-                1'b0, 1'b0);
-    check_rdata("hit_rdata", "hit returns same word",
-                L2_WORD, 32'd0);
+    check_busy("hit_no_busy", "second read same line is L1 hit", 1'b0);
+    check_mem_data("hit_mem_data", "hit returns same word", L2_WORD, 32'd0);
     clear_ports();
     tick();
 
-    drive_p0_read(TEST_ADDR2);
-    p1_read_en = 1'b1;
-    p1_addr    = TEST_ADDR2;
-    p1_besel   = 4'b1111;
+    drive_i0_read(TEST_ADDR2);
+    i1_act   = 1'b0;
+    i1_addr  = TEST_ADDR2;
+    i1_besel = 4'b1111;
     tick();
-    check_stall("dual_miss_stall", "RAR same line: both ports stall",
-                1'b1, 1'b1);
-    wait_until_no_stall();
-    check_rdata("dual_miss_rdata", "both ports see L2 data after fill",
-                32'hCAFE_BABE, 32'hCAFE_BABE);
+    check_busy("dual_miss_busy", "RAR same line: cache_busy until fill", 1'b1);
+    while (cache_busy) tick();
+    check_mem_data("dual_miss_mem_data", "both ports see L2 data after fill",
+                   32'hCAFE_BABE, 32'hCAFE_BABE);
     clear_ports();
     tick();
 
-    // --- Write hit: TEST_ADDR line already resident from miss/hit sequence above ---
-    p0_write_en = 1'b1;
-    p0_addr     = TEST_ADDR;
-    p0_wdata    = 32'h1122_3344;
-    p0_besel    = 4'b1111;
+    // --- Write hit ---
+    fill_line(TEST_ADDR);
+    i0_act   = 1'b1;
+    i0_addr  = TEST_ADDR;
+    i0_wdata = 32'h1122_3344;
+    i0_besel = 4'b1111;
     tick();
-    check_stall("write_hit_no_stall", "store to resident line does not stall",
-                1'b0, 1'b0);
-    drive_p0_read(TEST_ADDR);
+    check_busy("write_hit_no_busy", "store to resident line does not busy", 1'b0);
+    drive_i0_read(TEST_ADDR);
     tick();
-    check_rdata("write_then_read", "written word visible on L1 read",
-                32'h1122_3344, 32'd0);
+    check_mem_data("write_then_read", "written word visible on L1 read",
+                   32'h1122_3344, 32'd0);
+    clear_ports();
+    tick();
+
+    // --- WAW: dual store same word — I1 (younger) wins ---
+    preload_l2_word(TEST_ADDR, 32'hAABB_CCDD);
+    fill_line(TEST_ADDR);
+    i0_act    = 1'b1;
+    i0_addr   = TEST_ADDR;
+    i0_wdata  = 32'h1111_1111;
+    i0_besel  = 4'b1111;
+    i1_act    = 1'b1;
+    i1_addr   = TEST_ADDR;
+    i1_wdata  = 32'h2222_2222;
+    i1_besel  = 4'b1111;
+    tick();
+    drive_i0_read(TEST_ADDR);
+    tick();
+    check_mem_data("waw_younger_wins", "I0 store suppressed; I1 value visible",
+                   32'h2222_2222, 32'd0);
+    clear_ports();
+    tick();
+
+    // --- WAR: I0 read + I1 write same word — comb read sees pre-write value ---
+    preload_l2_word(TEST_ADDR, 32'h3333_4444);
+    fill_line(TEST_ADDR);
+    i0_act   = 1'b0;
+    i0_addr  = TEST_ADDR;
+    i0_besel = 4'b1111;
+    i1_act   = 1'b1;
+    i1_addr  = TEST_ADDR;
+    i1_wdata = 32'h5555_6666;
+    i1_besel = 4'b1111;
+    #1;
+    check_mem_data("war_read_before_write", "I0 load sees old word before I1 store",
+                   32'h3333_4444, 32'd0);
+    tick();
+    drive_i0_read(TEST_ADDR);
+    tick();
+    check_mem_data("war_write_visible", "after posedge, I1 store is visible",
+                   32'h5555_6666, 32'd0);
     clear_ports();
     tick();
 

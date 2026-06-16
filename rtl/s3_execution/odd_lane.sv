@@ -1,7 +1,6 @@
 `timescale 1ns / 1ps
 
 // Odd execution lane: LW/SW, branches, jumps, LUI/AUIPC. Instantiates per slot (I0/I1).
-// unit_done (I0 use): JAL/JALR/LUI/AUIPC finish in EX; loads return data in MEM.
 module odd_lane
   import rv_dis_pkg::*;
 (
@@ -13,7 +12,6 @@ module odd_lane
   input  logic [31:0] imm,
   input  logic [31:0] pc,
 
-  output logic        unit_done,
   output logic        brch_taken,
   output logic [31:0] brch_pc,
   output logic        mem_en,
@@ -22,7 +20,7 @@ module odd_lane
   output logic [31:0] mem_wdata,
   output logic [3:0]  mem_besel,
   output logic [31:0] link_pc,
-  output logic [31:0] wb_data
+  output logic [31:0] reg_wdata
 );
 
   logic brch_cond;
@@ -53,9 +51,6 @@ module odd_lane
   assign brch_pc    = (opcode == OPC_JALR) ? ((rs1_data + imm) & 32'hFFFFFFFE) : (pc + imm);
 
   assign link_pc = pc + 32'd4;
-  assign wb_data = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
-
-  assign unit_done = enable && ((opcode == OPC_JAL)  || (opcode == OPC_JALR) ||
-                                (opcode == OPC_LUI)  || (opcode == OPC_AUIPC));
+  assign reg_wdata = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
 
 endmodule

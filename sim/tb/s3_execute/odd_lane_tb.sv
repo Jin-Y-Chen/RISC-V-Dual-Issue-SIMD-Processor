@@ -15,7 +15,6 @@ module odd_lane_tb;
   logic [31:0] imm;
   logic [31:0] pc;
 
-  logic        unit_done;
   logic        brch_taken;
   logic [31:0] brch_pc;
   logic        mem_en;
@@ -24,7 +23,7 @@ module odd_lane_tb;
   logic [31:0] mem_wdata;
   logic [3:0]  mem_besel;
   logic [31:0] link_pc;
-  logic [31:0] wb_data;
+  logic [31:0] reg_wdata;
 
   int pass_cnt;
   int fail_cnt;
@@ -61,7 +60,7 @@ module odd_lane_tb;
     input logic [31:0] exp_mem_wdata,
     input logic [3:0]  exp_mem_besel,
     input logic [31:0] exp_link,
-    input logic [31:0] exp_wb
+    input logic [31:0] exp_reg_wdata
   );
     bit pass;
     if (enable !== 1'b1) begin
@@ -73,7 +72,7 @@ module odd_lane_tb;
             mem_en === exp_mem_en && mem_act === exp_mem_act &&
             mem_addr === exp_mem_addr && mem_wdata === exp_mem_wdata &&
             mem_besel === exp_mem_besel &&
-            link_pc === exp_link && wb_data === exp_wb);
+            link_pc === exp_link && reg_wdata === exp_reg_wdata);
     tb_report_open(pass, name, detail);
     tb_field_bit("brch_taken", brch_taken, exp_brch_taken);
     tb_field_u32("brch_pc", brch_pc, exp_brch_pc);
@@ -83,7 +82,7 @@ module odd_lane_tb;
     tb_field_u32("mem_wdata", mem_wdata, exp_mem_wdata);
     tb_field_be("mem_besel", mem_besel, exp_mem_besel);
     tb_field_u32("link_pc", link_pc, exp_link);
-    tb_field_u32("wb_data", wb_data, exp_wb);
+    tb_field_u32("reg_wdata", reg_wdata, exp_reg_wdata);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -116,42 +115,42 @@ module odd_lane_tb;
     check_expect("beq_taken", "BEQ x10==x10, imm=8 -> taken",
       1'b1, pc + 32'd8,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     run_insn(1'b1, OPC_BRANCH, F3_BEQ, 32'd1, 32'd2, 32'd16, pc);
     check_expect("beq_nt", "BEQ x1!=x2 -> not taken",
       1'b0, pc + 32'd16,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     run_insn(1'b1, OPC_BRANCH, F3_BNE, 32'd3, 32'd4, 32'd20, pc);
     check_expect("bne_taken", "BNE x3!=x4 -> taken",
       1'b1, pc + 32'd20,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     run_insn(1'b1, OPC_BRANCH, F3_BLT, 32'hFFFF_FFFF, 32'd1, 32'd4, pc);
     check_expect("blt_taken", "BLT signed(-1)<1 -> taken",
       1'b1, pc + 32'd4,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     run_insn(1'b1, OPC_BRANCH, F3_BGE, 32'd1, 32'hFFFF_FFFF, 32'd8, pc);
     check_expect("bge_taken", "BGE signed(1)>=(-1) -> taken",
       1'b1, pc + 32'd8,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     run_insn(1'b1, OPC_BRANCH, F3_BGE, 32'd1, 32'd5, 32'd12, pc);
     check_expect("bge_nt", "BGE 1>=5 -> not taken",
       1'b0, pc + 32'd12,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     // --- Load ---
@@ -159,7 +158,7 @@ module odd_lane_tb;
     check_expect("lw", "LW 4(x2000)",
       1'b0, brch_pc,
       1'b1, 1'b0, 32'h0000_2004, mem_wdata, 4'b1111,
-      pc + 32'd4, wb_data);
+      pc + 32'd4, reg_wdata);
     run_idle();
 
     // --- Store ---
@@ -167,7 +166,7 @@ module odd_lane_tb;
     check_expect("sw", "SW xDEAD_BEEF, 0(x6000)",
       1'b0, brch_pc,
       1'b1, 1'b1, 32'h0000_6000, 32'hDEAD_BEEF, 4'b1111,
-      link_pc, wb_data);
+      link_pc, reg_wdata);
     run_idle();
 
     // --- Jumps ---
@@ -175,14 +174,14 @@ module odd_lane_tb;
     check_expect("jal", "JAL +0x100",
       1'b1, pc + 32'h100,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      pc + 32'd4, wb_data);
+      pc + 32'd4, reg_wdata);
     run_idle();
 
     run_insn(1'b1, OPC_JALR, 3'b000, 32'h8000_0001, 32'd0, 32'h10, pc);
     check_expect("jalr", "JALR 0x10(x1) LSB clear",
       1'b1, 32'h8000_0010,
       1'b0, 1'b0, mem_addr, mem_wdata, mem_besel,
-      pc + 32'd4, wb_data);
+      pc + 32'd4, reg_wdata);
     run_idle();
 
     // --- U-type ---

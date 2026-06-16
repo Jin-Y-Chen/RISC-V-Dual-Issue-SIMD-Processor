@@ -15,7 +15,7 @@ SystemVerilog modules organized by pipeline stage. See [../project_outline.txt](
 | Even EX | `s3_execution/even_funct/scalar_alu.sv`, `even_lane.sv` |
 | Odd EX | `s3_execution/odd_funct/branch_unit.sv`, `memory_access.sv`, `odd_lane.sv` |
 | EX/MEM | `s4_memory/ex_mem_even.sv`, `ex_mem_odd.sv` |
-| MEM/WB | `s5_wback/ex_mem_wb.sv` (even EX bank + odd MEM bank) |
+| MEM/WB | `s5_wback/ex_mem_wb.sv` (4 lane → 2 GPR write ports) |
 | Top slice | `top/risc_dis_unit.sv` (ID→MEM/WB, no fetch) |
 | Memory | `s4_memory/memory_cache.sv` (planned cache model) |
 

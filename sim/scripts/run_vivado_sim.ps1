@@ -24,7 +24,9 @@ param(
       "id_ex_dispatch_tb",
       "forward_unit_tb",
       "ex_mem_tb",
-      "memory_cache_tb"
+      "memory_cache_tb",
+      "scoreboard_tb",
+      "ex_mem_wb_tb"
     )]
     [string]$Top,
 
@@ -47,7 +49,9 @@ $AllTops = @(
   "id_ex_dispatch_tb",
   "forward_unit_tb",
   "ex_mem_tb",
-  "memory_cache_tb"
+  "memory_cache_tb",
+  "scoreboard_tb",
+  "ex_mem_wb_tb"
 )
 
 if ($All -and $Top) {
@@ -117,7 +121,6 @@ function Get-TbSources([string]$TbTop) {
         "id_ex_dispatch_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/s3_execution/dispatch_funct/insn_buffer.sv",
                 "rtl/s3_execution/dispatch_funct/scoreboard.sv",
                 "rtl/s3_execution/id_ex_dispatch.sv",
                 "sim/tb/s3_execute/id_ex_dispatch_tb.sv"
@@ -142,6 +145,20 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/common/rv_dis_pkg.sv",
                 "rtl/s4_memory/memory_cache.sv",
                 "sim/tb/s4_memory/memory_cache_tb.sv"
+            )
+        }
+        "scoreboard_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s3_execution/dispatch_funct/scoreboard.sv",
+                "sim/tb/s3_execute/scoreboard_tb.sv"
+            )
+        }
+        "ex_mem_wb_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s5_wback/ex_mem_wb.sv",
+                "sim/tb/s5_wback/ex_mem_wb_tb.sv"
             )
         }
         default {

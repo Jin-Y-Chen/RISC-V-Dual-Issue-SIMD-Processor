@@ -2,8 +2,7 @@
 
 // Forward unit (EX) — combinational operand bypass only.
 // Replaces stale ID/EX GPR operands when a younger in-flight write targets rs.
-// Sources: ex_mem_wb EX bank (even) + odd MEM mux (mem0/mem1), and WB wb0/wb1.
-// Younger PC wins on rd conflicts; disabled lane copies pass operands through.
+// Sources: WB write ports wb0/wb1 only. Younger wpc wins on rd conflicts.
 module forward_unit (
   // --- ev0 operands (slot 0 / even copy) ---
   input  logic        ev0_enable,
@@ -33,24 +32,12 @@ module forward_unit (
   input  logic [31:0] od1_rs1_data,
   input  logic [31:0] od1_rs2_data,
 
-  // --- MEM stage (even EX direct + odd ex_mem) ---
-  input  logic        mem0_reg_write,
-  input  logic [4:0]  mem0_rd_addr,
-  input  logic [31:0] mem0_data,
-  input  logic [31:0] mem0_pc,
-
-  input  logic        mem1_reg_write,
-  input  logic [4:0]  mem1_rd_addr,
-  input  logic [31:0] mem1_data,
-  input  logic [31:0] mem1_pc,
-
-  // --- WB write port 0 (slot 0) ---
+  // --- WB write ports (slot I0 / I1) ---
   input  logic        wb0_reg_write,
   input  logic [4:0]  wb0_rd_addr,
   input  logic [31:0] wb0_data,
   input  logic [31:0] wb0_pc,
 
-  // --- WB write port 1 (slot 1) ---
   input  logic        wb1_reg_write,
   input  logic [4:0]  wb1_rd_addr,
   input  logic [31:0] wb1_data,
@@ -79,19 +66,7 @@ module forward_unit (
     y_pc   = 32'd0;
     y_hit  = 1'b0;
 
-    if (mem0_reg_write && (mem0_rd_addr == rs_addr)) begin
-      y_data = mem0_data;
-      y_pc   = mem0_pc;
-      y_hit  = 1'b1;
-    end
-    if (mem1_reg_write && (mem1_rd_addr == rs_addr) &&
-        (!y_hit || (mem1_pc >= y_pc))) begin
-      y_data = mem1_data;
-      y_pc   = mem1_pc;
-      y_hit  = 1'b1;
-    end
-    if (wb0_reg_write && (wb0_rd_addr == rs_addr) &&
-        (!y_hit || (wb0_pc >= y_pc))) begin
+    if (wb0_reg_write && (wb0_rd_addr == rs_addr)) begin
       y_data = wb0_data;
       y_pc   = wb0_pc;
       y_hit  = 1'b1;
