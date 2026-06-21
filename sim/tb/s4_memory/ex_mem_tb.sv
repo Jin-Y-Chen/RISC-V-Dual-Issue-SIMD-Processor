@@ -12,6 +12,7 @@ module ex_mem_tb;
 
   logic clk;
   logic rst_n;
+  logic enable;
 
   logic stall_od0;
   logic stall_od1;
@@ -172,6 +173,7 @@ module ex_mem_tb;
   endtask
 
   initial begin
+    enable    = 1'b1;
     stall_od0 = 1'b0;
     stall_od1 = 1'b0;
     pass_cnt  = 0;

@@ -15,6 +15,7 @@ module memory_cache_tb;
 
   logic        clk;
   logic        rst_n;
+  logic        enable;
 
   logic        i0_act;
   logic [31:0] i0_addr;
@@ -113,7 +114,8 @@ module memory_cache_tb;
     pass_cnt = 0;
     fail_cnt = 0;
     clear_ports();
-    rst_n = 1'b0;
+    enable = 1'b1;
+    rst_n  = 1'b0;
     tick();
     rst_n = 1'b1;
     preload_l2_word(TEST_ADDR, L2_WORD);

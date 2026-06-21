@@ -11,9 +11,8 @@ module ex_mem_wb_tb;
 
   logic        clk;
   logic        rst_n;
+  logic        enable;
   logic        flush;
-  logic        stall_i0;
-  logic        stall_i1;
 
   logic        ev0_reg_write_ex;
   logic [4:0]  ev0_rd_addr_ex;
@@ -82,8 +81,7 @@ module ex_mem_wb_tb;
   endtask
 
   task automatic clear_inputs;
-    stall_i0 = 1'b0;
-    stall_i1 = 1'b0;
+    enable = 1'b1;
     ev0_reg_write_ex = 1'b0;
     ev0_rd_addr_ex = '0;
     ev0_wdata_ex = '0;
@@ -249,15 +247,15 @@ module ex_mem_wb_tb;
     ev0_pc_ex        = 32'h5000;
     tick();
     ev0_wdata_ex = 32'h9999_9999;
-    stall_i0 = 1'b1;
+    enable = 1'b0;
     tick();
-    check_ev0_exwb("stall_i0_hold", "stall_i0 holds EX/WB",
+    check_ev0_exwb("enable_hold", "enable=0 holds EX/WB",
                    1'b1, 5'd9, 32'h1, 32'h5000);
-    check_push0("stall_i0_no_push", "stalled slot does not push",
+    check_push0("enable_no_push", "enable=0 suppresses retire push",
                 1'b0, 5'd0, 32'd0, 32'd0);
-    stall_i0 = 1'b0;
+    enable = 1'b1;
     tick();
-    check_ev0_exwb("stall_i0_release", "capture after stall clears",
+    check_ev0_exwb("enable_release", "capture after enable returns",
                    1'b1, 5'd9, 32'h9999_9999, 32'h5000);
 
     clear_inputs();

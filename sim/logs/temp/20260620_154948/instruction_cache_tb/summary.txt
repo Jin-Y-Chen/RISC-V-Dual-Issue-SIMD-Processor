@@ -1,0 +1,3 @@
+top:    instruction_cache_tb
+time:   20260620_154818
+result: 6 passed, 0 failed - OK

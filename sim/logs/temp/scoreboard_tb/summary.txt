@@ -1,3 +1,0 @@
-top:    scoreboard_tb
-time:   20260616_183344
-result: 6 passed, 0 failed - OK

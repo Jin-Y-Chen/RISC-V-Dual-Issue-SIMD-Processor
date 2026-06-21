@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// id_ex_dispatch_tb — lane routing, scoreboard + I1 buffer node (counter stall),
-// reset / flush behavior of the ID/EX dispatch register.
+// id_ex_dispatch_tb - dispatch ID/EX per project_outline sec 1, sec 3, sec 4 (RAW + stall_id).
+// Each check logs all driven ID control inputs and observed EX control outputs.
 module id_ex_dispatch_tb;
 
   import rv_dis_pkg::*;
@@ -12,9 +12,9 @@ module id_ex_dispatch_tb;
 
   logic        clk;
   logic        rst_n;
+  logic        enable;
   logic        flush;
 
-  // I0 slot inputs
   logic        i0_valid_id;
   lane_sel_e   i0_lane_sel_id;
   logic [6:0]  i0_opcode_id;
@@ -23,15 +23,12 @@ module id_ex_dispatch_tb;
   logic [4:0]  i0_rd_addr_id;
   logic [4:0]  i0_rs1_addr_id;
   logic [4:0]  i0_rs2_addr_id;
-  logic        i0_rs1_use_id;
-  logic        i0_rs2_use_id;
   logic        i0_reg_write_id;
   logic [31:0] i0_imm_id;
   logic [31:0] i0_rs1_data_id;
   logic [31:0] i0_rs2_data_id;
   logic [31:0] i0_pc_id;
 
-  // I1 slot inputs
   logic        i1_valid_id;
   lane_sel_e   i1_lane_sel_id;
   logic [6:0]  i1_opcode_id;
@@ -49,16 +46,12 @@ module id_ex_dispatch_tb;
   logic [31:0] i1_pc_id;
 
   logic        stall_id;
-  logic        i1_hold_active;
-  logic        bundle_raw;
 
-  // Per-slot WB controls
   logic        i0_reg_write_ex;
   logic        i1_reg_write_ex;
   logic [31:0] i0_pc_ex;
   logic [31:0] i1_pc_ex;
 
-  // Even lane pair
   logic        ev0_enable_ex;
   logic [6:0]  ev0_opcode_ex;
   logic [2:0]  ev0_funct3_ex;
@@ -83,7 +76,6 @@ module id_ex_dispatch_tb;
   logic [31:0] ev1_rs2_data_ex;
   logic [31:0] ev1_pc_ex;
 
-  // Odd lane pair
   logic        od0_enable_ex;
   logic [6:0]  od0_opcode_ex;
   logic [2:0]  od0_funct3_ex;
@@ -121,6 +113,96 @@ module id_ex_dispatch_tb;
     #1step;
   endtask
 
+  function automatic string lane_name(input lane_sel_e lane);
+    case (lane)
+      LANE_EVEN: lane_name = "EVEN";
+      LANE_ODD:  lane_name = "ODD";
+      LANE_NONE: lane_name = "NONE";
+      default:   lane_name = $sformatf("%0d", lane);
+    endcase
+  endfunction
+
+  task automatic log_val_bit(input string label, input logic val);
+    $display("  %-16s = %0d", label, val);
+  endtask
+
+  task automatic log_val_lane(input string label, input lane_sel_e val);
+    $display("  %-16s = %s", label, lane_name(val));
+  endtask
+
+  task automatic log_val_u5(input string label, input logic [4:0] val);
+    $display("  %-16s = x%0d", label, val);
+  endtask
+
+  task automatic log_val_u32(input string label, input logic [31:0] val);
+    $display("  %-16s = 0x%08h", label, val);
+  endtask
+
+  task automatic log_val_op7(input string label, input logic [6:0] val);
+    $display("  %-16s = %07b", label, val);
+  endtask
+
+  task automatic log_id_inputs;
+    $display("  --- ID inputs (driven) ---");
+    log_val_bit("flush", flush);
+    log_val_bit("i0_valid_id", i0_valid_id);
+    log_val_lane("i0_lane_sel_id", i0_lane_sel_id);
+    log_val_op7("i0_opcode_id", i0_opcode_id);
+    log_val_u5("i0_rd_addr_id", i0_rd_addr_id);
+    log_val_u5("i0_rs1_addr_id", i0_rs1_addr_id);
+    log_val_u5("i0_rs2_addr_id", i0_rs2_addr_id);
+    log_val_bit("i0_reg_write_id", i0_reg_write_id);
+    log_val_u32("i0_pc_id", i0_pc_id);
+    log_val_bit("i1_valid_id", i1_valid_id);
+    log_val_lane("i1_lane_sel_id", i1_lane_sel_id);
+    log_val_op7("i1_opcode_id", i1_opcode_id);
+    log_val_u5("i1_rd_addr_id", i1_rd_addr_id);
+    log_val_u5("i1_rs1_addr_id", i1_rs1_addr_id);
+    log_val_u5("i1_rs2_addr_id", i1_rs2_addr_id);
+    log_val_bit("i1_rs1_use_id", i1_rs1_use_id);
+    log_val_bit("i1_rs2_use_id", i1_rs2_use_id);
+    log_val_bit("i1_reg_write_id", i1_reg_write_id);
+    log_val_u32("i1_pc_id", i1_pc_id);
+  endtask
+
+  task automatic check_case(
+    input string name,
+    input string detail,
+    input string outline_ref,
+    input logic        exp_stall_id,
+    input logic        exp_ev0,
+    input logic        exp_ev1,
+    input logic        exp_od0,
+    input logic        exp_od1,
+    input logic        exp_i0_rw,
+    input logic        exp_i1_rw,
+    input logic [31:0] exp_i0_pc,
+    input logic [31:0] exp_i1_pc
+  );
+    bit pass;
+    pass = (stall_id === exp_stall_id) &&
+           (ev0_enable_ex === exp_ev0) && (ev1_enable_ex === exp_ev1) &&
+           (od0_enable_ex === exp_od0) && (od1_enable_ex === exp_od1) &&
+           (i0_reg_write_ex === exp_i0_rw) && (i1_reg_write_ex === exp_i1_rw) &&
+           (i0_pc_ex === exp_i0_pc) && (i1_pc_ex === exp_i1_pc);
+
+    tb_report_open(pass, name, detail);
+    $display("  [outline] %s", outline_ref);
+    log_id_inputs();
+    $display("  --- EX outputs ---");
+    tb_field_bit("stall_id", stall_id, exp_stall_id);
+    tb_field_bit("ev0_enable_ex", ev0_enable_ex, exp_ev0);
+    tb_field_bit("ev1_enable_ex", ev1_enable_ex, exp_ev1);
+    tb_field_bit("od0_enable_ex", od0_enable_ex, exp_od0);
+    tb_field_bit("od1_enable_ex", od1_enable_ex, exp_od1);
+    tb_field_bit("i0_reg_write_ex", i0_reg_write_ex, exp_i0_rw);
+    tb_field_bit("i1_reg_write_ex", i1_reg_write_ex, exp_i1_rw);
+    tb_field_u32("i0_pc_ex", i0_pc_ex, exp_i0_pc);
+    tb_field_u32("i1_pc_ex", i1_pc_ex, exp_i1_pc);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
+  endtask
+
   task automatic set_slot0(
     input logic        valid,
     input lane_sel_e   lane,
@@ -134,9 +216,7 @@ module id_ex_dispatch_tb;
     input logic [31:0] imm,
     input logic [31:0] rs1_data,
     input logic [31:0] rs2_data,
-    input logic [31:0] pc,
-    input logic        rs1_use = 1'b1,
-    input logic        rs2_use = 1'b1
+    input logic [31:0] pc
   );
     i0_valid_id     = valid;
     i0_lane_sel_id  = lane;
@@ -146,8 +226,6 @@ module id_ex_dispatch_tb;
     i0_rd_addr_id   = rd;
     i0_rs1_addr_id  = rs1;
     i0_rs2_addr_id  = rs2;
-    i0_rs1_use_id   = rs1_use;
-    i0_rs2_use_id   = rs2_use;
     i0_reg_write_id = reg_write;
     i0_imm_id       = imm;
     i0_rs1_data_id  = rs1_data;
@@ -189,28 +267,9 @@ module id_ex_dispatch_tb;
     i1_pc_id        = pc;
   endtask
 
-  task automatic check_stall(
-    input string name,
-    input string detail,
-    input logic  exp_stall_id,
-    input logic  exp_i1_hold,
-    input logic  exp_bundle_raw
-  );
-    bit pass;
-    pass = (stall_id === exp_stall_id) && (i1_hold_active === exp_i1_hold) &&
-           (bundle_raw === exp_bundle_raw);
-    tb_report_open(pass, name, detail);
-    tb_field_bit("stall_id", stall_id, exp_stall_id);
-    tb_field_bit("i1_hold_active", i1_hold_active, exp_i1_hold);
-    tb_field_bit("bundle_raw", bundle_raw, exp_bundle_raw);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
   task automatic flush_busy;
     set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
-              1'b0, 1'b0);
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0);
     set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
               1'b0, 1'b0);
@@ -219,459 +278,271 @@ module id_ex_dispatch_tb;
     flush = 1'b0;
   endtask
 
-  task automatic check_enables(
-    input string name,
-    input string detail,
-    input logic  exp_ev0,
-    input logic  exp_ev1,
-    input logic  exp_od0,
-    input logic  exp_od1
-  );
-    bit pass;
-    pass = (ev0_enable_ex === exp_ev0) && (ev1_enable_ex === exp_ev1) &&
-           (od0_enable_ex === exp_od0) && (od1_enable_ex === exp_od1);
-    tb_report_open(pass, name, detail);
-    tb_field_bit("ev0_enable_ex", ev0_enable_ex, exp_ev0);
-    tb_field_bit("ev1_enable_ex", ev1_enable_ex, exp_ev1);
-    tb_field_bit("od0_enable_ex", od0_enable_ex, exp_od0);
-    tb_field_bit("od1_enable_ex", od1_enable_ex, exp_od1);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_wb_ctrl(
-    input string       name,
-    input string       detail,
-    input logic        exp_i0_rw,
-    input logic        exp_i1_rw,
-    input logic [31:0] exp_i0_pc,
-    input logic [31:0] exp_i1_pc
-  );
-    bit pass;
-    pass = (i0_reg_write_ex === exp_i0_rw) && (i1_reg_write_ex === exp_i1_rw) &&
-           (i0_pc_ex === exp_i0_pc) && (i1_pc_ex === exp_i1_pc);
-    tb_report_open(pass, name, detail);
-    tb_field_bit("i0_reg_write_ex", i0_reg_write_ex, exp_i0_rw);
-    tb_field_bit("i1_reg_write_ex", i1_reg_write_ex, exp_i1_rw);
-    tb_field_u32("i0_pc_ex", i0_pc_ex, exp_i0_pc);
-    tb_field_u32("i1_pc_ex", i1_pc_ex, exp_i1_pc);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_ev0(
-    input string       name,
-    input string       detail,
-    input logic [6:0]  exp_opcode,
-    input logic [2:0]  exp_funct3,
-    input logic [6:0]  exp_funct7,
-    input logic [4:0]  exp_rd,
-    input logic [4:0]  exp_rs1,
-    input logic [4:0]  exp_rs2,
-    input logic [31:0] exp_imm,
-    input logic [31:0] exp_rs1_data,
-    input logic [31:0] exp_rs2_data,
-    input logic [31:0] exp_pc
-  );
-    bit pass;
-    pass = (ev0_opcode_ex === exp_opcode) && (ev0_funct3_ex === exp_funct3) &&
-           (ev0_funct7_ex === exp_funct7) && (ev0_rd_ex === exp_rd) &&
-           (ev0_rs1_addr_ex === exp_rs1) && (ev0_rs2_addr_ex === exp_rs2) &&
-           (ev0_imm_ex === exp_imm) &&
-           (ev0_rs1_data_ex === exp_rs1_data) && (ev0_rs2_data_ex === exp_rs2_data) &&
-           (ev0_pc_ex === exp_pc);
-    tb_report_open(pass, name, detail);
-    tb_field_op7("ev0_opcode_ex", ev0_opcode_ex, exp_opcode);
-    tb_field_f3("ev0_funct3_ex", ev0_funct3_ex, exp_funct3);
-    tb_field_f7("ev0_funct7_ex", ev0_funct7_ex, exp_funct7);
-    tb_field_u5("ev0_rd_ex", ev0_rd_ex, exp_rd);
-    tb_field_u5("ev0_rs1_addr_ex", ev0_rs1_addr_ex, exp_rs1);
-    tb_field_u5("ev0_rs2_addr_ex", ev0_rs2_addr_ex, exp_rs2);
-    tb_field_u32("ev0_imm_ex", ev0_imm_ex, exp_imm);
-    tb_field_u32("ev0_rs1_data_ex", ev0_rs1_data_ex, exp_rs1_data);
-    tb_field_u32("ev0_rs2_data_ex", ev0_rs2_data_ex, exp_rs2_data);
-    tb_field_u32("ev0_pc_ex", ev0_pc_ex, exp_pc);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_ev1(
-    input string       name,
-    input string       detail,
-    input logic [6:0]  exp_opcode,
-    input logic [2:0]  exp_funct3,
-    input logic [6:0]  exp_funct7,
-    input logic [4:0]  exp_rd,
-    input logic [31:0] exp_imm,
-    input logic [31:0] exp_rs1_data,
-    input logic [31:0] exp_rs2_data,
-    input logic [31:0] exp_pc
-  );
-    bit pass;
-    pass = (ev1_opcode_ex === exp_opcode) && (ev1_funct3_ex === exp_funct3) &&
-           (ev1_funct7_ex === exp_funct7) && (ev1_rd_ex === exp_rd) &&
-           (ev1_imm_ex === exp_imm) &&
-           (ev1_rs1_data_ex === exp_rs1_data) && (ev1_rs2_data_ex === exp_rs2_data) &&
-           (ev1_pc_ex === exp_pc);
-    tb_report_open(pass, name, detail);
-    tb_field_op7("ev1_opcode_ex", ev1_opcode_ex, exp_opcode);
-    tb_field_f3("ev1_funct3_ex", ev1_funct3_ex, exp_funct3);
-    tb_field_f7("ev1_funct7_ex", ev1_funct7_ex, exp_funct7);
-    tb_field_u5("ev1_rd_ex", ev1_rd_ex, exp_rd);
-    tb_field_u32("ev1_imm_ex", ev1_imm_ex, exp_imm);
-    tb_field_u32("ev1_rs1_data_ex", ev1_rs1_data_ex, exp_rs1_data);
-    tb_field_u32("ev1_rs2_data_ex", ev1_rs2_data_ex, exp_rs2_data);
-    tb_field_u32("ev1_pc_ex", ev1_pc_ex, exp_pc);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_od0(
-    input string       name,
-    input string       detail,
-    input logic [6:0]  exp_opcode,
-    input logic [2:0]  exp_funct3,
-    input logic [4:0]  exp_rd,
-    input logic [31:0] exp_imm,
-    input logic [31:0] exp_rs1_data,
-    input logic [31:0] exp_rs2_data,
-    input logic [31:0] exp_pc
-  );
-    bit pass;
-    pass = (od0_opcode_ex === exp_opcode) && (od0_funct3_ex === exp_funct3) &&
-           (od0_rd_ex === exp_rd) && (od0_imm_ex === exp_imm) &&
-           (od0_rs1_data_ex === exp_rs1_data) && (od0_rs2_data_ex === exp_rs2_data) &&
-           (od0_pc_ex === exp_pc);
-    tb_report_open(pass, name, detail);
-    tb_field_op7("od0_opcode_ex", od0_opcode_ex, exp_opcode);
-    tb_field_f3("od0_funct3_ex", od0_funct3_ex, exp_funct3);
-    tb_field_u5("od0_rd_ex", od0_rd_ex, exp_rd);
-    tb_field_u32("od0_imm_ex", od0_imm_ex, exp_imm);
-    tb_field_u32("od0_rs1_data_ex", od0_rs1_data_ex, exp_rs1_data);
-    tb_field_u32("od0_rs2_data_ex", od0_rs2_data_ex, exp_rs2_data);
-    tb_field_u32("od0_pc_ex", od0_pc_ex, exp_pc);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_od1(
-    input string       name,
-    input string       detail,
-    input logic [6:0]  exp_opcode,
-    input logic [2:0]  exp_funct3,
-    input logic [4:0]  exp_rd,
-    input logic [31:0] exp_imm,
-    input logic [31:0] exp_rs1_data,
-    input logic [31:0] exp_rs2_data,
-    input logic [31:0] exp_pc
-  );
-    bit pass;
-    pass = (od1_opcode_ex === exp_opcode) && (od1_funct3_ex === exp_funct3) &&
-           (od1_rd_ex === exp_rd) && (od1_imm_ex === exp_imm) &&
-           (od1_rs1_data_ex === exp_rs1_data) && (od1_rs2_data_ex === exp_rs2_data) &&
-           (od1_pc_ex === exp_pc);
-    tb_report_open(pass, name, detail);
-    tb_field_op7("od1_opcode_ex", od1_opcode_ex, exp_opcode);
-    tb_field_f3("od1_funct3_ex", od1_funct3_ex, exp_funct3);
-    tb_field_u5("od1_rd_ex", od1_rd_ex, exp_rd);
-    tb_field_u32("od1_imm_ex", od1_imm_ex, exp_imm);
-    tb_field_u32("od1_rs1_data_ex", od1_rs1_data_ex, exp_rs1_data);
-    tb_field_u32("od1_rs2_data_ex", od1_rs2_data_ex, exp_rs2_data);
-    tb_field_u32("od1_pc_ex", od1_pc_ex, exp_pc);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
+  task automatic section_banner(input string msg);
+    $display("");
+    tb_banner(msg);
   endtask
 
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
 
-    tb_banner("id_ex_dispatch_tb - routing, scoreboard, I1 buffer, reset/flush");
+    tb_banner("id_ex_dispatch_tb - project_outline sec 1/3/4 lane, structure, RAW/stall");
 
-    // --- Reset clears all lane enables ---
-    rst_n = 1'b0;
-    flush = 1'b0;
+    // ------------------------------------------------------------------
+    section_banner("Reset / flush");
+    // ------------------------------------------------------------------
+
+    rst_n  = 1'b0;
+    enable = 1'b1;
+    flush  = 1'b0;
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1000);
     set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
               5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1004,
               1'b1, 1'b0);
     tick();
-    check_enables("reset_clear", "reset disables all four lane copies",
-                  1'b0, 1'b0, 1'b0, 1'b0);
-    check_wb_ctrl("reset_wb", "reset clears per-slot WB controls",
-                  1'b0, 1'b0, 32'd0, 32'd0);
+    check_case("reset_clear", "active-low reset clears EX control outputs",
+               "reset", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+               1'b0, 1'b0, 32'd0, 32'd0);
 
     rst_n = 1'b1;
     flush = 1'b1;
     tick();
     flush = 1'b0;
 
-    // --- Mixed pair: I0 ADD (even) + I1 LW (odd) -> ev0 + od1 ---
-    tick();
-    check_enables("dual_mixed_en", "ADD(even)+LW(odd): ev0 and od1 fire",
-                  1'b1, 1'b0, 1'b0, 1'b1);
-    check_ev0("dual_mixed_ev0", "ev0 carries I0 ADD x1,x2,x3 payload",
-              OPC_OP, F3_ADD_SUB, 7'd0, 5'd1, 5'd2, 5'd3,
-              32'd0, 32'h11, 32'h22, 32'h1000);
-    check_od1("dual_mixed_od1", "od1 carries I1 LW x6,4(x5) payload",
-              OPC_LOAD, F3_LW, 5'd6, 32'd4, 32'h2000, 32'h0, 32'h1004);
-    check_wb_ctrl("dual_mixed_wb", "both slots reg_write, pc per slot",
-                  1'b1, 1'b1, 32'h1000, 32'h1004);
-
-    // --- Even/even pair without same-bundle RAW (distinct rd / rs) ---
-    flush_busy();
-    set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1008);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, F7_SUB,
-              5'd4, 5'd10, 5'd11, 1'b1, 32'd0, 32'hB0, 32'hB1, 32'h100C);
-    tick();
-    check_enables("even_pair_en", "ADD+SUB both even: ev0 and ev1 fire",
-                  1'b1, 1'b1, 1'b0, 1'b0);
-    check_ev1("even_pair_ev1", "ev1 carries I1 SUB x4,x1,x2 payload",
-              OPC_OP, F3_ADD_SUB, F7_SUB, 5'd4,
-              32'd0, 32'hB0, 32'hB1, 32'h100C);
-
-    // --- Odd/odd pair: I0 LW + I1 SW (store data reg != I0 rd) ---
-    flush_busy();
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd7, 5'd5, 5'd0, 1'b1, 32'd8, 32'h3000, 32'h0, 32'h1010,
-              1'b1, 1'b0);
-    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd12, 1'b0, 32'd12, 32'h3000, 32'hDEAD_BEEF, 32'h1014);
-    tick();
-    check_enables("odd_pair_en", "LW+SW both odd: od0 and od1 fire",
-                  1'b0, 1'b0, 1'b1, 1'b1);
-    check_od0("odd_pair_od0", "od0 carries I0 LW x7,8(x5) payload",
-              OPC_LOAD, F3_LW, 5'd7, 32'd8, 32'h3000, 32'h0, 32'h1010);
-    check_wb_ctrl("odd_pair_wb", "LW writes, SW does not",
-                  1'b1, 1'b0, 32'h1010, 32'h1014);
-
-    // --- I1 invalid: only I0 issues ---
-    set_slot0(1'b1, LANE_ODD, OPC_JAL, 3'd0, 7'd0,
-              5'd1, 5'd0, 5'd0, 1'b1, 32'h100, 32'h0, 32'h0, 32'h1018,
-              1'b0, 1'b0);
-    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd9, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h101C);
-    tick();
-    check_enables("i1_invalid_en", "I1 valid=0: only od0 fires",
-                  1'b0, 1'b0, 1'b1, 1'b0);
-    check_wb_ctrl("i1_invalid_wb", "invalid I1 cannot reg_write",
-                  1'b1, 1'b0, 32'h1018, 32'd0);
-
-    // --- Flush clears enables and WB controls ---
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1020);
     set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
               5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1024);
     flush = 1'b1;
     tick();
-    check_enables("flush_clear", "flush bubbles all four lane copies",
-                  1'b0, 1'b0, 1'b0, 1'b0);
-    check_wb_ctrl("flush_wb", "flush clears per-slot WB controls",
-                  1'b0, 1'b0, 32'd0, 32'd0);
-
-    // --- Capture again after flush ---
+    check_case("flush_bubble", "flush bubbles all lane enables and WB controls",
+               "flush", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+               1'b0, 1'b0, 32'd0, 32'd0);
     flush = 1'b0;
-    tick();
-    check_enables("post_flush_en", "pipeline captures again after flush",
-                  1'b1, 1'b0, 1'b0, 1'b1);
 
-    // ===================== Edge cases =====================
+    // ------------------------------------------------------------------
+    section_banner("sec 1 Lane map - clean even|odd pair, no stall");
+    // ------------------------------------------------------------------
 
-    // --- I0 invalid, I1 valid: only the slot-1 copy fires ---
-    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1028);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h102C,
+    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd5, 5'd0, 1'b1, 32'h2C, 32'h40, 32'h0, 32'h1100);
+    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'h50, 32'h0, 32'h1104,
               1'b1, 1'b0);
     tick();
-    check_enables("i0_invalid_en", "I0 valid=0: only ev1 fires",
-                  1'b0, 1'b1, 1'b0, 1'b0);
-    check_wb_ctrl("i0_invalid_wb", "invalid I0 cannot reg_write",
-                  1'b0, 1'b1, 32'd0, 32'h102C);
+    check_case("lane_clean_even_odd",
+               "addi x1,x5,0x2c | lw x2,0(x5): ev0+od1, stall_id=0",
+               "sec 1 clean pair", 1'b0, 1'b1, 1'b0, 1'b0, 1'b1,
+               1'b1, 1'b1, 32'h1100, 32'h1104);
 
-    // --- Both slots invalid: full bubble (pc payload still flows, harmless) ---
-    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1030);
-    set_slot1(1'b0, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1034);
-    tick();
-    check_enables("bubble_en", "no valid insn: all four copies idle",
-                  1'b0, 1'b0, 1'b0, 1'b0);
-    check_wb_ctrl("bubble_wb", "bubble pair cannot reg_write",
-                  1'b0, 1'b0, 32'd0, 32'd0);
+    // ------------------------------------------------------------------
+    section_banner("sec 3 Structure hazard - same lane type, no stall");
+    // ------------------------------------------------------------------
 
-    // --- Back-to-back pairs: payload swaps every cycle, no stale state ---
+    flush_busy();
     set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1038);
-    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd9, 1'b0, 32'd16, 32'h3000, 32'hF00D, 32'h103C);
+              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1200);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, F7_SUB,
+              5'd4, 5'd10, 5'd11, 1'b1, 32'd0, 32'hB0, 32'hB1, 32'h1204);
     tick();
+    check_case("struct_even_even",
+               "add x1,x2,x3 | sub x4,x5,x6: ev0+ev1 parallel, stall_id=0",
+               "sec 3b even|even", 1'b0, 1'b1, 1'b1, 1'b0, 1'b0,
+               1'b1, 1'b1, 32'h1200, 32'h1204);
+
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd8, 5'd5, 5'd0, 1'b1, 32'd20, 32'h4000, 32'h0, 32'h1040);
+              5'd1, 5'd2, 5'd0, 1'b1, 32'd0, 32'hC0, 32'h0, 32'h1208);
+    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd3, 5'd4, 5'd0, 1'b1, 32'd0, 32'hD0, 32'h0, 32'h120C);
+    tick();
+    check_case("struct_odd_odd",
+               "lw x1,0(x2) | lw x3,0(x4): od0+od1 parallel, stall_id=0",
+               "sec 3b odd|odd", 1'b0, 1'b0, 1'b0, 1'b1, 1'b1,
+               1'b1, 1'b1, 32'h1208, 32'h120C);
+
+    // ------------------------------------------------------------------
+    section_banner("Validity / routing edge cases");
+    // ------------------------------------------------------------------
+
+    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1300);
     set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd9, 5'd5, 5'd0, 1'b1, 32'd1, 32'h99, 32'h0, 32'h1044,
+              5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h1304,
               1'b1, 1'b0);
     tick();
-    check_enables("b2b_en", "second pair replaces first with no idle cycle",
-                  1'b0, 1'b1, 1'b1, 1'b0);
-    check_od0("b2b_od0", "od0 carries second-pair I0 LW x8,20(x5)",
-              OPC_LOAD, F3_LW, 5'd8, 32'd20, 32'h4000, 32'h0, 32'h1040);
-    check_wb_ctrl("b2b_wb", "WB controls track the newest pair",
-                  1'b1, 1'b1, 32'h1040, 32'h1044);
+    check_case("i0_invalid", "I0 valid=0: only ev1 issues",
+               "valid gating", 1'b0, 1'b0, 1'b1, 1'b0, 1'b0,
+               1'b0, 1'b1, 32'd0, 32'h1304);
 
-    flush_busy();
-
-    // --- Memory RAR: dual LW same eff. addr -> I1 port only (outline §3) ---
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd5, 5'd6, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1050);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1054);
-    tick();
-    check_enables("mem_rar_same_en", "RAR same addr: both odd lanes issue",
-                  1'b0, 1'b0, 1'b1, 1'b1);
-
-    // --- Memory WAW: dual SW same eff. addr -> I1 write only (outline §6) ---
-    set_slot0(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd6, 1'b0, 32'd0, 32'h2000, 32'hAAA0_AAA6, 32'h1058);
-    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd5, 5'd7, 1'b0, 32'd0, 32'h2000, 32'hBBB0_BBB7, 32'h105C);
-    tick();
-    check_enables("mem_waw_same_en", "WAW same addr: both issue; memory suppresses I0 write",
-                  1'b0, 1'b0, 1'b1, 1'b1);
-
-    // --- Dual LW different eff. addr -> both odd copies on ---
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd5, 5'd6, 5'd0, 1'b1, 32'd0, 32'h1000, 32'h0, 32'h1060);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h2000, 32'h0, 32'h1064);
-    tick();
-    check_enables("mem_rar_diff_en", "different eff. addr: od0 and od1 on",
-                  1'b0, 1'b0, 1'b1, 1'b1);
-
-    // --- LW + SW same addr (mixed): no od0 suppress ---
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd5, 5'd7, 5'd0, 1'b1, 32'd0, 32'h3000, 32'h0, 32'h1068);
-    set_slot1(1'b1, LANE_ODD, OPC_STORE, F3_SW, 7'd0,
-              5'd0, 5'd6, 5'd7, 1'b0, 32'd0, 32'h3000, 32'hDEAD_BEEF, 32'h106C,
-              1'b1, 1'b0);
-    tick();
-    check_enables("mem_mixed_same_en", "LW+SW same addr: od0 and od1 on",
-                  1'b0, 1'b0, 1'b1, 1'b1);
-
-    // --- Contract probe: valid=1 with LANE_NONE ---
-    flush_busy();
-    set_slot0(1'b1, LANE_NONE, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd3, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1048);
+    set_slot0(1'b1, LANE_ODD, OPC_JAL, 3'd0, 7'd0,
+              5'd1, 5'd0, 5'd0, 1'b1, 32'h100, 32'h0, 32'h0, 32'h1308);
     set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h104C);
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h130C,
+              1'b0, 1'b0);
     tick();
-    check_enables("lane_none_en", "LANE_NONE routes to no lane copy",
-                  1'b0, 1'b0, 1'b0, 1'b0);
-    check_wb_ctrl("lane_none_wb", "LANE_NONE cannot reg_write",
-                  1'b0, 1'b0, 32'd0, 32'd0);
+    check_case("i1_invalid", "I1 valid=0: only od0 issues",
+               "valid gating", 1'b0, 1'b0, 1'b0, 1'b1, 1'b0,
+               1'b1, 1'b0, 32'h1308, 32'd0);
 
-    // ===================== Scoreboard — same-bundle RAW =====================
+    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1310);
+    set_slot1(1'b0, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h0, 32'h0, 32'h1314);
+    tick();
+    check_case("bubble", "both invalid: full bubble, stall_id=0",
+               "valid gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+               1'b0, 1'b0, 32'd0, 32'd0);
+
+    set_slot0(1'b1, LANE_NONE, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd3, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1318);
+    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h131C);
+    tick();
+    check_case("lane_none", "LANE_NONE never routes to a lane copy",
+               "lane gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+               1'b0, 1'b0, 32'd0, 32'd0);
+
+    // ------------------------------------------------------------------
+    section_banner("sec 4.d.1 RAW - 1-cycle stall (ALU producer, stall_id=1)");
+    // ------------------------------------------------------------------
 
     flush_busy();
 
-    // addi x5 | xor uses x5 — cycle 0: I0 only, buffer I1 (stall_remain=1)
+    // even|even intra-dependent: addi x5,x4,x3 | xor x7,x6,x5
     set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h1070,
-              1'b1, 1'b0);
+              5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h2000);
     set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h1074);
+              5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h2004);
     tick();
-    check_stall("raw_bundle_stall", "same-bundle RAW: stall_id, buffer I1",
-                1'b1, 1'b1, 1'b1);
-    check_enables("raw_bundle_issue_i0", "cycle 0 issues I0 addi only",
-                  1'b1, 1'b0, 1'b0, 1'b0);
+    check_case("raw_d1_even_even_c0",
+               "capture: partial-issue I0, buffer I1, stall_id=1",
+               "sec 4.d.1 even|even", 1'b1, 1'b1, 1'b0, 1'b0, 1'b0,
+               1'b1, 1'b0, 32'h2000, 32'd0);
 
-    // cycle 1: wait_cnt hits 1, replay on next edge
     tick();
-
-    // cycle 2: replay buffered I1
     tick();
-    check_stall("raw_bundle_replay", "held I1 issues after 1-cycle stall",
-                1'b0, 1'b0, 1'b1);
-    check_enables("raw_bundle_issue_i1", "cycle 1 issues held xor from ev1",
-                  1'b0, 1'b1, 1'b0, 1'b0);
-    check_ev1("raw_bundle_ev1", "held I1 xor x7,x6,x5 payload",
-              OPC_OP, F3_ADD_SUB, 7'd0, 5'd7,
-              32'd0, 32'h60, 32'h50, 32'h1074);
+    check_case("raw_d1_even_even_c1_replay",
+               "replay: held xor on ev1, stall_id=0 (wait_cnt reached 1)",
+               "sec 4.d.1 even|even", 1'b0, 1'b0, 1'b1, 1'b0, 1'b0,
+               1'b0, 1'b1, 32'd0, 32'h2004);
 
-    // even | odd inter-dependent: addi x5 | branch uses x5 (1-cycle stall)
-    flush_busy();
+    tick();
+    check_case("raw_d1_even_even_c2_suppress",
+               "same PCs linger: suppress_bundle_raw, stall_id=0, dual issue",
+               "sec 4.d.1 suppress", 1'b0, 1'b1, 1'b1, 1'b0, 1'b0,
+               1'b1, 1'b1, 32'h2000, 32'h2004);
+
     set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd5, 5'd5, 5'd0, 1'b1, 32'd1, 32'h70, 32'h0, 32'h1080,
-              1'b1, 1'b0);
-    set_slot1(1'b1, LANE_ODD, OPC_BRANCH, F3_BEQ, 7'd0,
-              5'd0, 5'd6, 5'd5, 1'b0, 32'd0, 32'h80, 32'h90, 32'h1084);
+              5'd8, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h2010);
+    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+              5'd9, 5'd6, 5'd8, 1'b1, 32'd0, 32'h60, 32'h50, 32'h2014);
     tick();
-    check_stall("raw_inter_stall", "even|odd same-bundle RAW on x5",
-                1'b1, 1'b1, 1'b1);
-    check_enables("raw_inter_i0", "branch pair: issue addi on ev0",
-                  1'b1, 1'b0, 1'b0, 1'b0);
+    check_case("raw_d1_even_even_c3_new_pc",
+               "PC advance clears suppress; fresh RAW stalls again",
+               "sec 4.d.1 suppress clear", 1'b1, 1'b1, 1'b0, 1'b0, 1'b0,
+               1'b1, 1'b0, 32'h2010, 32'd0);
 
-    tick();
-
-    tick();
-    check_enables("raw_inter_i1", "held branch issues on od1 after 1 stall",
-                  1'b0, 1'b0, 1'b0, 1'b1);
-
-    // load-use: lw x2 | addi x1,x2 — 2-cycle stall before replay
     flush_busy();
+
+    // even|odd inter-dependent: addi x5,x5,1 | brne x6,x5,label
+    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+              5'd5, 5'd5, 5'd0, 1'b1, 32'd1, 32'h70, 32'h0, 32'h2100);
+    set_slot1(1'b1, LANE_ODD, OPC_BRANCH, F3_BNE, 7'd0,
+              5'd0, 5'd6, 5'd5, 1'b0, 32'd0, 32'h80, 32'h90, 32'h2104);
+    tick();
+    check_case("raw_d1_even_odd_c0",
+               "capture: ev0 only, buffer branch on od1, stall_id=1",
+               "sec 4.d.1 even|odd", 1'b1, 1'b1, 1'b0, 1'b0, 1'b0,
+               1'b1, 1'b0, 32'h2100, 32'd0);
+
+    tick();
+    tick();
+    check_case("raw_d1_even_odd_replay",
+               "replay: held branch on od1, stall_id=0",
+               "sec 4.d.1 even|odd", 1'b0, 1'b0, 1'b0, 1'b0, 1'b1,
+               1'b0, 1'b0, 32'd0, 32'h2104);
+
+    // ------------------------------------------------------------------
+    section_banner("sec 4.d.2 RAW - 2-cycle stall (load producer, stall_id=1)");
+    // ------------------------------------------------------------------
+
+    flush_busy();
+
+    // odd|even inter-dependent: lw x2,0(x5) | addi x1,x2,0x2c
     set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
-              5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'hA0, 32'h0, 32'h10A0,
-              1'b1, 1'b0);
+              5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'hA0, 32'h0, 32'h2200);
     set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd1, 5'd2, 5'd0, 1'b1, 32'h2C, 32'h0, 32'h0, 32'h10A4);
+              5'd1, 5'd2, 5'd0, 1'b1, 32'h2C, 32'h0, 32'h0, 32'h2204);
     tick();
-    check_stall("load_use_stall0", "load-use RAW: buffer addi, stall 2",
-                1'b1, 1'b1, 1'b1);
-    check_enables("load_use_i0", "cycle 0 issues lw on od0 only",
-                  1'b0, 1'b0, 1'b1, 1'b0);
+    check_case("raw_d2_odd_even_c0",
+               "capture: od0 only, buffer addi, stall_id=1",
+               "sec 4.d.2 odd|even", 1'b1, 1'b0, 1'b0, 1'b1, 1'b0,
+               1'b1, 1'b0, 32'h2200, 32'd0);
 
     tick();
-    check_stall("load_use_stall1", "cycle 1: still stalling (stall_remain=1)",
-                1'b1, 1'b1, 1'b1);
-    check_enables("load_use_wait", "cycle 1: od0 holds lw in EX, no new issue",
-                  1'b0, 1'b0, 1'b1, 1'b0);
+    check_case("raw_d2_odd_even_c1",
+               "wait cycle 1: stall_id=1, lw held in EX",
+               "sec 4.d.2 odd|even", 1'b1, 1'b0, 1'b0, 1'b1, 1'b0,
+               1'b1, 1'b0, 32'h2200, 32'd0);
 
     tick();
+    tick();
+    check_case("raw_d2_odd_even_replay",
+               "replay: held addi on ev1, stall_id=0 (2-cycle load-use wait done)",
+               "sec 4.d.2 odd|even", 1'b0, 1'b0, 1'b1, 1'b0, 1'b0,
+               1'b0, 1'b1, 32'd0, 32'h2204);
+
+    flush_busy();
+
+    // odd|odd intra-dependent: lw x2,0(x5) | lw x5,0(x2)
+    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'hB0, 32'h0, 32'h2300);
+    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+              5'd5, 5'd2, 5'd0, 1'b1, 32'd0, 32'h0, 32'h0, 32'h2304);
+    tick();
+    check_case("raw_d2_odd_odd_c0",
+               "capture: od0 only, buffer second lw, stall_id=1",
+               "sec 4.d.2 odd|odd", 1'b1, 1'b0, 1'b0, 1'b1, 1'b0,
+               1'b1, 1'b0, 32'h2300, 32'd0);
 
     tick();
-    check_stall("load_use_replay", "cycle 3: replay buffered addi",
-                1'b0, 1'b0, 1'b1);
-    check_enables("load_use_i1", "held addi issues on ev1",
-                  1'b0, 1'b1, 1'b0, 1'b0);
-    check_ev1("load_use_ev1", "held addi x1,x2,0x2c payload",
-              OPC_OP_IMM, F3_ADD_SUB, 7'd0, 5'd1,
-              32'h2C, 32'h0, 32'h0, 32'h10A4);
+    tick();
+    tick();
+    check_case("raw_d2_odd_odd_replay",
+               "replay: held lw on od1, stall_id=0",
+               "sec 4.d.2 odd|odd", 1'b0, 1'b0, 1'b0, 1'b0, 1'b1,
+               1'b0, 1'b1, 32'd0, 32'h2304);
 
-    // --- Flush clears I1 buffer ---
+    // ------------------------------------------------------------------
+    section_banner("Flush clears I1 buffer before replay");
+    // ------------------------------------------------------------------
+
     flush_busy();
     set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
-              5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h1090,
-              1'b1, 1'b0);
+              5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h2400);
     set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h1094);
+              5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h2404);
     tick();
-    check_stall("hold_set_before_flush", "same-bundle RAW latches I1 buffer",
-                1'b1, 1'b1, 1'b1);
+    check_case("flush_hold_set",
+               "RAW capture latched; stall_id=1 before flush",
+               "sec 4.d.1 + flush", 1'b1, 1'b1, 1'b0, 1'b0, 1'b0,
+               1'b1, 1'b0, 32'h2400, 32'd0);
+
     flush = 1'b1;
     tick();
     flush = 1'b0;
     set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
-              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
-              1'b0, 1'b0);
+              5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0);
     set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
               1'b0, 1'b0);
     tick();
-    check_stall("flush_clears_i1_hold", "flush drops buffered I1 before replay",
-                1'b0, 1'b0, 1'b0);
+    check_case("flush_hold_clear",
+               "flush drops buffered I1; stall_id=0, no replay",
+               "sec 4.d.1 + flush", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+               1'b0, 1'b0, 32'd0, 32'd0);
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

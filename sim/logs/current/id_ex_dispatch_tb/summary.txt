@@ -1,3 +1,0 @@
-top:    id_ex_dispatch_tb
-time:   20260616_183350
-result: 46 passed, 0 failed - OK

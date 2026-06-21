@@ -306,13 +306,12 @@ Dispatch (during ID/EX) — lane checks and hazards
         - Latch on set_i1_hold: full ID bundle + producer_rd + bundle PC tags + wait_cnt
         - wait_cnt init = i1_stall_cycles+1 (ALU:2, load:3); decrements while >1; replay at 1
         - Clear on issue_i1_from_hold or flush
-        - buf_q.valid drives i1_hold_active
 
         Module ports (scoreboard.sv):
-        - ID pair: i0_valid/reg_write/rd/opcode; i1_valid/rs1/rs2 use+addr
+        - ID pair: i0_reg_write/rd/opcode; i1 rs1/rs2 use+addr (no valid — gated in dispatch)
         - Buffer: buf_valid, issue_i1_from_hold (from dispatch wait_cnt)
         - suppress_bundle_raw
-        - Outputs: issue_i0, issue_i1, stall_id, set_i1_hold, bundle_raw, i1_stall_cycles
+        - Outputs: issue_i0, issue_i1, stall_id, set_i1_hold, i1_stall_cycles
 
         Hazard ownership (id_ex_dispatch vs scoreboard):
 

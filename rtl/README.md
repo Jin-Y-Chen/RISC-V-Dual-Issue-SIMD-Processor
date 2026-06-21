@@ -7,17 +7,16 @@ SystemVerilog modules organized by pipeline stage. See [../project_outline.txt](
 | Stage | Modules |
 |-------|---------|
 | Common | `common/rv_dis_pkg.sv` |
-| Decode | `s2_decode/decode_pkg.sv`, `decoder.sv`, `register_file.sv` |
-| IF/ID | `s2_decode/if_id.sv`, `state_buffer.sv` |
-| Fetch | `s1_fetch/pc.sv`, `target_buffer.sv` |
-| Dispatch | `s3_execution/id_ex_dispatch.sv`, `s3_execution/scoreboard.sv` |
-| Forward | `s3_execution/forward_unit.sv` |
-| Even EX | `s3_execution/even_funct/scalar_alu.sv`, `even_lane.sv` |
-| Odd EX | `s3_execution/odd_funct/branch_unit.sv`, `memory_access.sv`, `odd_lane.sv` |
-| EX/MEM | `s4_memory/ex_mem_even.sv`, `ex_mem_odd.sv` |
+| Decode | `s2_decode/s2_decode_struct.sv`, `decode_mod/decoder.sv`, `decode_mod/register_file.sv`, `decode_mod/decode_pkg.sv` |
+| IF/ID | `s2_decode/if_id.sv` (optional pipeline slice; not in decode structure) |
+| Branch | `s2_decode/branch_mod/state_buffer.sv` |
+| Fetch | `s1_fetch/s1_fetch_struc.sv`, `s1_fetch/core/pc.sv`, `s1_fetch/core/instruction_cache.sv`, `target/target_buffer.sv` |
+| Dispatch | `s3_execution/id_ex_dispatch.sv`, `dispatch_funct/scoreboard.sv` |
+| Execute | `s3_execution/s3_execute_struct.sv`, `core/forward_unit.sv`, `core/even_lane.sv`, `core/odd_lane.sv` |
+| EX/MEM | `s4_memory/ex_mem.sv` |
+| Memory | `s4_memory/s4_memory_struct.sv`, `core/memory_cache.sv` |
 | MEM/WB | `s5_wback/ex_mem_wb.sv` (4 lane → 2 GPR write ports) |
-| Top slice | `top/risc_dis_unit.sv` (ID→MEM/WB, no fetch) |
-| Memory | `s4_memory/memory_cache.sv` (planned cache model) |
+| Top | `top/risc_dis_unit.sv` (fetch + ID through MEM/WB) |
 
 ## Deferred
 

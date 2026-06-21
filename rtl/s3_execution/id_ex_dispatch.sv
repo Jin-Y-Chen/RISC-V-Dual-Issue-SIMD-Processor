@@ -6,56 +6,55 @@
 module id_ex_dispatch
   import rv_dis_pkg::*;
 (
+  // external controls
   input  logic        clk,
   input  logic        rst_n,
+  input  logic        enable,
+  // internal controls
   input  logic        flush,
-
-  // --- I0 slot (older insn) from S2: decoder + register file + pc ---
   input  logic        i0_valid_id,
   input  lane_sel_e   i0_lane_sel_id,
+  input  logic        i0_reg_write_id,
+  input  logic        i1_valid_id,
+  input  lane_sel_e   i1_lane_sel_id,
+  input  logic        i1_rs1_use_id,
+  input  logic        i1_rs2_use_id,
+  input  logic        i1_reg_write_id,
+
+  // input data
   input  logic [6:0]  i0_opcode_id,
   input  logic [2:0]  i0_funct3_id,
   input  logic [6:0]  i0_funct7_id,
   input  logic [4:0]  i0_rd_addr_id,
   input  logic [4:0]  i0_rs1_addr_id,
   input  logic [4:0]  i0_rs2_addr_id,
-  input  logic        i0_rs1_use_id,
-  input  logic        i0_rs2_use_id,
-  input  logic        i0_reg_write_id,
   input  logic [31:0] i0_imm_id,
   input  logic [31:0] i0_rs1_data_id,
   input  logic [31:0] i0_rs2_data_id,
   input  logic [31:0] i0_pc_id,
-
-  // --- I1 slot (younger insn) from S2: decoder + register file + pc ---
-  input  logic        i1_valid_id,
-  input  lane_sel_e   i1_lane_sel_id,
   input  logic [6:0]  i1_opcode_id,
   input  logic [2:0]  i1_funct3_id,
   input  logic [6:0]  i1_funct7_id,
   input  logic [4:0]  i1_rd_addr_id,
   input  logic [4:0]  i1_rs1_addr_id,
   input  logic [4:0]  i1_rs2_addr_id,
-  input  logic        i1_rs1_use_id,
-  input  logic        i1_rs2_use_id,
-  input  logic        i1_reg_write_id,
   input  logic [31:0] i1_imm_id,
   input  logic [31:0] i1_rs1_data_id,
   input  logic [31:0] i1_rs2_data_id,
   input  logic [31:0] i1_pc_id,
 
+  // output controls
   output logic        stall_id,
-  output logic        i1_hold_active,
-  output logic        bundle_raw,
-
-  // --- Per-slot writeback control (EX, registered) ---
   output logic        i0_reg_write_ex,
   output logic        i1_reg_write_ex,
+  output logic        ev0_enable_ex,
+  output logic        ev1_enable_ex,
+  output logic        od0_enable_ex,
+  output logic        od1_enable_ex,
+
+  // output data
   output logic [31:0] i0_pc_ex,
   output logic [31:0] i1_pc_ex,
-
-  // --- Even lane pair (EX, registered) ---
-  output logic        ev0_enable_ex,
   output logic [6:0]  ev0_opcode_ex,
   output logic [2:0]  ev0_funct3_ex,
   output logic [6:0]  ev0_funct7_ex,
@@ -66,8 +65,6 @@ module id_ex_dispatch
   output logic [31:0] ev0_rs1_data_ex,
   output logic [31:0] ev0_rs2_data_ex,
   output logic [31:0] ev0_pc_ex,
-
-  output logic        ev1_enable_ex,
   output logic [6:0]  ev1_opcode_ex,
   output logic [2:0]  ev1_funct3_ex,
   output logic [6:0]  ev1_funct7_ex,
@@ -78,9 +75,6 @@ module id_ex_dispatch
   output logic [31:0] ev1_rs1_data_ex,
   output logic [31:0] ev1_rs2_data_ex,
   output logic [31:0] ev1_pc_ex,
-
-  // --- Odd lane pair (EX, registered) ---
-  output logic        od0_enable_ex,
   output logic [6:0]  od0_opcode_ex,
   output logic [2:0]  od0_funct3_ex,
   output logic [4:0]  od0_rd_ex,
@@ -90,8 +84,6 @@ module id_ex_dispatch
   output logic [31:0] od0_rs1_data_ex,
   output logic [31:0] od0_rs2_data_ex,
   output logic [31:0] od0_pc_ex,
-
-  output logic        od1_enable_ex,
   output logic [6:0]  od1_opcode_ex,
   output logic [2:0]  od1_funct3_ex,
   output logic [4:0]  od1_rd_ex,
@@ -113,8 +105,6 @@ module id_ex_dispatch
   logic        suppress_bundle_raw_q;
 
   logic        set_i1_hold;
-
-  assign i1_hold_active = buf_q.valid;
 
   wire issue_i1_from_hold =
       buf_q.valid && (buf_q.wait_cnt == 2'd1) && !set_i1_hold;
@@ -150,27 +140,24 @@ module id_ex_dispatch
                       (i1_lane_sel_act != LANE_NONE);
 
   scoreboard u_scoreboard (
-    .i0_valid           (i0_valid_id),
-    .i0_reg_write       (i0_reg_write_id),
-    .i0_rd              (i0_rd_addr_id),
-    .i0_opcode          (i0_opcode_id),
-
-    .i1_valid           (i1_valid_id),
-    .i1_rs1_use         (i1_rs1_use_id),
-    .i1_rs2_use         (i1_rs2_use_id),
-    .i1_rs1             (i1_rs1_addr_id),
-    .i1_rs2             (i1_rs2_addr_id),
-
-    .buf_valid          (buf_q.valid),
-    .issue_i1_from_hold (issue_i1_from_hold),
-
-    .suppress_bundle_raw(suppress_bundle_raw_eff),
-    .issue_i0           (issue_i0),
-    .issue_i1           (issue_i1),
-    .stall_id           (stall_id),
-    .set_i1_hold        (set_i1_hold),
-    .bundle_raw         (bundle_raw),
-    .i1_stall_cycles    (i1_stall_cycles)
+    // internal controls
+    .i0_reg_write         (i0_reg_write_id),
+    .i1_rs1_use           (i1_rs1_use_id),
+    .i1_rs2_use           (i1_rs2_use_id),
+    .buf_valid            (buf_q.valid),
+    .issue_i1_from_hold   (issue_i1_from_hold),
+    .suppress_bundle_raw  (suppress_bundle_raw_eff),
+    // input data
+    .i0_rd                (i0_rd_addr_id),
+    .i0_opcode            (i0_opcode_id),
+    .i1_rs1               (i1_rs1_addr_id),
+    .i1_rs2               (i1_rs2_addr_id),
+    // output controls
+    .issue_i0             (issue_i0),
+    .issue_i1             (issue_i1),
+    .stall_id             (stall_id),
+    .set_i1_hold          (set_i1_hold),
+    .i1_stall_cycles      (i1_stall_cycles)
   );
 
   function automatic i1_buffer_node_t pack_i1_from_id;
@@ -205,13 +192,15 @@ module id_ex_dispatch
       held_bundle_i0_pc_q       <= 32'd0;
       held_bundle_i1_pc_q       <= 32'd0;
       suppress_bundle_raw_q      <= 1'b0;
+    end else if (!enable) begin
+      // Global enable low — hold buffer / replay state
     end else if (issue_i1_from_hold) begin
       buf_q.valid               <= 1'b0;
       buf_q.wait_cnt            <= 2'd0;
       held_bundle_i0_pc_q       <= buf_q.bundle_i0_pc;
       held_bundle_i1_pc_q       <= buf_q.bundle_i1_pc;
       suppress_bundle_raw_q     <= 1'b1;
-    end else if (set_i1_hold) begin
+    end else if (set_i1_hold && i1_valid_id) begin
       buf_q                     <= pack_i1_from_id(i0_rd_addr_id, i1_stall_cycles);
     end else if (buf_q.valid && (buf_q.wait_cnt > 2'd1)) begin
       buf_q.wait_cnt            <= buf_q.wait_cnt - 2'd1;
@@ -311,6 +300,8 @@ module id_ex_dispatch
       od1_rs1_data_ex <= 32'd0;
       od1_rs2_data_ex <= 32'd0;
       od1_pc_ex       <= 32'd0;
+    end else if (!enable) begin
+      // Global enable low — hold all EX lane copies
     end else if (stall_id && !issue_i0_eff && !issue_i1_eff) begin
       // Full stall — hold all lane copies (including after partial I0 issue)
     end else begin

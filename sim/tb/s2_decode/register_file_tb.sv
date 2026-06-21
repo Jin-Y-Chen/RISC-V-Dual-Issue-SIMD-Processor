@@ -62,6 +62,7 @@ module register_file_tb;
 
   logic        clk;
   logic        rst_n;
+  logic        enable;
 
   logic [4:0]  i0_rs1_addr;
   logic [4:0]  i0_rs2_addr;
@@ -317,6 +318,7 @@ module register_file_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
+    enable   = 1'b1;
 
     i0_rs1_addr = 5'd0;
     i0_rs2_addr = 5'd0;
