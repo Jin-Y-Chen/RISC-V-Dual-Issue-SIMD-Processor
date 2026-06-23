@@ -15,10 +15,10 @@ module scoreboard
   input  logic        suppress_bundle_raw,
 
   // input data
-  input  logic [4:0]  i0_rd,
-  input  logic [6:0]  i0_opcode,
-  input  logic [4:0]  i1_rs1,
-  input  logic [4:0]  i1_rs2,
+  input  gpr_addr_t   i0_rd,
+  input  opcode_t     i0_opcode,
+  input  gpr_addr_t   i1_rs1,
+  input  gpr_addr_t   i1_rs2,
 
   // output controls
   output logic        issue_i0,

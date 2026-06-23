@@ -24,18 +24,18 @@ module ex_mem_wb
   input  logic        od1_mem_act_mem,
 
   // input data
-  input  logic [4:0]  ev0_rd_addr_ex,
+  input  gpr_addr_t   ev0_rd_addr_ex,
   input  reg_t        ev0_wdata_ex,
-  input  reg_t        ev0_pc_ex,
-  input  logic [4:0]  ev1_rd_addr_ex,
+  input  pc_t         ev0_pc_ex,
+  input  gpr_addr_t   ev1_rd_addr_ex,
   input  reg_t        ev1_wdata_ex,
-  input  reg_t        ev1_pc_ex,
-  input  logic [4:0]  od0_rd_addr_mem,
-  input  reg_t        od0_pc_mem,
+  input  pc_t         ev1_pc_ex,
+  input  gpr_addr_t   od0_rd_addr_mem,
+  input  pc_t         od0_pc_mem,
   input  reg_t        od0_alu_result_mem,
   input  reg_t        od0_load_mem_data,
-  input  logic [4:0]  od1_rd_addr_mem,
-  input  reg_t        od1_pc_mem,
+  input  gpr_addr_t   od1_rd_addr_mem,
+  input  pc_t         od1_pc_mem,
   input  reg_t        od1_alu_result_mem,
   input  reg_t        od1_load_mem_data,
 
@@ -46,20 +46,20 @@ module ex_mem_wb
   output logic        push1_valid,
 
   // output data
-  output logic [4:0]  ev0_rd_addr_exwb,
+  output gpr_addr_t   ev0_rd_addr_exwb,
   output reg_t        ev0_wdata_exwb,
-  output reg_t        ev0_pc_exwb,
-  output logic [4:0]  ev1_rd_addr_exwb,
+  output pc_t         ev0_pc_exwb,
+  output gpr_addr_t   ev1_rd_addr_exwb,
   output reg_t        ev1_wdata_exwb,
-  output reg_t        ev1_pc_exwb,
+  output pc_t         ev1_pc_exwb,
   output reg_t        od0_wdata_mem,
   output reg_t        od1_wdata_mem,
-  output logic [4:0]  push0_rd,
+  output gpr_addr_t   push0_rd,
   output reg_t        push0_wdata,
-  output reg_t        push0_pc,
-  output logic [4:0]  push1_rd,
+  output pc_t         push0_pc,
+  output gpr_addr_t   push1_rd,
   output reg_t        push1_wdata,
-  output reg_t        push1_pc
+  output pc_t         push1_pc
 );
 
   logic        od0_odd_load_mem;

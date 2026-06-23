@@ -36,16 +36,81 @@ Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
     occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
     RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
 
-Instruction File - Base Instruction Formats (R/I/S/U):
+
+Branch Target Buffer (BTB)
+
+    1) Buffer size and structure dependent on the size of the single Instruction cache
+        a) Max byte PC = 32,767 to address 32 KiB of I-cache without roll-over
+
+            32 KiB = 2^15 B => 15-bit byte address
+
+        - relevant PC bits of [14:0] from [31:0]
+
+        b) With byte-per-address and 32-bit instruction alignment ([1:0] = 00),
+
+            15 - 2 = 13-bits (one slot per instruction)
+
+        - relevant PC bits of [14:2] from [14:0]
+        - total entry of 8192
+
+        c) 16-way set-associative target buffer 
+
+            16 => 2^4 => 4-bits for ways (columns)
+
+            13 - 4 = 9-bits for sets (rows) over full 32 KiB [14:2]
+
+        - way select: PC[5:2]; set index: PC[14:6] (within PC[14:2])
+        - 16-way lookup compares all 16 tags in the selected set in parallel
+        - tag: upper PC bits above the index (e.g. PC[31:15])
+        
+
+    2) Dual read and write
+        a) BTB miss (valid bit = 0): lookup returns fallthrough(pc) = pc + 4
+        - sequential next-instruction address for dual fetch (older lane pc, younger lane pc+4)
+        - not stored buffer zeros; pc+4 is computed at read time via cache_set_read default
+        b) BTB hit (valid bit = 1): i0_pc_target / i1_pc_target = stored target[31:0]
+        c) Update on WB retire of a resolved branch/jump (i0_valid_wb / i1_valid_wb)
+        - write bank[pc_set(pc_wb)][pc_way(pc_wb)] <= {1'b1, align_target(target_wb)}
+        - align_target(t) = {t[31:2], 2'b00} before store (4-byte aligned targets only)
+
+    3) RTL — rtl/s1_fetch/branch/target_buffer.sv + rtl/common/cache_pkg.sv
+
+        a) Shared bank geometry (cache_struct_t from cache_struct_build)
+        - DATA_W = 32 (branch/jump target), INDEX_W = 13 => 8192 entries = 512 sets x 16 ways
+        - bank[CACHE.sets][CACHE.ways], each slot [DATA_W:0] packed as {valid, data[31:0]}
+
+        b) Indexing (same as I$ PC[14:2] over 32 KiB)
+        - pc_set(pc, CACHE) = PC[14:6]   (set / row)
+        - pc_way(pc, CACHE) = PC[5:2]    (way / column within set)
+
+        c) Lookup — cache_set_read#(DATA_W)(bank[set], way, default)
+        - one set row only; does not read the whole bank
+        - default argument = fallthrough(pc) = pc + 4 (see 2a)
+        - dual fetch: i0_pc and i1_pc each index their own set/way in parallel
+
+        d) Write — cache_set_write#(DATA_W)(1'b1, align_target(target_wb))
+        - fallthrough(pc): BTB miss default on read; predicts sequential fetch until trained
+        - align_target(t): clear target[1:0] on writeback so BTB stores word-aligned addresses
+          (consistent with RV-DIS imm_align4 and 32-bit instruction fetch in section I-cache 5b)
+
+        e) Note — outline 1c describes full tag-compare across 16 ways; current RTL uses
+        PC-selected set/way (direct index within 16-way bank layout) via cache_pkg helpers.
+        Tag-associative BTB is a future extension if aliasing must be resolved by tag match.
+
+Instruction Cache - Base Instruction Formats (R/I/S/U):
 
     1) IALIGN = 32, each instruction must start at an address that’s a multiple of 2.
 
-    2) Error detection for invalid branch or jump address, raising misaligned exception
+    2) Instruction cache size = 2^15 bytes =  32 KiB = (32 * 2^10)
+    - PC byte offset within I$: 15 bits [14:0]; max value 32,767 before roll-over
 
-    3) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
-       Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
+    3) Error detection for invalid branch or jump address, raising misaligned exception
 
-    4) Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
+    4) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
+    - Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
+    
+
+    5) Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
 
         --- Byte offsets vs alignment (RISC-V default vs RV-DIS policy) ---
 
@@ -73,22 +138,6 @@ Instruction File - Base Instruction Formats (R/I/S/U):
         Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
         - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
         - Decode rebuilds the byte offset (imm_b / imm_j + 1'b0); no extra shifter in odd_lane pc+imm.
-            
-Instruction - Integer Computational 
-
-    1) Integer computational instructions are either encoded as register-immediate operations using the I-type
-    format or as register-register operations using the R-type format. 
-
-    2) The destination is register rd for both register-immediate and register-register instructions. 
-    
-    3) No integer computational instructions cause arithmetic exceptions.
-
-    4) No special overflow-detecting arithmetic instructions, simple branch patterns can detect overflow cheaply, without extra hardware.
-
-        add   t0, t1, t2
-        bltu  t0, t1, overflow -> raise software expection
-
-    complier decided whether overflow must be checked, inserting overflow branch instruction
 
 Dual Decoder :
 
@@ -97,6 +146,78 @@ Dual Decoder :
 
     2) Lane differatation is determined(lane_sel)
     - PC age track the order of execution not the lane(even/odd)
+    
+Branch State Buffer with 4-State:
+
+    1) Buffer size and structure mirror Branch Target Buffer
+        a) total entry of 8192 to direct map each entry in BTB 
+        b) 16-way set-associated state buffer
+        c) index by pc 
+        - way select: PC[5:2]; set index: PC[14:6] (within PC[14:2])
+
+
+    2) Store branch state for Prediction
+        a) stores only state value, index by PC outputs valid bit
+        - state transition computed at MEMORY stage 
+        - state value is immediately write back buffer at DECODE, skiping WBACK stage
+        - state value is immediately forward to EXECUTE, skipping WBACK stage 
+
+        b) state encoding:
+        - 2-bit saturating counter (4 states). Predict from MSB: 0 = not taken, 1 = taken.
+        - Reset / default value: 01 (weakly not taken)
+
+Branch Target Prediction 
+
+    1) Early branch target address calulation
+
+        a) PC adder computes pc + imm for target or pc_predict
+
+        b) pc_predict can take the value of pc + imm or pc_target from BTB
+
+        - if valid = 0, pc_predict uses pc + imm (decode) or BTB fallthrough pc + 4 (fetch miss)
+        - if valid = 1, pc_predict is set to pc_target from BTB, case of hit in BTB
+        - The case of valid = 1, but pc + imm != pc_target should not be possible by the assembler ie label value
+        are static by the compilier 
+
+            Possible instruction(register dependent branch label):
+
+                addi r3, r0, 0x00           ;
+                beq r1, r2, main(r3)       ;label + r3 
+
+                main: 
+                    .
+                    .
+                    .
+                    addi r3, r3, 0xa0
+                    beq r4, r5 main(r3)
+                .
+                .
+                .
+
+                (main + 0xa0):         //same immediate label value + r3 offset
+                    .
+                    .
+                    .
+                    beq r4, r5, main(r3)
+                    jmp main
+
+            - Potentially single global label for all jmp/branch target + offset
+            - Assembly level label awareness, more lines of instructions 
+            - Simplified complier, does not have to deal with label encoding
+            - Not RISC-V
+
+    2) State Decode
+        a) Decodes 2-bits state values to predict branch-take (set_target = 1) or branch-not-take (set_target = 0)
+        - A 2-bit predictor is more desirable for long loops with one time exit cost before re-entry
+
+            State table:
+            00  strongly not taken  (predict not taken)
+            01  weakly   not taken  (predict not taken)
+            10  weakly   taken      (predict taken)
+            11  strongly taken      (predict taken)
+
+        - set_pc = state[1]       
+        - always one bit flip to avoid glitchs
 
 Registers File - 32 addressible register:
     // A conventional size that balances encoding, performance, and hardware simplicity
@@ -375,8 +496,6 @@ Dispatch (during ID/EX) — lane checks and hazards
         | Cross-bundle independent lanes | not supported                   |
 
         Signals: stall_id (dispatch out); issue_i0/i1, set_i1_hold, issue_i1_from_hold
-
-
         
 Forwarding (EX operand mux — WB stage only)
 
@@ -393,9 +512,6 @@ Forwarding (EX operand mux — WB stage only)
         - same-bundle GPR WAW: both issue; younger wpc wins at register_file WB
         - same-bundle memory WAW: I0 store suppressed at dispatch (od0 off) — §4.c, Cache §6
 
-
-    
-
 Execution Flow and Design:
 
     1) Dual Issues, odd/even lanes
@@ -407,6 +523,28 @@ Execution Flow and Design:
         b) Dispatch both I0, I1 assign to even/odd lane to the (2) copy of execution unit 
         c) Removes I0, I1 same type structural hazards at the cost of more hardware
 
+    3) Instruction - Integer Computational 
+
+        a) Integer computational instructions are either encoded as register-immediate operations using the I-type
+        format or as register-register operations using the R-type format. 
+
+        b) The destination is register rd for both register-immediate and register-register instructions. 
+        
+        c) No integer computational instructions cause arithmetic exceptions.
+
+        d) No special overflow-detecting arithmetic instructions, simple branch patterns can detect overflow cheaply, without extra hardware.
+
+            add   t0, t1, t2
+            bltu  t0, t1, overflow -> raise software expection
+
+        complier decided whether overflow must be checked, inserting overflow branch instruction
+
+
+    4) Even lane at EX/WB (skips MEM)
+
+        1) even-lane ALU → ex_mem_wb EX bank (ev0/ev1); odd-lane → MEM bank (od0/od1)
+        2) ex_mem_wb: 4-port enable merge → push0/push1 retire candidates
+        3) ex_mem_wb retire merge → GPR i0/i1 write ports (2 per cycle, register_file wpc merge)
 
 Cache Memory Design:
 
@@ -474,12 +612,35 @@ Cache Memory Design:
     7) L1 cache miss
     - stall to fetch the data in lower cache levels  
 
-Even lane at EX/WB (skips MEM)
+Branch State Look Up
 
-    1) even-lane ALU → ex_mem_wb EX bank (ev0/ev1); odd-lane → MEM bank (od0/od1)
-    2) ex_mem_wb: 4-port enable merge → push0/push1 retire candidates
-    3) ex_mem_wb retire merge → GPR i0/i1 write ports (2 per cycle, register_file wpc merge)
+    a) State transition map
+            FSM (input pc_sctrl on each transition):
 
+                    pc_sctrl=0
+                +----------------------+
+                |                      |
+                v                      |
+            +-------+  pc_sctrl=1  +-------+
+            |  00   |------------->|  01   |
+            |no take|              |no take|
+            +---+---+              +---+---+
+                ^                      |
+                | pc_sctrl=0           | pc_sctrl=1
+                |                      v
+            +---+---+  pc_sctrl=1  +-------+
+            |  10   |<-------------|  11   |
+            | take  |              | take  |
+            +-------+              +-------+
+                |                      ^
+                | pc_sctrl=0           | pc_sctrl=1
+                +----------------------+
+
+            Transition summary (next_state = f(state, pc_sctrl)):
+                00 + 0 -> 00     00 + 1 -> 01
+                01 + 0 -> 00     01 + 1 -> 11
+                10 + 0 -> 00     10 + 1 -> 11
+                11 + 0 -> 10     11 + 1 -> 11
 
 Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
 
@@ -489,7 +650,7 @@ Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
       GPR, pipeline regs, FIFOs — not all 225 KiB is available to caches)
 
     Planned cache sizes (byte-addressed, 8 bits per address):
-    - L2 data cache (largest): 2^17 bytes = (2 * 64) KiB total
+    - two L2 data cache total (largest): 2^17 bytes = (2 * 64) KiB total
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 

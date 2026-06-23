@@ -22,12 +22,12 @@ module register_file
   input  logic        i1_wen,
 
   // input data
-  input  logic [4:0]  i0_rs1_addr,
-  input  logic [4:0]  i0_rs2_addr,
-  input  logic [4:0]  i1_rs1_addr,
-  input  logic [4:0]  i1_rs2_addr,
-  input  logic [4:0]  i0_rd,
-  input  logic [4:0]  i1_rd,
+  input  gpr_addr_t   i0_rs1_addr,
+  input  gpr_addr_t   i0_rs2_addr,
+  input  gpr_addr_t   i1_rs1_addr,
+  input  gpr_addr_t   i1_rs2_addr,
+  input  gpr_addr_t   i0_rd,
+  input  gpr_addr_t   i1_rd,
   input  reg_t        i0_wdata,
   input  reg_t        i1_wdata,
   input  reg_t        i0_wpc,

@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
 // S1 fetch structure — PC + instruction cache + branch target buffer (dual-issue pair).
-module s1_fetch_struc
+module s1_fetch_struct
   import rv_dis_pkg::*;
 #(
-  parameter logic [31:0] RESET_PC = 32'h0000_0000
+  parameter pc_t RESET_PC = pc_t'(32'h0000_0000)
 ) (
   // external controls
   input  logic        clk,
@@ -15,19 +15,19 @@ module s1_fetch_struc
   input  logic        set,
 
   // input data
-  input  logic [31:0] set_pc,
+  input  pc_t         set_pc,
   input  logic        i0_valid_wb,
   input  logic        i1_valid_wb,
-  input  logic [31:0] i0_pc_wb,
-  input  logic [31:0] i1_pc_wb,
-  input  logic [31:0] i0_target_wb,
-  input  logic [31:0] i1_target_wb,
+  input  pc_t         i0_pc_wb,
+  input  pc_t         i1_pc_wb,
+  input  pc_t         i0_target_wb,
+  input  pc_t         i1_target_wb,
 
   // output data
-  output logic [31:0] pc0,
-  output logic [31:0] pc1,
-  output logic [31:0] i0_pc_target,
-  output logic [31:0] i1_pc_target,
+  output pc_t         pc0,
+  output pc_t         pc1,
+  output pc_t         i0_pc_target,
+  output pc_t         i1_pc_target,
   output instr_t      instr0,
   output instr_t      instr1
 );
@@ -62,9 +62,6 @@ module s1_fetch_struc
   );
 
   target_buffer u_target (
-    // external controls
-    .clk            (clk),
-    .rst_n          (rst_n),
     // input data — fetch lookup
     .i0_pc          (pc0),
     .i1_pc          (pc1),

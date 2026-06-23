@@ -10,7 +10,7 @@ SystemVerilog modules organized by pipeline stage. See [../project_outline.txt](
 | Decode | `s2_decode/s2_decode_struct.sv`, `decode_mod/decoder.sv`, `decode_mod/register_file.sv`, `decode_mod/decode_pkg.sv` |
 | IF/ID | `s2_decode/if_id.sv` (optional pipeline slice; not in decode structure) |
 | Branch | `s2_decode/branch_mod/state_buffer.sv` |
-| Fetch | `s1_fetch/s1_fetch_struc.sv`, `s1_fetch/core/pc.sv`, `s1_fetch/core/instruction_cache.sv`, `target/target_buffer.sv` |
+| Fetch | `s1_fetch/s1_fetch_struct.sv`, `s1_fetch/core/pc.sv`, `s1_fetch/core/instruction_cache.sv`, `s1_fetch/branch/target_buffer.sv` |
 | Dispatch | `s3_execution/id_ex_dispatch.sv`, `dispatch_funct/scoreboard.sv` |
 | Execute | `s3_execution/s3_execute_struct.sv`, `core/forward_unit.sv`, `core/even_lane.sv`, `core/odd_lane.sv` |
 | EX/MEM | `s4_memory/ex_mem.sv` |

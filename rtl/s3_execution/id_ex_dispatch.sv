@@ -13,35 +13,35 @@ module id_ex_dispatch
   // internal controls
   input  logic        flush,
   input  logic        i0_valid_id,
-  input  lane_sel_e   i0_lane_sel_id,
+  input  logic        i0_lane_sel_id,
   input  logic        i0_reg_write_id,
   input  logic        i1_valid_id,
-  input  lane_sel_e   i1_lane_sel_id,
+  input  logic        i1_lane_sel_id,
   input  logic        i1_rs1_use_id,
   input  logic        i1_rs2_use_id,
   input  logic        i1_reg_write_id,
 
   // input data
-  input  logic [6:0]  i0_opcode_id,
-  input  logic [2:0]  i0_funct3_id,
-  input  logic [6:0]  i0_funct7_id,
-  input  logic [4:0]  i0_rd_addr_id,
-  input  logic [4:0]  i0_rs1_addr_id,
-  input  logic [4:0]  i0_rs2_addr_id,
-  input  logic [31:0] i0_imm_id,
-  input  logic [31:0] i0_rs1_data_id,
-  input  logic [31:0] i0_rs2_data_id,
-  input  logic [31:0] i0_pc_id,
-  input  logic [6:0]  i1_opcode_id,
-  input  logic [2:0]  i1_funct3_id,
-  input  logic [6:0]  i1_funct7_id,
-  input  logic [4:0]  i1_rd_addr_id,
-  input  logic [4:0]  i1_rs1_addr_id,
-  input  logic [4:0]  i1_rs2_addr_id,
-  input  logic [31:0] i1_imm_id,
-  input  logic [31:0] i1_rs1_data_id,
-  input  logic [31:0] i1_rs2_data_id,
-  input  logic [31:0] i1_pc_id,
+  input  opcode_t     i0_opcode_id,
+  input  funct3_t     i0_funct3_id,
+  input  funct7_t     i0_funct7_id,
+  input  gpr_addr_t   i0_rd_addr_id,
+  input  gpr_addr_t   i0_rs1_addr_id,
+  input  gpr_addr_t   i0_rs2_addr_id,
+  input  imm_t        i0_imm_id,
+  input  reg_t        i0_rs1_data_id,
+  input  reg_t        i0_rs2_data_id,
+  input  pc_t         i0_pc_id,
+  input  opcode_t     i1_opcode_id,
+  input  funct3_t     i1_funct3_id,
+  input  funct7_t     i1_funct7_id,
+  input  gpr_addr_t   i1_rd_addr_id,
+  input  gpr_addr_t   i1_rs1_addr_id,
+  input  gpr_addr_t   i1_rs2_addr_id,
+  input  imm_t        i1_imm_id,
+  input  reg_t        i1_rs1_data_id,
+  input  reg_t        i1_rs2_data_id,
+  input  pc_t         i1_pc_id,
 
   // output controls
   output logic        stall_id,
@@ -53,46 +53,46 @@ module id_ex_dispatch
   output logic        od1_enable_ex,
 
   // output data
-  output logic [31:0] i0_pc_ex,
-  output logic [31:0] i1_pc_ex,
-  output logic [6:0]  ev0_opcode_ex,
-  output logic [2:0]  ev0_funct3_ex,
-  output logic [6:0]  ev0_funct7_ex,
-  output logic [4:0]  ev0_rd_ex,
-  output logic [4:0]  ev0_rs1_addr_ex,
-  output logic [4:0]  ev0_rs2_addr_ex,
-  output logic [31:0] ev0_imm_ex,
-  output logic [31:0] ev0_rs1_data_ex,
-  output logic [31:0] ev0_rs2_data_ex,
-  output logic [31:0] ev0_pc_ex,
-  output logic [6:0]  ev1_opcode_ex,
-  output logic [2:0]  ev1_funct3_ex,
-  output logic [6:0]  ev1_funct7_ex,
-  output logic [4:0]  ev1_rd_ex,
-  output logic [4:0]  ev1_rs1_addr_ex,
-  output logic [4:0]  ev1_rs2_addr_ex,
-  output logic [31:0] ev1_imm_ex,
-  output logic [31:0] ev1_rs1_data_ex,
-  output logic [31:0] ev1_rs2_data_ex,
-  output logic [31:0] ev1_pc_ex,
-  output logic [6:0]  od0_opcode_ex,
-  output logic [2:0]  od0_funct3_ex,
-  output logic [4:0]  od0_rd_ex,
-  output logic [4:0]  od0_rs1_addr_ex,
-  output logic [4:0]  od0_rs2_addr_ex,
-  output logic [31:0] od0_imm_ex,
-  output logic [31:0] od0_rs1_data_ex,
-  output logic [31:0] od0_rs2_data_ex,
-  output logic [31:0] od0_pc_ex,
-  output logic [6:0]  od1_opcode_ex,
-  output logic [2:0]  od1_funct3_ex,
-  output logic [4:0]  od1_rd_ex,
-  output logic [4:0]  od1_rs1_addr_ex,
-  output logic [4:0]  od1_rs2_addr_ex,
-  output logic [31:0] od1_imm_ex,
-  output logic [31:0] od1_rs1_data_ex,
-  output logic [31:0] od1_rs2_data_ex,
-  output logic [31:0] od1_pc_ex
+  output pc_t         i0_pc_ex,
+  output pc_t         i1_pc_ex,
+  output opcode_t     ev0_opcode_ex,
+  output funct3_t     ev0_funct3_ex,
+  output funct7_t     ev0_funct7_ex,
+  output gpr_addr_t   ev0_rd_ex,
+  output gpr_addr_t   ev0_rs1_addr_ex,
+  output gpr_addr_t   ev0_rs2_addr_ex,
+  output imm_t        ev0_imm_ex,
+  output reg_t        ev0_rs1_data_ex,
+  output reg_t        ev0_rs2_data_ex,
+  output pc_t         ev0_pc_ex,
+  output opcode_t     ev1_opcode_ex,
+  output funct3_t     ev1_funct3_ex,
+  output funct7_t     ev1_funct7_ex,
+  output gpr_addr_t   ev1_rd_ex,
+  output gpr_addr_t   ev1_rs1_addr_ex,
+  output gpr_addr_t   ev1_rs2_addr_ex,
+  output imm_t        ev1_imm_ex,
+  output reg_t        ev1_rs1_data_ex,
+  output reg_t        ev1_rs2_data_ex,
+  output pc_t         ev1_pc_ex,
+  output opcode_t     od0_opcode_ex,
+  output funct3_t     od0_funct3_ex,
+  output gpr_addr_t   od0_rd_ex,
+  output gpr_addr_t   od0_rs1_addr_ex,
+  output gpr_addr_t   od0_rs2_addr_ex,
+  output imm_t        od0_imm_ex,
+  output reg_t        od0_rs1_data_ex,
+  output reg_t        od0_rs2_data_ex,
+  output pc_t         od0_pc_ex,
+  output opcode_t     od1_opcode_ex,
+  output funct3_t     od1_funct3_ex,
+  output gpr_addr_t   od1_rd_ex,
+  output gpr_addr_t   od1_rs1_addr_ex,
+  output gpr_addr_t   od1_rs2_addr_ex,
+  output imm_t        od1_imm_ex,
+  output reg_t        od1_rs1_data_ex,
+  output reg_t        od1_rs2_data_ex,
+  output pc_t         od1_pc_ex
 );
 
   // ---------------------------------------------------------------------
@@ -121,7 +121,7 @@ module id_ex_dispatch
       (i0_pc_id == held_bundle_i0_pc_q) &&
       (i1_pc_id == held_bundle_i1_pc_q);
 
-  lane_sel_e   i1_lane_sel_act;
+  logic        i1_lane_sel_act;
   logic [6:0]  i1_opcode_act;
   logic [2:0]  i1_funct3_act;
   logic [6:0]  i1_funct7_act;
@@ -134,10 +134,9 @@ module id_ex_dispatch
   logic [31:0] i1_rs2_data_act;
   logic [31:0] i1_pc_act;
 
-  wire issue_i0_eff = issue_i0 && i0_valid_id && (i0_lane_sel_id != LANE_NONE);
+  wire issue_i0_eff = issue_i0 && i0_valid_id;
   wire issue_i1_eff = issue_i1 &&
-                      (issue_i1_from_hold || i1_valid_id) &&
-                      (i1_lane_sel_act != LANE_NONE);
+                      (issue_i1_from_hold || i1_valid_id);
 
   scoreboard u_scoreboard (
     // internal controls
@@ -242,10 +241,10 @@ module id_ex_dispatch
     end
   end
 
-  wire ev0_enable_next = issue_i0_eff && (i0_lane_sel_id == LANE_EVEN);
-  wire ev1_enable_next = issue_i1_eff && (i1_lane_sel_act == LANE_EVEN);
-  wire od0_enable_next = issue_i0_eff && (i0_lane_sel_id == LANE_ODD);
-  wire od1_enable_next = issue_i1_eff && (i1_lane_sel_act == LANE_ODD);
+  wire ev0_enable_next = issue_i0_eff && !i0_lane_sel_id;
+  wire ev1_enable_next = issue_i1_eff && !i1_lane_sel_act;
+  wire od0_enable_next = issue_i0_eff &&  i0_lane_sel_id;
+  wire od1_enable_next = issue_i1_eff &&  i1_lane_sel_act;
 
   // ID/EX pipeline register — freeze entire EX block while stalling with no issue
   always_ff @(posedge clk or negedge rst_n) begin

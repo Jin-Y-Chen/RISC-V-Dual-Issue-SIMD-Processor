@@ -5,9 +5,9 @@ module branch_unit
   import rv_dis_pkg::*;
 (
   // input data
-  input  logic [2:0]  funct3,
-  input  logic [31:0] rs1_data,
-  input  logic [31:0] rs2_data,
+  input  funct3_t     funct3,
+  input  reg_t        rs1_data,
+  input  reg_t        rs2_data,
 
   // output controls
   output logic        brch_taken

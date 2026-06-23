@@ -4,7 +4,7 @@
 module risc_dis_unit
   import rv_dis_pkg::*;
 #(
-  parameter logic [31:0] RESET_PC = 32'h0000_0000
+  parameter pc_t RESET_PC = pc_t'(32'h0000_0000)
 ) (
   // external controls
   input  logic        clk,
@@ -15,8 +15,8 @@ module risc_dis_unit
   input  logic        flush,
 
   // output data
-  output logic [31:0] pc_fetch,
-  output logic [31:0] pc_fetch_plus4,
+  output pc_t         pc_fetch,
+  output pc_t         pc_fetch_plus4,
   output logic        stall_id
 );
 
@@ -53,7 +53,7 @@ module risc_dis_unit
   assign i0_pc_if      = pc_fetch;
   assign i1_pc_if      = pc_fetch_plus4;
 
-  s1_fetch_struc #(
+  s1_fetch_struct #(
     .RESET_PC(RESET_PC)
   ) u_fetch (
     // external controls
@@ -109,7 +109,7 @@ module risc_dis_unit
   // -------------------------------------------------------------------------
   logic        i0_valid_dec;
   logic        i0_brch_en_dec;
-  lane_sel_e   i0_lane_sel_dec;
+  logic        i0_lane_sel_dec;
   logic [6:0]  i0_opcode_dec;
   logic [2:0]  i0_funct3_dec;
   logic [6:0]  i0_funct7_dec;
@@ -121,7 +121,7 @@ module risc_dis_unit
 
   logic        i1_valid_dec;
   logic        i1_brch_en_dec;
-  lane_sel_e   i1_lane_sel_dec;
+  logic        i1_lane_sel_dec;
   logic [6:0]  i1_opcode_dec;
   logic [2:0]  i1_funct3_dec;
   logic [6:0]  i1_funct7_dec;

@@ -3,7 +3,9 @@
 // Forward unit (EX) — combinational operand bypass only.
 // Replaces stale ID/EX GPR operands when a younger in-flight write targets rs.
 // Sources: WB write ports wb0/wb1 only. Younger wpc wins on rd conflicts.
-module forward_unit (
+module forward_unit
+  import rv_dis_pkg::*;
+(
   // internal controls
   input  logic        ev0_enable,
   input  logic        ev1_enable,
@@ -13,38 +15,38 @@ module forward_unit (
   input  logic        wb1_reg_write,
 
   // input data
-  input  logic [4:0]  ev0_rs1_addr,
-  input  logic [4:0]  ev0_rs2_addr,
-  input  logic [31:0] ev0_rs1_data,
-  input  logic [31:0] ev0_rs2_data,
-  input  logic [4:0]  ev1_rs1_addr,
-  input  logic [4:0]  ev1_rs2_addr,
-  input  logic [31:0] ev1_rs1_data,
-  input  logic [31:0] ev1_rs2_data,
-  input  logic [4:0]  od0_rs1_addr,
-  input  logic [4:0]  od0_rs2_addr,
-  input  logic [31:0] od0_rs1_data,
-  input  logic [31:0] od0_rs2_data,
-  input  logic [4:0]  od1_rs1_addr,
-  input  logic [4:0]  od1_rs2_addr,
-  input  logic [31:0] od1_rs1_data,
-  input  logic [31:0] od1_rs2_data,
-  input  logic [4:0]  wb0_rd_addr,
-  input  logic [31:0] wb0_data,
-  input  logic [31:0] wb0_pc,
-  input  logic [4:0]  wb1_rd_addr,
-  input  logic [31:0] wb1_data,
-  input  logic [31:0] wb1_pc,
+  input  gpr_addr_t   ev0_rs1_addr,
+  input  gpr_addr_t   ev0_rs2_addr,
+  input  reg_t        ev0_rs1_data,
+  input  reg_t        ev0_rs2_data,
+  input  gpr_addr_t   ev1_rs1_addr,
+  input  gpr_addr_t   ev1_rs2_addr,
+  input  reg_t        ev1_rs1_data,
+  input  reg_t        ev1_rs2_data,
+  input  gpr_addr_t   od0_rs1_addr,
+  input  gpr_addr_t   od0_rs2_addr,
+  input  reg_t        od0_rs1_data,
+  input  reg_t        od0_rs2_data,
+  input  gpr_addr_t   od1_rs1_addr,
+  input  gpr_addr_t   od1_rs2_addr,
+  input  reg_t        od1_rs1_data,
+  input  reg_t        od1_rs2_data,
+  input  gpr_addr_t   wb0_rd_addr,
+  input  reg_t        wb0_data,
+  input  pc_t         wb0_pc,
+  input  gpr_addr_t   wb1_rd_addr,
+  input  reg_t        wb1_data,
+  input  pc_t         wb1_pc,
 
   // output data
-  output logic [31:0] ev0_rs1_data_fwd,
-  output logic [31:0] ev0_rs2_data_fwd,
-  output logic [31:0] ev1_rs1_data_fwd,
-  output logic [31:0] ev1_rs2_data_fwd,
-  output logic [31:0] od0_rs1_data_fwd,
-  output logic [31:0] od0_rs2_data_fwd,
-  output logic [31:0] od1_rs1_data_fwd,
-  output logic [31:0] od1_rs2_data_fwd
+  output reg_t        ev0_rs1_data_fwd,
+  output reg_t        ev0_rs2_data_fwd,
+  output reg_t        ev1_rs1_data_fwd,
+  output reg_t        ev1_rs2_data_fwd,
+  output reg_t        od0_rs1_data_fwd,
+  output reg_t        od0_rs2_data_fwd,
+  output reg_t        od1_rs1_data_fwd,
+  output reg_t        od1_rs2_data_fwd
 );
 
   function automatic logic [31:0] youngest_fwd(

@@ -16,7 +16,7 @@ module id_ex_dispatch_tb;
   logic        flush;
 
   logic        i0_valid_id;
-  lane_sel_e   i0_lane_sel_id;
+  logic        i0_lane_sel_id;
   logic [6:0]  i0_opcode_id;
   logic [2:0]  i0_funct3_id;
   logic [6:0]  i0_funct7_id;
@@ -30,7 +30,7 @@ module id_ex_dispatch_tb;
   logic [31:0] i0_pc_id;
 
   logic        i1_valid_id;
-  lane_sel_e   i1_lane_sel_id;
+  logic        i1_lane_sel_id;
   logic [6:0]  i1_opcode_id;
   logic [2:0]  i1_funct3_id;
   logic [6:0]  i1_funct7_id;
@@ -113,20 +113,15 @@ module id_ex_dispatch_tb;
     #1step;
   endtask
 
-  function automatic string lane_name(input lane_sel_e lane);
-    case (lane)
-      LANE_EVEN: lane_name = "EVEN";
-      LANE_ODD:  lane_name = "ODD";
-      LANE_NONE: lane_name = "NONE";
-      default:   lane_name = $sformatf("%0d", lane);
-    endcase
+  function automatic string lane_name(input logic lane);
+    lane_name = lane ? "ODD" : "EVEN";
   endfunction
 
   task automatic log_val_bit(input string label, input logic val);
     $display("  %-16s = %0d", label, val);
   endtask
 
-  task automatic log_val_lane(input string label, input lane_sel_e val);
+  task automatic log_val_lane(input string label, input logic val);
     $display("  %-16s = %s", label, lane_name(val));
   endtask
 
@@ -205,7 +200,7 @@ module id_ex_dispatch_tb;
 
   task automatic set_slot0(
     input logic        valid,
-    input lane_sel_e   lane,
+    input logic        lane,
     input logic [6:0]  opcode,
     input logic [2:0]  funct3,
     input logic [6:0]  funct7,
@@ -235,7 +230,7 @@ module id_ex_dispatch_tb;
 
   task automatic set_slot1(
     input logic        valid,
-    input lane_sel_e   lane,
+    input logic        lane,
     input logic [6:0]  opcode,
     input logic [2:0]  funct3,
     input logic [6:0]  funct7,
@@ -268,9 +263,9 @@ module id_ex_dispatch_tb;
   endtask
 
   task automatic flush_busy;
-    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0);
-    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
               1'b0, 1'b0);
     flush = 1'b1;
@@ -296,9 +291,9 @@ module id_ex_dispatch_tb;
     rst_n  = 1'b0;
     enable = 1'b1;
     flush  = 1'b0;
-    set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1000);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1004,
               1'b1, 1'b0);
     tick();
@@ -311,9 +306,9 @@ module id_ex_dispatch_tb;
     tick();
     flush = 1'b0;
 
-    set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h11, 32'h22, 32'h1020);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h2000, 32'h0, 32'h1024);
     flush = 1'b1;
     tick();
@@ -326,9 +321,9 @@ module id_ex_dispatch_tb;
     section_banner("sec 1 Lane map - clean even|odd pair, no stall");
     // ------------------------------------------------------------------
 
-    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd1, 5'd5, 5'd0, 1'b1, 32'h2C, 32'h40, 32'h0, 32'h1100);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'h50, 32'h0, 32'h1104,
               1'b1, 1'b0);
     tick();
@@ -342,9 +337,9 @@ module id_ex_dispatch_tb;
     // ------------------------------------------------------------------
 
     flush_busy();
-    set_slot0(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'hA0, 32'hA1, 32'h1200);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, F7_SUB,
+    set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, F7_SUB,
               5'd4, 5'd10, 5'd11, 1'b1, 32'd0, 32'hB0, 32'hB1, 32'h1204);
     tick();
     check_case("struct_even_even",
@@ -352,9 +347,9 @@ module id_ex_dispatch_tb;
                "sec 3b even|even", 1'b0, 1'b1, 1'b1, 1'b0, 1'b0,
                1'b1, 1'b1, 32'h1200, 32'h1204);
 
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot0(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd1, 5'd2, 5'd0, 1'b1, 32'd0, 32'hC0, 32'h0, 32'h1208);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd3, 5'd4, 5'd0, 1'b1, 32'd0, 32'hD0, 32'h0, 32'h120C);
     tick();
     check_case("struct_odd_odd",
@@ -366,9 +361,9 @@ module id_ex_dispatch_tb;
     section_banner("Validity / routing edge cases");
     // ------------------------------------------------------------------
 
-    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1300);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h1304,
               1'b1, 1'b0);
     tick();
@@ -376,9 +371,9 @@ module id_ex_dispatch_tb;
                "valid gating", 1'b0, 1'b0, 1'b1, 1'b0, 1'b0,
                1'b0, 1'b1, 32'd0, 32'h1304);
 
-    set_slot0(1'b1, LANE_ODD, OPC_JAL, 3'd0, 7'd0,
+    set_slot0(1'b1, 1'b1, OPC_JAL, 3'd0, 7'd0,
               5'd1, 5'd0, 5'd0, 1'b1, 32'h100, 32'h0, 32'h0, 32'h1308);
-    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h130C,
               1'b0, 1'b0);
     tick();
@@ -386,22 +381,22 @@ module id_ex_dispatch_tb;
                "valid gating", 1'b0, 1'b0, 1'b0, 1'b1, 1'b0,
                1'b1, 1'b0, 32'h1308, 32'd0);
 
-    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1310);
-    set_slot1(1'b0, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot1(1'b0, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd6, 5'd5, 5'd0, 1'b1, 32'd4, 32'h0, 32'h0, 32'h1314);
     tick();
     check_case("bubble", "both invalid: full bubble, stall_id=0",
                "valid gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
                1'b0, 1'b0, 32'd0, 32'd0);
 
-    set_slot0(1'b1, LANE_NONE, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd3, 5'd1, 5'd2, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1318);
-    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h131C);
     tick();
-    check_case("lane_none", "LANE_NONE never routes to a lane copy",
-               "lane gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
+    check_case("invalid_i0", "valid=0 never routes to a lane copy",
+               "valid gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
                1'b0, 1'b0, 32'd0, 32'd0);
 
     // ------------------------------------------------------------------
@@ -411,9 +406,9 @@ module id_ex_dispatch_tb;
     flush_busy();
 
     // even|even intra-dependent: addi x5,x4,x3 | xor x7,x6,x5
-    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h2000);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h2004);
     tick();
     check_case("raw_d1_even_even_c0",
@@ -434,9 +429,9 @@ module id_ex_dispatch_tb;
                "sec 4.d.1 suppress", 1'b0, 1'b1, 1'b1, 1'b0, 1'b0,
                1'b1, 1'b1, 32'h2000, 32'h2004);
 
-    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd8, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h2010);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd9, 5'd6, 5'd8, 1'b1, 32'd0, 32'h60, 32'h50, 32'h2014);
     tick();
     check_case("raw_d1_even_even_c3_new_pc",
@@ -447,9 +442,9 @@ module id_ex_dispatch_tb;
     flush_busy();
 
     // even|odd inter-dependent: addi x5,x5,1 | brne x6,x5,label
-    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd5, 5'd5, 5'd0, 1'b1, 32'd1, 32'h70, 32'h0, 32'h2100);
-    set_slot1(1'b1, LANE_ODD, OPC_BRANCH, F3_BNE, 7'd0,
+    set_slot1(1'b1, 1'b1, OPC_BRANCH, F3_BNE, 7'd0,
               5'd0, 5'd6, 5'd5, 1'b0, 32'd0, 32'h80, 32'h90, 32'h2104);
     tick();
     check_case("raw_d1_even_odd_c0",
@@ -471,9 +466,9 @@ module id_ex_dispatch_tb;
     flush_busy();
 
     // odd|even inter-dependent: lw x2,0(x5) | addi x1,x2,0x2c
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot0(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'hA0, 32'h0, 32'h2200);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd0, 1'b1, 32'h2C, 32'h0, 32'h0, 32'h2204);
     tick();
     check_case("raw_d2_odd_even_c0",
@@ -497,9 +492,9 @@ module id_ex_dispatch_tb;
     flush_busy();
 
     // odd|odd intra-dependent: lw x2,0(x5) | lw x5,0(x2)
-    set_slot0(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot0(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'hB0, 32'h0, 32'h2300);
-    set_slot1(1'b1, LANE_ODD, OPC_LOAD, F3_LW, 7'd0,
+    set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd5, 5'd2, 5'd0, 1'b1, 32'd0, 32'h0, 32'h0, 32'h2304);
     tick();
     check_case("raw_d2_odd_odd_c0",
@@ -520,9 +515,9 @@ module id_ex_dispatch_tb;
     // ------------------------------------------------------------------
 
     flush_busy();
-    set_slot0(1'b1, LANE_EVEN, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd5, 5'd4, 5'd0, 1'b1, 32'd3, 32'h40, 32'h0, 32'h2400);
-    set_slot1(1'b1, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd7, 5'd6, 5'd5, 1'b1, 32'd0, 32'h60, 32'h50, 32'h2404);
     tick();
     check_case("flush_hold_set",
@@ -533,9 +528,9 @@ module id_ex_dispatch_tb;
     flush = 1'b1;
     tick();
     flush = 1'b0;
-    set_slot0(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0);
-    set_slot1(1'b0, LANE_EVEN, OPC_OP, F3_ADD_SUB, 7'd0,
+    set_slot1(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0,
               1'b0, 1'b0);
     tick();

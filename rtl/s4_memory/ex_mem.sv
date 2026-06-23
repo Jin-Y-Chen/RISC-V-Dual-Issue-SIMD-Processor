@@ -2,7 +2,9 @@
 
 // EX/MEM pipeline register — odd-lane copies only (od0, od1).
 // Even-lane ALU skips this register; uses ex_mem_wb EX bank instead.
-module ex_mem (
+module ex_mem
+  import rv_dis_pkg::*;
+(
   // external controls
   input  logic        clk,
   input  logic        rst_n,
@@ -25,22 +27,22 @@ module ex_mem (
   input  logic        od1_use_link_ex,
 
   // input data
-  input  logic [4:0]  od0_rd_ex,
-  input  logic [31:0] od0_brch_pc_ex,
-  input  logic [31:0] od0_mem_addr_ex,
-  input  logic [31:0] od0_mem_wdata_ex,
-  input  logic [3:0]  od0_mem_besel_ex,
-  input  logic [31:0] od0_link_pc_ex,
-  input  logic [31:0] od0_alu_result_ex,
-  input  logic [31:0] od0_pc_ex,
-  input  logic [4:0]  od1_rd_ex,
-  input  logic [31:0] od1_brch_pc_ex,
-  input  logic [31:0] od1_mem_addr_ex,
-  input  logic [31:0] od1_mem_wdata_ex,
-  input  logic [3:0]  od1_mem_besel_ex,
-  input  logic [31:0] od1_link_pc_ex,
-  input  logic [31:0] od1_alu_result_ex,
-  input  logic [31:0] od1_pc_ex,
+  input  gpr_addr_t   od0_rd_ex,
+  input  pc_t         od0_brch_pc_ex,
+  input  pc_t         od0_mem_addr_ex,
+  input  reg_t        od0_mem_wdata_ex,
+  input  mem_besel_t  od0_mem_besel_ex,
+  input  pc_t         od0_link_pc_ex,
+  input  reg_t        od0_alu_result_ex,
+  input  pc_t         od0_pc_ex,
+  input  gpr_addr_t   od1_rd_ex,
+  input  pc_t         od1_brch_pc_ex,
+  input  pc_t         od1_mem_addr_ex,
+  input  reg_t        od1_mem_wdata_ex,
+  input  mem_besel_t  od1_mem_besel_ex,
+  input  pc_t         od1_link_pc_ex,
+  input  reg_t        od1_alu_result_ex,
+  input  pc_t         od1_pc_ex,
 
   // output controls
   output logic        od0_reg_write_mem,
@@ -55,22 +57,22 @@ module ex_mem (
   output logic        od1_use_link_mem,
 
   // output data
-  output logic [4:0]  od0_rd_mem,
-  output logic [31:0] od0_brch_pc_mem,
-  output logic [31:0] od0_mem_addr_mem,
-  output logic [31:0] od0_mem_wdata_mem,
-  output logic [3:0]  od0_mem_besel_mem,
-  output logic [31:0] od0_link_pc_mem,
-  output logic [31:0] od0_alu_result_mem,
-  output logic [31:0] od0_pc_mem,
-  output logic [4:0]  od1_rd_mem,
-  output logic [31:0] od1_brch_pc_mem,
-  output logic [31:0] od1_mem_addr_mem,
-  output logic [31:0] od1_mem_wdata_mem,
-  output logic [3:0]  od1_mem_besel_mem,
-  output logic [31:0] od1_link_pc_mem,
-  output logic [31:0] od1_alu_result_mem,
-  output logic [31:0] od1_pc_mem
+  output gpr_addr_t   od0_rd_mem,
+  output pc_t         od0_brch_pc_mem,
+  output pc_t         od0_mem_addr_mem,
+  output reg_t        od0_mem_wdata_mem,
+  output mem_besel_t  od0_mem_besel_mem,
+  output pc_t         od0_link_pc_mem,
+  output reg_t        od0_alu_result_mem,
+  output pc_t         od0_pc_mem,
+  output gpr_addr_t   od1_rd_mem,
+  output pc_t         od1_brch_pc_mem,
+  output pc_t         od1_mem_addr_mem,
+  output reg_t        od1_mem_wdata_mem,
+  output mem_besel_t  od1_mem_besel_mem,
+  output pc_t         od1_link_pc_mem,
+  output reg_t        od1_alu_result_mem,
+  output pc_t         od1_pc_mem
 );
 
   always_ff @(posedge clk or negedge rst_n) begin

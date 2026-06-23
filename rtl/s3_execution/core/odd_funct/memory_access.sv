@@ -8,15 +8,15 @@ module memory_access
   input  logic        is_store,
 
   // input data
-  input  logic [2:0]  funct3,
-  input  logic [31:0] rs1_data,
-  input  logic [31:0] rs2_data,
-  input  logic [31:0] imm,
+  input  funct3_t     funct3,
+  input  reg_t        rs1_data,
+  input  reg_t        rs2_data,
+  input  imm_t        imm,
 
   // output data
-  output logic [31:0] mem_addr,
-  output logic [31:0] mem_wdata,
-  output logic [3:0]  mem_besel
+  output pc_t         mem_addr,
+  output reg_t        mem_wdata,
+  output mem_besel_t  mem_besel
 );
 
   logic [1:0] addr_lsb;

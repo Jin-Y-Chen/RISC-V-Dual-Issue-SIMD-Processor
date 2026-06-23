@@ -95,10 +95,12 @@ endtask
 
 task automatic tb_field_lane(
   input string label,
-  input lane_sel_e got,
-  input lane_sel_e exp
+  input logic got,
+  input logic exp
 );
-  tb_field_line(label, $sformatf("%0d", got), $sformatf("%0d", exp));
+  tb_field_line(label,
+                got ? "ODD (1)" : "EVEN (0)",
+                exp ? "ODD (1)" : "EVEN (0)");
 endtask
 
 task automatic tb_report_open(input bit pass, input string name, input string detail);

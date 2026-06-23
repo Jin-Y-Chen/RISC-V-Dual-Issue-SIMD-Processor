@@ -24,6 +24,7 @@ param(
       "target_buffer_tb",
       "if_id_tb",
       "decoder_tb",
+      "state_buffer_tb",
       "register_file_tb",
       "dispatch_hazard_tb",
       "even_lane_tb",
@@ -51,6 +52,7 @@ $AllTops = @(
   "target_buffer_tb",
   "if_id_tb",
   "decoder_tb",
+  "state_buffer_tb",
   "register_file_tb",
   #"dispatch_hazard_tb",
   "even_lane_tb",
@@ -121,59 +123,69 @@ function Get-TbSources([string]$TbTop) {
     switch ($TbTop) {
         "pc_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s1_fetch/core/pc.sv",
                 "sim/tb/s1_fetch/pc_tb.sv"
             )
         }
         "instruction_cache_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
                 "rtl/s1_fetch/core/instruction_cache.sv",
                 "sim/tb/s1_fetch/instruction_cache_tb.sv"
             )
         }
         "target_buffer_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s1_fetch/target/target_buffer.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
+                "rtl/s1_fetch/branch/target_buffer.sv",
                 "sim/tb/s1_fetch/target_buffer_tb.sv"
             )
         }
         "if_id_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/if_id.sv",
                 "sim/tb/s2_decode/if_id_tb.sv"
             )
         }
         "decoder_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/core/decode_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/core/decoder.sv",
                 "sim/tb/s2_decode/decoder_tb.sv"
             )
         }
+        "state_buffer_tb" {
+            return @(
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
+                "rtl/s4_memory/branch/state_LUT.sv",
+                "rtl/s2_decode/branch/state_buffer.sv",
+                "sim/tb/s2_decode/state_buffer_tb.sv"
+            )
+        }
         "register_file_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/core/decode_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
                 "rtl/s2_decode/core/register_file.sv",
                 "sim/tb/s2_decode/register_file_tb.sv"
             )
         }
         "dispatch_hazard_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/core/decode_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
                 "sim/tb/s2_decode/dispatch_hazard_tb.sv"
             )
         }
         "even_lane_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/core/decode_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
                 "rtl/s3_execution/core/even_funct/scalar_alu.sv",
                 "rtl/s3_execution/core/even_lane.sv",
                 "sim/tb/s3_execute/even_lane_tb.sv"
@@ -181,7 +193,7 @@ function Get-TbSources([string]$TbTop) {
         }
         "odd_lane_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/core/odd_funct/branch_unit.sv",
                 "rtl/s3_execution/core/odd_funct/memory_access.sv",
                 "rtl/s3_execution/core/odd_lane.sv",
@@ -190,7 +202,7 @@ function Get-TbSources([string]$TbTop) {
         }
         "id_ex_dispatch_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/dispatch_funct/scoreboard.sv",
                 "rtl/s3_execution/id_ex_dispatch.sv",
                 "sim/tb/s3_execute/id_ex_dispatch_tb.sv"
@@ -198,35 +210,36 @@ function Get-TbSources([string]$TbTop) {
         }
         "forward_unit_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/core/forward_unit.sv",
                 "sim/tb/s3_execute/forward_unit_tb.sv"
             )
         }
         "ex_mem_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s4_memory/ex_mem.sv",
                 "sim/tb/s4_memory/ex_mem_tb.sv"
             )
         }
         "memory_cache_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
                 "rtl/s4_memory/core/memory_cache.sv",
                 "sim/tb/s4_memory/memory_cache_tb.sv"
             )
         }
         "scoreboard_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/dispatch_funct/scoreboard.sv",
                 "sim/tb/s3_execute/scoreboard_tb.sv"
             )
         }
         "ex_mem_wb_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s5_wback/ex_mem_wb.sv",
                 "sim/tb/s5_wback/ex_mem_wb_tb.sv"
             )

@@ -1,52 +1,54 @@
 `timescale 1ns / 1ps
 
-// Instruction memory — byte-addressed dual read (RV32I LE word assembly).
-// pc0 / pc1: older and younger fetch PCs (pc1 = pc0 + 4)
-// instr0 / instr1: 32-bit words read combinational from cache[]
+// Instruction memory — dual combinational fetch (RV32I, one 32-bit word per slot).
+// 8192 entries over 32 KiB I$ (PC[14:2]); 512 sets × 16 ways via cache_pkg.
+// Miss (valid=0) => 32'h0; each slot holds one little-endian instruction word.
 module instruction_cache
   import rv_dis_pkg::*;
+  import cache_pkg::*;
 #(
-  parameter int BYTE_COUNT = I_SIZE / 8
+  parameter int INDEX_W = PC_INDEX_AW,
+  parameter int DATA_W  = ILEN
 ) (
-  // external controls
+  // retained for s1_fetch_struct port compatibility; fetch read is combinational
   input  logic        clk,
   input  logic        rst_n,
 
   // input data
-  input  logic [31:0] pc0,
-  input  logic [31:0] pc1,
+  input  pc_t         pc0,
+  input  pc_t         pc1,
 
   // output data
   output instr_t      instr0,
   output instr_t      instr1
 );
 
-  localparam int BYTE_AW = $clog2(BYTE_COUNT);
+  localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(DATA_W), .INDEX_W(INDEX_W))();
 
-  logic [7:0] cache [0:BYTE_COUNT-1];
+  logic [DATA_W:0] bank [CACHE.sets][CACHE.ways];
 
-  integer i;
-
-  function automatic logic [BYTE_AW-1:0] word_base(input logic [31:0] byte_pc);
-    return byte_pc[BYTE_AW-1:2] << 2;
+  function automatic logic [DATA_W-1:0] insn_default(input pc_t pc);
+    return {DATA_W{1'b0}};
   endfunction
 
-  function automatic instr_t read_le_word(input logic [BYTE_AW-1:0] base);
-    read_le_word = {
-      cache[base + 3],
-      cache[base + 2],
-      cache[base + 1],
-      cache[base + 0]
-    };
-  endfunction
+  assign instr0 = instr_t'(cache_set_read#(DATA_W)(
+    bank[pc_set(pc0, CACHE)],
+    pc_way(pc0, CACHE),
+    insn_default(pc0)
+  ));
 
-  assign instr0 = read_le_word(word_base(pc0));
-  assign instr1 = read_le_word(word_base(pc1));
+  assign instr1 = instr_t'(cache_set_read#(DATA_W)(
+    bank[pc_set(pc1, CACHE)],
+    pc_way(pc1, CACHE),
+    insn_default(pc1)
+  ));
 
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n)
-      for (i = 0; i < BYTE_COUNT; i++)
-        cache[i] <= 8'd0;
+  initial begin
+    for (int s = 0; s < CACHE.sets; s++) begin
+      for (int w = 0; w < CACHE.ways; w++) begin
+        bank[s][w] = '0;
+      end
+    end
   end
 
 endmodule

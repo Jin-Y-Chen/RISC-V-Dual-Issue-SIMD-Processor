@@ -4,8 +4,10 @@
 // - Byte-addressed PC (RV32I)
 // - 32-bit fixed-width instructions => +4 bytes per instruction
 // - Always dual issue: advance by two instructions (+8) per accepted fetch
-module pc #(
-  parameter logic [31:0] RESET_PC = 32'h0000_0000
+module pc
+  import rv_dis_pkg::*;
+#(
+  parameter pc_t RESET_PC = pc_t'(32'h0000_0000)
 ) (
   // external controls
   input  logic        clk,
@@ -17,15 +19,15 @@ module pc #(
   input  logic        set,
 
   // input data
-  input  logic [31:0] set_pc,          // byte PC
+  input  pc_t         set_pc,          // byte PC
 
   // output data
-  output logic [31:0] pc0,             // older instruction in fetch pair
-  output logic [31:0] pc1              // younger instruction: pc1 = pc0 + 4
+  output pc_t         pc0,             // older instruction in fetch pair
+  output pc_t         pc1              // younger instruction: pc1 = pc0 + 4
 );
 
-  logic [31:0] pc_q;
-  logic [31:0] pc_next;
+  pc_t pc_q;
+  pc_t pc_next;
 
   always_comb begin
     pc_next = pc_q;
@@ -35,7 +37,7 @@ module pc #(
       // Keep PC 4-byte aligned for fixed 32-bit instruction fetch.
       pc_next = {set_pc[31:2], 2'b00};
     end else if (!stall && enable) begin
-      pc_next = pc_q + 32'd8;
+      pc_next = pc_q + pc_t'(32'd8);
     end
   end
 
@@ -48,6 +50,6 @@ module pc #(
   end
 
   assign pc0 = pc_q;
-  assign pc1 = pc_q + 32'd4;
+  assign pc1 = pc_q + pc_t'(32'd4);
 
 endmodule
