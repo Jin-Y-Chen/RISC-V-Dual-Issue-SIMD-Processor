@@ -21,73 +21,123 @@ RV32I Instruction Set Architecture Deisgned:
     c) Encoding and Decoding is relatively uniform with the same bit positioning for rs1, rs2, rd, expect sign-extended immediates 
 
     1) sufficient to form a compiler target,
-        - reliably generate neccessary machine code
+    - reliably generate neccessary machine code
+
     2) can support modern operating system environments
 
     3) Reduce hardware required in a minimal implementation
-        - important to test functionally on the Artix-7
+    - important to test functionally on the Artix-7
 
     4) ~40 unique instructions 
 
-Instruction File - Base Instruction Formats (R/I/S/U):
-
-    a) IALIGN = 32, each instruction must start at an address that’s a multiple of 2.
-
-    b) Error detection for invalid branch or jump address, raising misaligned exception
-
-    c) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
-       Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
-
-    Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
-
-    --- Byte offsets vs alignment (RISC-V default vs RV-DIS policy) ---
-
-    RISC-V default (Unprivileged ISA):
-    - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
-    - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
-      and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
-      rtl/common/rv_dis_pkg.sv / decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
-    - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
-    - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
-      is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
-
-    RV-DIS decode policy (this project):
-    - We only fetch 32-bit instructions (no RVC); PC should stay 4-byte aligned in normal code.
-    - imm_align4() in decode_pkg.sv forces imm[1:0]=00 on branch/jump offsets (B, J, JALR).
-      Load/store/OP-IMM use full sign-extended 32-bit byte offsets (no align4).
-    - B/J still have imm[0]=0 in the ISA encoding; decode appends that bit (see imm_b / imm_j).
-
-    Summary table:
-    | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
-    |--------------------|----------|----------|----------------------|
-    | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
-    | RV-DIS imm_align4  | 0        | forced 00| B/J/JALR only        |
-
-    Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
-    - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
-    - Decode rebuilds the byte offset (imm_b / imm_j + 1'b0); no extra shifter in odd_lane pc+imm.
-
-Integer Computational Instruction
-
-    a) Integer computational instructions are either encoded as register-immediate operations using the I-type
-    format or as register-register operations using the R-type format. 
-
-    b) The destination is register rd for both register-immediate and register-register instructions. 
-    
-    c) No integer computational instructions cause arithmetic exceptions.
-
-    d) No special overflow-detecting arithmetic instructions, simple branch patterns can detect overflow cheaply, without extra hardware.
-
-        add   t0, t1, t2
-        bltu  t0, t1, overflow -> raise software expection
-
-        complier decided whether overflow must be checked, inserting overflow branch instruction
-
 Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
 
-        Instruction memory: 8-bit byte map (one address = one byte). Each 32-bit instruction
-        occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
-        RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
+    Instruction memory: 8-bit byte map (one address = one byte). Each 32-bit instruction
+    occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
+    RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
+
+
+Branch Target Buffer (BTB)
+
+    1) Buffer size and structure dependent on the size of the single Instruction cache
+        a) Max byte PC = 32,767 to address 32 KiB of I-cache without roll-over
+
+            32 KiB = 2^15 B => 15-bit byte address
+
+        - relevant PC bits of [14:0] from [31:0]
+
+        b) With byte-per-address and 32-bit instruction alignment ([1:0] = 00),
+
+            15 - 2 = 13-bits (one slot per instruction)
+
+        - relevant PC bits of [14:2] from [14:0]
+        - total entry of 8192
+
+        c) 16-way set-associative target buffer 
+
+            16 => 2^4 => 4-bits for ways (columns)
+
+            13 - 4 = 9-bits for sets (rows) over full 32 KiB [14:2]
+
+        - way select: PC[5:2]; set index: PC[14:6] (within PC[14:2])
+        - 16-way lookup compares all 16 tags in the selected set in parallel
+        - tag: upper PC bits above the index (e.g. PC[31:15])
+        
+
+    2) Dual read and write
+        a) BTB miss (valid bit = 0): lookup returns fallthrough(pc) = pc + 4
+        - sequential next-instruction address for dual fetch (older lane pc, younger lane pc+4)
+        - not stored buffer zeros; pc+4 is computed at read time via cache_set_read default
+        b) BTB hit (valid bit = 1): i0_pc_target / i1_pc_target = stored target[31:0]
+        c) Update on WB retire of a resolved branch/jump (i0_valid_wb / i1_valid_wb)
+        - write bank[pc_set(pc_wb)][pc_way(pc_wb)] <= {1'b1, align_target(target_wb)}
+        - align_target(t) = {t[31:2], 2'b00} before store (4-byte aligned targets only)
+
+    3) RTL — rtl/s1_fetch/branch/target_buffer.sv + rtl/common/cache_pkg.sv
+
+        a) Shared bank geometry (cache_struct_t from cache_struct_build)
+        - DATA_W = 32 (branch/jump target), INDEX_W = 13 => 8192 entries = 512 sets x 16 ways
+        - bank[CACHE.sets][CACHE.ways], each slot [DATA_W:0] packed as {valid, data[31:0]}
+
+        b) Indexing (same as I$ PC[14:2] over 32 KiB)
+        - pc_set(pc, CACHE) = PC[14:6]   (set / row)
+        - pc_way(pc, CACHE) = PC[5:2]    (way / column within set)
+
+        c) Lookup — cache_set_read#(DATA_W)(bank[set], way, default)
+        - one set row only; does not read the whole bank
+        - default argument = fallthrough(pc) = pc + 4 (see 2a)
+        - dual fetch: i0_pc and i1_pc each index their own set/way in parallel
+
+        d) Write — cache_set_write#(DATA_W)(1'b1, align_target(target_wb))
+        - fallthrough(pc): BTB miss default on read; predicts sequential fetch until trained
+        - align_target(t): clear target[1:0] on writeback so BTB stores word-aligned addresses
+          (consistent with RV-DIS imm_align4 and 32-bit instruction fetch in section I-cache 5b)
+
+        e) Note — outline 1c describes full tag-compare across 16 ways; current RTL uses
+        PC-selected set/way (direct index within 16-way bank layout) via cache_pkg helpers.
+        Tag-associative BTB is a future extension if aliasing must be resolved by tag match.
+
+Instruction Cache - Base Instruction Formats (R/I/S/U):
+
+    1) IALIGN = 32, each instruction must start at an address that’s a multiple of 2.
+
+    2) Instruction cache size = 2^15 bytes =  32 KiB = (32 * 2^10)
+    - PC byte offset within I$: 15 bits [14:0]; max value 32,767 before roll-over
+
+    3) Error detection for invalid branch or jump address, raising misaligned exception
+
+    4) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
+    - Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
+    
+
+    5) Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
+
+        --- Byte offsets vs alignment (RISC-V default vs RV-DIS policy) ---
+
+        a) RISC-V default (Unprivileged ISA):
+        - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
+        - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
+        and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
+        rtl/common/rv_dis_pkg.sv / decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
+        - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
+        - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
+        is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
+
+        b) RV-DIS decode policy (this project):
+        - We only fetch 32-bit instructions (no RVC); PC should stay 4-byte aligned in normal code.
+        - imm_align4() in decode_pkg.sv forces imm[1:0]=00 on branch/jump offsets (B, J, JALR).
+        Load/store/OP-IMM use full sign-extended 32-bit byte offsets (no align4).
+        - B/J still have imm[0]=0 in the ISA encoding; decode appends that bit (see imm_b / imm_j).
+
+            Summary table:
+            | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
+            |--------------------|----------|----------|----------------------|
+            | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
+            | RV-DIS imm_align4  | 0        | forced 00| B/J/JALR only        |
+
+        Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
+        - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
+        - Decode rebuilds the byte offset (imm_b / imm_j + 1'b0); no extra shifter in odd_lane pc+imm.
 
 Dual Decoder :
 
@@ -96,6 +146,78 @@ Dual Decoder :
 
     2) Lane differatation is determined(lane_sel)
     - PC age track the order of execution not the lane(even/odd)
+    
+Branch State Buffer with 4-State:
+
+    1) Buffer size and structure mirror Branch Target Buffer
+        a) total entry of 8192 to direct map each entry in BTB 
+        b) 16-way set-associated state buffer
+        c) index by pc 
+        - way select: PC[5:2]; set index: PC[14:6] (within PC[14:2])
+
+
+    2) Store branch state for Prediction
+        a) stores only state value, index by PC outputs valid bit
+        - state transition computed at MEMORY stage 
+        - state value is immediately write back buffer at DECODE, skiping WBACK stage
+        - state value is immediately forward to EXECUTE, skipping WBACK stage 
+
+        b) state encoding:
+        - 2-bit saturating counter (4 states). Predict from MSB: 0 = not taken, 1 = taken.
+        - Reset / default value: 01 (weakly not taken)
+
+Branch Target Prediction 
+
+    1) Early branch target address calulation
+
+        a) PC adder computes pc + imm for target or pc_predict
+
+        b) pc_predict can take the value of pc + imm or pc_target from BTB
+
+        - if valid = 0, pc_predict uses pc + imm (decode) or BTB fallthrough pc + 4 (fetch miss)
+        - if valid = 1, pc_predict is set to pc_target from BTB, case of hit in BTB
+        - The case of valid = 1, but pc + imm != pc_target should not be possible by the assembler ie label value
+        are static by the compilier 
+
+            Possible instruction(register dependent branch label):
+
+                addi r3, r0, 0x00           ;
+                beq r1, r2, main(r3)       ;label + r3 
+
+                main: 
+                    .
+                    .
+                    .
+                    addi r3, r3, 0xa0
+                    beq r4, r5 main(r3)
+                .
+                .
+                .
+
+                (main + 0xa0):         //same immediate label value + r3 offset
+                    .
+                    .
+                    .
+                    beq r4, r5, main(r3)
+                    jmp main
+
+            - Potentially single global label for all jmp/branch target + offset
+            - Assembly level label awareness, more lines of instructions 
+            - Simplified complier, does not have to deal with label encoding
+            - Not RISC-V
+
+    2) State Decode
+        a) Decodes 2-bits state values to predict branch-take (set_target = 1) or branch-not-take (set_target = 0)
+        - A 2-bit predictor is more desirable for long loops with one time exit cost before re-entry
+
+            State table:
+            00  strongly not taken  (predict not taken)
+            01  weakly   not taken  (predict not taken)
+            10  weakly   taken      (predict taken)
+            11  strongly taken      (predict taken)
+
+        - set_pc = state[1]       
+        - always one bit flip to avoid glitchs
 
 Registers File - 32 addressible register:
     // A conventional size that balances encoding, performance, and hardware simplicity
@@ -132,7 +254,7 @@ Registers File - 32 addressible register:
         - Both lanes can write GPR in the same WB cycle depending on PC-age(ignore older instruction)
         - Lanes are differatiated at WB, dedicated even/odd WB with no adventage
 
-    6) structural Hazards, read from register file
+    6) structure Hazards, for immediate values
         a) immediate instruction is decoded with r2 as zero register 
 
             addi x2, x1, 0xaa
@@ -140,8 +262,7 @@ Registers File - 32 addressible register:
             * immediate value(0xaa) is not visible to the register file
             * desintation register(x2) is not visible to the register file
             * rd = rs1/rs2 is structually sounded with read/write port
-
-
+    
         b) single instruction, read from the same register 
 
             add x2, x1, x1
@@ -152,9 +273,18 @@ Registers File - 32 addressible register:
             beq x2, x2, label 
             => odd_rs1_addr = x2, odd_rs2_addr = x2
             * always brench to label, since odd_rs1_data = odd_rs2_data
-            * rs1 = rs2 is structually sounded with 2 read ports
 
-        c) dual instructions, both/multiple read from the same register 
+        - rs1 = rs2 is structually sounded with 2 read ports
+
+        c) dual instruction, read from the same register
+        - structurally sounded with with 2 set of 2 read ports
+        
+        b) dual instruction write back odd/even_wdata lane write enable
+        - structurally sounded with 2 set of write port(independent ctrl signals)
+
+
+    7) data hazards, register read and write back
+        a) RAR (Read After Read) — dual instructions both read the same register
 
             add x3, x3, x1 | bne x3, x2
             => even_rs1_addr = x3, even_rs2_addr = x1
@@ -170,95 +300,347 @@ Registers File - 32 addressible register:
             * fundemental loop count down starting from 0x0a
             * lane are not differatiated yet, this is structurally llegal, but logically fault
 
-    2) data Hazards, write back to register file
+        b) Register RAW / WAR at GPR writeback (I0 = older, I1 = younger)
+        - register file: combinational read from regs[] only; writes commit to regs[] on negedge clk
+        - no WB bypass on GPR read ports; no falling-edge forward into EX operands
+        - RAW (Read After Write): in-flight rd not in regs[] — EX uses forward_unit MEM-stage
+          mux (mem0/mem1) only; otherwise stall until producer visible at MEM or committed in regs[]
+        - WAR (Write After Read): I0 reads old value from regs[] before I1 WB negedge commit
+        - WAW: both write same rd — both issue; register_file merges at WB (younger wpc wins, see c)
 
-        a) immediate or register out data is written back on the same 32-bit odd/even_wdata line
-
-            addi x2, x1, 0xfa0a505f 
-            => even_rd = x2, even_data = 0xfa0a505f
-
-            likewise:
-            add x2, x1, x3, let x2 = 0xfa0a505f 
-            => even_rd = x2, even_data = 0xfa0a505f
-        
-        b) dual instruction, both write to the same register 
+        c) WAW (Write After Write) — dual instructions both write the same register
 
             addi x2, x1, 0xaa | lw x2, 0x0(x2) 
             => even_pc = 0x0, even_rd = x2, even_data = 0xaa
-            => even_pc = 0x4, odd_rd = x2, odd_data = 0xbb, let 0x0(x2) = 0xbb
-
-            Likewise: 
+            => odd_pc = 0x4, odd_rd = x2, odd_data = 0xbb, let 0x0(x2) = 0xbb
             * retrive from memory by immediate pointer address
-            * Only write the youngest instruction(odd_pc = 0x4) data(0xbb) to register address(x2)
+
+        - Dispatch does not suppress either insn on same rd (JAL/JALR PC and other side
+          effects must still execute; skipping I0 is not equivalent to running then merging)
+        - Both I0 and I1 reach their lanes; register_file commits one value per rd at WB
+          negedge — younger insn wins via wpc when both write the same rd same cycle
+        - if Software expects 0xaa as an observable value, complier must space these instructions
+          outside the pair.
 
 Dispatch (during ID/EX) — lane checks and hazards
 
-    Dispatch runs at ID (before operands enter EX). It decides whether the fetch pair
-    I0 + I1 are issue to the execution lanes. Forwarding supplies operand data
-    when I1 reads a register I0 will write but has not yet committed to the GPR array.
+    Dispatch runs at ID_EX (before operands enter EX). It decides whether the fetch pair
+    I0 + I1 issue to the execution lanes. Operand forwarding at EX is forward_unit only
+    (MEM stage mem0/mem1); no WB bypass and no falling-edge forward from GPR commit.
 
-    1) Lane check (structural — can both lanes run this pair?)
+    1) Lane map:
+    - Even lane: OP, OP-IMM (ALU)
+    - Odd lane:  LOAD, STORE, BRANCH, JAL, JALR, LUI, AUIPC
 
-        Lane map (decode_pkg.sv decode_lane_sel):
-        - Even lane: OP, OP-IMM (ALU)
-        - Odd lane:  LOAD, STORE, BRANCH, JAL, JALR, LUI, AUIPC
+    3) structure hazard - Same instruction type need the same lanes even\even or odd\odd
 
-        Lane conflict: I0 and I1 need the same lane → issue I0 only, block I1
-            add x1,x2,x3 | sub x4,x5,x6
-            => both need LANE_EVEN → no dual-issue
-
-        Clean pair:
+        a) Clean pair:
             addi x1,x5,0x2c | lw x2,0x00(x5)
             => I0 even, I1 odd → lane check passes
 
-    2) RAW hazard (I1 operand depends on I0 destination)
+        - no conflict with dual lanes, even and odd lanes 
+        - no stall
 
-        RAW: I1 reads rs1 and/or rs2 that equals I0 rd, and I0 performs reg_write (rd != x0)
+        b) Lane conflict: I0 and I1 need the same even lane 
 
-            intra-dependent RAW hazard
-            addi x5,x0,0xff | xor x6, x6, x5
-            => I0 rd = x5, I1 rs2 = x5
+            add x1,x2,x3 | sub x4,x5,x6
+            => both I0, I1 need LANE_EVEN 
 
-            lui x5,x0,0xaa  | lw x6, 0x0(x5)
-            => I0 rd = x5, I1 rs2 = x5
-            
+            likewise:
+
+            lw x1, 0x00(x2) | beq x2, x3, label
+
             or 
 
-            inter-dependent RAW hazard
+            lw x1, 0x00(x3) | lw x2, 0x00(x3)
+            => both I0, I1 need LANE_ODD 
+
+        - duplicated resources, 2 sets of ports to execute the same type of instruction in Parallel
+        - two even lanes and two odd lanes, 4 sets of output port in total with individual enable
+
+            I0 is even type         => ev0_[port]
+            I1 is also even type    => ev1_[port]    
+
+            I0 is odd type          => od0_[port]
+            I1 is also odd type     => od1_[port]
+
+        - no stall
+
+    4) data hazard - register focus (I0 = older, I1 = younger)
+
+        a) RAR (Read After Read) no semantic conflict, dual GPR read ports
+        - dual read in register file(7a) and dual read from memory cache
+
+        b) WAR (Write After Read), I0 must see pre-write value (anti-dependency)
+        - resolve by pipeline staging
+
+        c) WAW (Write After Write), same memory word (same rd handled at WB — §4.c)
+        - resolve at write back, wback only the youngest instruction
+
+        d) RAW (Read After Write): I1 reads rs1/rs2 that equals an in-flight rd
+        - reader needs the writer's new value; 
+
+        d.1) 1 stall required - skipping memory access stage 
+
+            Even then Even — intra-dependent
+            addi x5, x4, x3 | xor x7, x6, x5
+            => I0 rd = x5, I1 rs2 = x5
+
+            Even then odd — inter-dependent
             addi x5,x5,0x01 | brne x6, x5, label
             => I0 rd = x5, I1 rs2 = x5
 
-        if RAW exists and forwarding cannot supply the value in time
-        Option 1: Stall with scorboarding 
-        - Temporay force in-order execution, reduce CPI
-        - flexible for both cases
+        - hazard unit / scoreboard at ID→EX: detect I1 rs1/rs2 == I0 rd (I0 reg_write, rd != x0)
+        - same cycle: issue I0 only; buffer I1 in dispatch; stall_id=1 for full wait
+        - replay I1 when wait_cnt reaches 1 (init wait_cnt = stall_cycles + 1)
+        - no same-bundle EX forward; forward_unit WB bypass only for cross-bundle cases (see §6)
 
-        Option 2: same-cycle forward during execution
-        - Result forward during execution, longer critical path/logically
-        - addition hardware for inter/intra-dependent result routing 
+        d.2) 2 stall required - read/write to memory 
 
+            Odd then even - inter-dependent
+            lw x2,0x00(x5) | addi x1,x2,0x2c
+            => I0 rd = x2, I1 rs1 = x2
+
+            Odd then odd - intra-dependent
+            lw x2,0x00(x5) | lw x5,0x00(x2)
+            => I0 rd = x2, I1 rs1 = x2
+
+        - load data is not available until WB; I1 buffered with stall_remain=2
+        - full dispatch stall until counter expires, then replay buffered I1
+        - stall required for all cases of load from memory is the first instruction
+
+    5) control hazard - 
+            
+        Odd then even - no stall branch instruction
+            brne x5,x6,label | addi x6 
+
+    -) Scoreboard (issue gate at ID→EX) 
+
+        Purpose:
+        - Central in-order issue gate for GPR RAW hazards
+        - Same-bundle RAW (d.1): single-issue I0, buffer I1, stall_remain=1
+        - Load-use (d.2): buffer I1, stall_remain=2 (I0 opcode == load)
+        - stall_id asserted only by dispatch (GPR RAW / I1 buffer wait); no external stall inputs
+
+        I1 buffer node — single entry (i1_buffer_node_t in id_ex_dispatch.sv):
+        - Holds at most one suppressed I1 from the current fetch pair
+        - Latch on set_i1_hold: full ID bundle + producer_rd + bundle PC tags + wait_cnt
+        - wait_cnt init = i1_stall_cycles+1 (ALU:2, load:3); decrements while >1; replay at 1
+        - Clear on issue_i1_from_hold or flush
+
+        Module ports (scoreboard.sv):
+        - ID pair: i0_reg_write/rd/opcode; i1 rs1/rs2 use+addr (no valid — gated in dispatch)
+        - Buffer: buf_valid, issue_i1_from_hold (from dispatch wait_cnt)
+        - suppress_bundle_raw
+        - Outputs: issue_i0, issue_i1, stall_id, set_i1_hold, i1_stall_cycles
+
+        Hazard ownership (id_ex_dispatch vs scoreboard):
+
+        scoreboard.sv — GPR register RAW only (§4.d):
+        - d.1 same-bundle (1 stall): partial I0, buffer I1, wait_cnt-based replay
+        - d.2 load-use (2 stall): buffer I1, wait_cnt init 3
+
+        id_ex_dispatch — checked at dispatch, not in scoreboard:
+        - Memory RAW/WAR (Cache §4): same eff. addr (rs1+imm); single-issue I0; hold I1;
+          2-stall in-order replay when I0 mem op completes; memory_cache sees ordered ports only
+        - GPR WAW: no dispatch check; register_file wpc merge at WB (§4.c)
+        - Memory WAW (§4.c, Cache §6): kill I0 store at issue (od0 mem_en=0)
+          (reg_write=0 / mem_en=0) — redundant write never executes
+
+        Other:
+        - EX operand mux: forward_unit WB stage only (wb0/wb1); no falling-edge forward
+        - memory_cache: cache_busy status only; L1 miss stall folded into dispatch when integrated
+
+    -) Stall methods
+
+        Default: global front-end stall. Same-bundle RAW uses partial I0 issue on capture cycle.
+
+        a) Partial issue + buffer — one fetch pair only
+            - Same-bundle RAW: issue I0; buffer I1 with stall_remain (1 or 2); full stall until replay
+            - Cross-bundle lane run-ahead not supported
+
+            Example — even|even RAW (§4.d.1):
+                addi x5, x4, x3 | xor x7, x6, x5
+                c0: issue ev0 (addi); buffer xor; stall_id=1; wait_cnt=2
+                c1: wait_cnt→1 (stall)
+                c2: replay xor on ev1
+
+            Example — even|odd RAW:
+                addi x5, x5, 1 | bne x6, x5, label
+                c0: issue ev0; buffer branch; wait_cnt=2
+                c1–c2: stall then replay branch on od1
+
+        b) Global stall_id — IF/ID bubble until dispatch can proceed
+            - while buf_q.valid && wait_cnt > 1: full stall
+            - load-use (§4.d.2), memory RAW/WAR (Cache §4); future L1 miss handled inside dispatch
+            - stall_id && !issue_i0 && !issue_i1 → hold EX registers
+
+            Example — load-use (§4.d.2):
+                lw x2, 0(x5) | addi x1, x2, 0x2c
+                c0: issue od0 (lw); buffer addi; stall_id=1; wait_cnt=3
+                c1–c2: stall (wait_cnt counts down)
+                c3: replay addi on ev1
+
+            Example — memory RAW (Cache §4):
+                sw x6, 0(x5) | lw x7, 0(x5)
+                c0: issue od0 (sw); hold lw in dispatch; stall_id=1
+                c1–N: stall until store completes → replay lw on od1
+
+        c) Back-end per-slot freeze (optional, inactive)
+            - ex_mem stall_od0/od1, ex_mem_wb stall_i0/i1 — not used; dispatch owns stall_id
+
+        | Situation                      | Method                          |
+        |--------------------------------|---------------------------------|
+        | Same-bundle RAW (d.1)          | (a) partial issue + I1 buffer     |
+        | Load-use / mem order / L1 miss | (b) global stall_id (dispatch)  |
+        | Cross-bundle independent lanes | not supported                   |
+
+        Signals: stall_id (dispatch out); issue_i0/i1, set_i1_hold, issue_i1_from_hold
         
-Forwarding (ID/EX — I0 result to I1 operand)
+Forwarding (EX operand mux — WB stage only)
 
-Execution Flow and Design Reason
+    Policy — not used in RV-DIS:
+        - no WB bypass on GPR read ports (no same-cycle wen→read short-circuit for EX)
+        - no falling-edge forward (operands never sourced from negedge GPR commit in the same cycle)
 
-    1) Deuplicate execution resources (port-based EX)
+    forward_unit muxes EX rs operands from:
+        a) ID/EX GPR operand (combinational read of regs[] — stale if producer still in flight)
+        b) WB stage wb0/wb1: ex_mem_wb retire candidates
+        - youngest PC wins when wb0 and wb1 both match the same rs
+        - after WB negedge commit, the next ID read sees the new value in regs[] (no forward needed)
+        - does not resolve same-bundle I0→I1 RAW; scoreboard stalls that case (d.1)
+        - same-bundle GPR WAW: both issue; younger wpc wins at register_file WB
+        - same-bundle memory WAW: I0 store suppressed at dispatch (od0 off) — §4.c, Cache §6
 
+Execution Flow and Design:
+
+    1) Dual Issues, odd/even lanes
+        a) even lanes executes scaler operation(R-type, I-type)
+        b) odd lanes executes branch and memory access operation(B-type, S-type, U-type)
+
+    2) Duplicate execution resources (port-based EX)
         a) Avoid stall-based lane arbitration by duplicating excution units on the same lane
         b) Dispatch both I0, I1 assign to even/odd lane to the (2) copy of execution unit 
-        c) Removes many structural hazards at the cost of more hardware
+        c) Removes I0, I1 same type structural hazards at the cost of more hardware
+
+    3) Instruction - Integer Computational 
+
+        a) Integer computational instructions are either encoded as register-immediate operations using the I-type
+        format or as register-register operations using the R-type format. 
+
+        b) The destination is register rd for both register-immediate and register-register instructions. 
+        
+        c) No integer computational instructions cause arithmetic exceptions.
+
+        d) No special overflow-detecting arithmetic instructions, simple branch patterns can detect overflow cheaply, without extra hardware.
+
+            add   t0, t1, t2
+            bltu  t0, t1, overflow -> raise software expection
+
+        complier decided whether overflow must be checked, inserting overflow branch instruction
 
 
-Data memory (scalar load/store — odd lane, memory_access.sv):
+    4) Even lane at EX/WB (skips MEM)
 
-    a) Byte addressing — one address = one 8-bit byte (standard RV32I data memory map)
-    - Address N and N+1 are adjacent bytes, not 16-bit or 32-bit word indices
+        1) even-lane ALU → ex_mem_wb EX bank (ev0/ev1); odd-lane → MEM bank (od0/od1)
+        2) ex_mem_wb: 4-port enable merge → push0/push1 retire candidates
+        3) ex_mem_wb retire merge → GPR i0/i1 write ports (2 per cycle, register_file wpc merge)
+
+Cache Memory Design:
+
+    1) Byte addressing — 8-bits per address(same as intruction cache) as standard RV32I data memory map   
+    - Address N and N+1 are adjacent bytes
     - Effective address: mem_addr = rs1 + imm (byte offset from decode, same unit as PC)
+    - Load/store offsets: sign-ext only (no imm_align4); use 4-byte-aligned addresses in software(complier)
 
-    b) LW / SW (32-bit) — mem_besel selects which bytes out of a 32-bit word lane at mem_addr
-    - Load/store offsets: sign-ext only (no imm_align4); use 4-byte-aligned addresses in software
+        lw x5 0(x10) - correct align
+        lw x5 1(x10) - miss align
+        lw x5 2(x10) - miss align
+        lw x5 3(x10) - miss align
+        lw x5 4(x10) - correct allign
 
-    c) Instruction and data memory share the same byte-address space concept (8 bits per address)
+    2) LW / SW (32-bit) — mem_besel selects which bytes out of a 32-bit word will be write/read at the mem_addr
+
+    - write and read in little-endian
+
+    write/read data  |  in memory
+    0xddccbbaa =>       0x00000 : aa  
+                        0x00001 : bb 
+                        0x00010 : cc 
+                        0x00011 : dd
+
+    3) RAR (Read After Read) — dual-issue read same memory word
+    - structurally sound with dual read ports
+
+        lw x5, 0(x6) | lw x7, 0(x6)
+        => same eff. addr; I0 read may be suppressed if only I1's result is architecturally needed
+
+    - disable redundant I0 mem port at dispatch when appropriate
+
+    4) Memory WAR / RAW — same eff. addr, load/store ordering (2 stall, held at dispatch)
+
+        a) WAR (Write After Read) — I0 read, I1 write, same memory word (anti-dependency)
+
+            lw x7, 0(x5) | sw x6, 0(x5)
+            => I0 load must read memory before I1 store overwrites the word
+
+        - dispatch: detect same eff. addr; single-issue I0; hold I1 (2-stall in-order path)
+        - replay I1 after I0 load completes; memory_cache assumes ordered requests only
+
+        b) RAW (Read After Write) — I0 write, I1 read, same memory word (true dependency)
+
+            sw x6, 0(x5) | lw x7, 0(x5)
+            => I1 load depends on the value I0 store writes to the word
+        
+        - dispatch: detect same eff. addr; single-issue I0; hold I1 (2-stall in-order path)
+        - replay I1 after I0 store completes; memory_cache assumes ordered requests only
+
+    - Detect at dispatch (eff. addr match: rs1+imm, same 32-bit word)
+    - In-order pipeline: issue I0 only; hold I1 in dispatch (same single-entry hold as §4.d)
+    - 2 stall cycles until I0 memory op completes (store visible / load data returned)
+    - Then replay I1 — memory_cache receives ordered requests only; no RAW/WAR logic in cache
+    - Same-bundle memory WAW: kill I0 write at issue (see c, Cache §6) — not stalled, suppressed
+
+    6) WAW (Write After Write) — dual-issue write same memory word
+
+        sw x6, 0(x5) | sw x7, 0(x5)
+        => same eff. addr; I1 (younger) is the architecturally visible store
+
+    - checked at dispatch (id_ex_dispatch): kill I0 store at issue (od0 mem_en=0)
+    - only I1 store reaches memory_cache; no dual write to the same word in one cycle
+
+    7) L1 cache miss
+    - stall to fetch the data in lower cache levels  
+
+Branch State Look Up
+
+    a) State transition map
+            FSM (input pc_sctrl on each transition):
+
+                    pc_sctrl=0
+                +----------------------+
+                |                      |
+                v                      |
+            +-------+  pc_sctrl=1  +-------+
+            |  00   |------------->|  01   |
+            |no take|              |no take|
+            +---+---+              +---+---+
+                ^                      |
+                | pc_sctrl=0           | pc_sctrl=1
+                |                      v
+            +---+---+  pc_sctrl=1  +-------+
+            |  10   |<-------------|  11   |
+            | take  |              | take  |
+            +-------+              +-------+
+                |                      ^
+                | pc_sctrl=0           | pc_sctrl=1
+                +----------------------+
+
+            Transition summary (next_state = f(state, pc_sctrl)):
+                00 + 0 -> 00     00 + 1 -> 01
+                01 + 0 -> 00     01 + 1 -> 11
+                10 + 0 -> 00     10 + 1 -> 11
+                11 + 0 -> 10     11 + 1 -> 11
 
 Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
 
@@ -268,7 +650,7 @@ Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
       GPR, pipeline regs, FIFOs — not all 225 KiB is available to caches)
 
     Planned cache sizes (byte-addressed, 8 bits per address):
-    - L2 data cache (largest): 2^17 bytes = (2 * 64) KiB total
+    - two L2 data cache total (largest): 2^17 bytes = (2 * 64) KiB total
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 

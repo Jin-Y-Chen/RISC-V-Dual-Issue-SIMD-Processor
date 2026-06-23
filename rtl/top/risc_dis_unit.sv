@@ -1,30 +1,115 @@
 `timescale 1ns / 1ps
 
-// RV-DIS scalar core slice: ID through EX/MEM (no fetch, no MEM/WB yet).
-// Dual decoders + GPR + ID/EX dispatch + forward unit + four lane copies
-// (ev0/ev1, od0/od1) each with a dedicated EX/MEM register.
+// RV-DIS scalar core: fetch top + decode top + ID/EX dispatch through MEM/WB.
 module risc_dis_unit
   import rv_dis_pkg::*;
-(
+#(
+  parameter pc_t RESET_PC = pc_t'(32'h0000_0000)
+) (
+  // external controls
   input  logic        clk,
   input  logic        rst_n,
+  input  logic        enable,
+
+  // internal controls
   input  logic        flush,
 
-  // Decode inputs (instr + pc per slot; fetch / IF/ID live outside this block)
-  input  logic [31:0] i0_instr_id,
-  input  logic [31:0] i1_instr_id,
-  input  logic [31:0] i0_pc_id,
-  input  logic [31:0] i1_pc_id,
-
-  // I1 replay request when I0->I1 RAW cannot same-cycle forward (e.g. LW)
-  output logic        i1_stall
+  // output data
+  output pc_t         pc_fetch,
+  output pc_t         pc_fetch_plus4,
+  output logic        stall_id
 );
 
   // -------------------------------------------------------------------------
-  // Decoder — one instance per slot (I0 older, I1 younger)
+  // Fetch — PC + instruction cache (dual-issue pair)
+  // -------------------------------------------------------------------------
+  logic        set;
+  logic [31:0] set_pc;
+  logic        i0_valid_wb;
+  logic        i1_valid_wb;
+  logic [31:0] i0_target_wb;
+  logic [31:0] i1_target_wb;
+
+  logic [31:0] i0_instr_if;
+  logic [31:0] i1_instr_if;
+  logic [31:0] i0_pc_if;
+  logic [31:0] i1_pc_if;
+  logic [31:0] i0_pc_target_if;
+  logic [31:0] i1_pc_target_if;
+
+  logic [31:0] i0_instr_id;
+  logic [31:0] i1_instr_id;
+  logic [31:0] i0_pc_id;
+  logic [31:0] i1_pc_id;
+  logic [31:0] i0_pc_target_id;
+  logic [31:0] i1_pc_target_id;
+
+  assign set           = 1'b0;
+  assign set_pc         = 32'd0;
+  assign i0_valid_wb   = 1'b0;  // tie resolved branch/jump retire here
+  assign i1_valid_wb   = 1'b0;
+  assign i0_target_wb  = 32'd0;
+  assign i1_target_wb  = 32'd0;
+  assign i0_pc_if      = pc_fetch;
+  assign i1_pc_if      = pc_fetch_plus4;
+
+  s1_fetch_struct #(
+    .RESET_PC(RESET_PC)
+  ) u_fetch (
+    // external controls
+    .clk           (clk),
+    .rst_n         (rst_n),
+    .enable        (enable),
+    // internal controls
+    .stall_i       (stall_id),
+    .set            (set),
+    // input data
+    .set_pc         (set_pc),
+    .i0_valid_wb    (i0_valid_wb),
+    .i1_valid_wb    (i1_valid_wb),
+    .i0_pc_wb       (i0_pc_wb),
+    .i1_pc_wb       (i1_pc_wb),
+    .i0_target_wb   (i0_target_wb),
+    .i1_target_wb   (i1_target_wb),
+    // output data
+    .pc0           (pc_fetch),
+    .pc1           (pc_fetch_plus4),
+    .i0_pc_target  (i0_pc_target_if),
+    .i1_pc_target  (i1_pc_target_if),
+    .instr0        (i0_instr_if),
+    .instr1        (i1_instr_if)
+  );
+
+  if_id u_if_id (
+    // external controls
+    .clk              (clk),
+    .rst_n            (rst_n),
+    .enable           (enable),
+    // internal controls
+    .flush            (flush),
+    .stall            (stall_id),
+    // input data
+    .i0_instr_if      (i0_instr_if),
+    .i1_instr_if      (i1_instr_if),
+    .i0_pc_if         (i0_pc_if),
+    .i1_pc_if         (i1_pc_if),
+    .i0_pc_target_if  (i0_pc_target_if),
+    .i1_pc_target_if  (i1_pc_target_if),
+    // output data
+    .i0_instr_id      (i0_instr_id),
+    .i1_instr_id      (i1_instr_id),
+    .i0_pc_id         (i0_pc_id),
+    .i1_pc_id         (i1_pc_id),
+    .i0_pc_target_id  (i0_pc_target_id),
+    .i1_pc_target_id  (i1_pc_target_id)
+  );
+
+  // -------------------------------------------------------------------------
+  // Decode — dual decoder + GPR
   // -------------------------------------------------------------------------
   logic        i0_valid_dec;
-  lane_sel_e   i0_lane_sel_dec;
+  logic        i0_brch_en_dec;
+  logic        i0_lane_sel_dec;
   logic [6:0]  i0_opcode_dec;
   logic [2:0]  i0_funct3_dec;
   logic [6:0]  i0_funct7_dec;
@@ -32,12 +117,11 @@ module risc_dis_unit
   logic [4:0]  i0_rs1_dec;
   logic [4:0]  i0_rs2_dec;
   logic [31:0] i0_imm_dec;
-  logic        i0_rs1_use_dec;
-  logic        i0_rs2_use_dec;
   logic        i0_reg_write_dec;
 
   logic        i1_valid_dec;
-  lane_sel_e   i1_lane_sel_dec;
+  logic        i1_brch_en_dec;
+  logic        i1_lane_sel_dec;
   logic [6:0]  i1_opcode_dec;
   logic [2:0]  i1_funct3_dec;
   logic [6:0]  i1_funct7_dec;
@@ -49,74 +133,83 @@ module risc_dis_unit
   logic        i1_rs2_use_dec;
   logic        i1_reg_write_dec;
 
-  decoder u_dec_i0 (
-    .instr     (i0_instr_id),
-    .valid     (i0_valid_dec),
-    .lane_sel  (i0_lane_sel_dec),
-    .opcode    (i0_opcode_dec),
-    .funct3    (i0_funct3_dec),
-    .funct7    (i0_funct7_dec),
-    .rd        (i0_rd_dec),
-    .rs1       (i0_rs1_dec),
-    .rs2       (i0_rs2_dec),
-    .imm       (i0_imm_dec),
-    .rs1_use   (i0_rs1_use_dec),
-    .rs2_use   (i0_rs2_use_dec),
-    .reg_write (i0_reg_write_dec)
-  );
-
-  decoder u_dec_i1 (
-    .instr     (i1_instr_id),
-    .valid     (i1_valid_dec),
-    .lane_sel  (i1_lane_sel_dec),
-    .opcode    (i1_opcode_dec),
-    .funct3    (i1_funct3_dec),
-    .funct7    (i1_funct7_dec),
-    .rd        (i1_rd_dec),
-    .rs1       (i1_rs1_dec),
-    .rs2       (i1_rs2_dec),
-    .imm       (i1_imm_dec),
-    .rs1_use   (i1_rs1_use_dec),
-    .rs2_use   (i1_rs2_use_dec),
-    .reg_write (i1_reg_write_dec)
-  );
-
-  // -------------------------------------------------------------------------
-  // Register file — slot-named read ports; WB tied off until mem_wb is added
-  // -------------------------------------------------------------------------
   reg_t i0_rs1_data;
   reg_t i0_rs2_data;
   reg_t i1_rs1_data;
   reg_t i1_rs2_data;
 
-  register_file u_regfile (
-    .clk         (clk),
-    .rst_n       (rst_n),
-    .i0_rs1_use  (i0_rs1_use_dec),
-    .i0_rs2_use  (i0_rs2_use_dec),
-    .i0_rs1_addr (i0_rs1_dec),
-    .i0_rs2_addr (i0_rs2_dec),
-    .i0_rs1_data (i0_rs1_data),
-    .i0_rs2_data (i0_rs2_data),
-    .i1_rs1_use  (i1_rs1_use_dec),
-    .i1_rs2_use  (i1_rs2_use_dec),
-    .i1_rs1_addr (i1_rs1_dec),
-    .i1_rs2_addr (i1_rs2_dec),
-    .i1_rs1_data (i1_rs1_data),
-    .i1_rs2_data (i1_rs2_data),
-    .i0_wen      (1'b0),
-    .i0_rd       (5'd0),
-    .i0_wdata    ('0),
-    .i0_wpc      ('0),
-    .i1_wen      (1'b0),
-    .i1_rd       (5'd0),
-    .i1_wdata    ('0),
-    .i1_wpc      ('0)
+  logic        i0_reg_write_wb;
+  logic [4:0]  i0_rd_addr_wb;
+  logic [31:0] i0_wdata_wb;
+  logic [31:0] i0_pc_wb;
+  logic        i1_reg_write_wb;
+  logic [4:0]  i1_rd_addr_wb;
+  logic [31:0] i1_wdata_wb;
+  logic [31:0] i1_pc_wb;
+
+  s2_decode_struct u_decode (
+    // external controls
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .enable          (enable),
+    // internal controls
+    .i0_wen          (i0_reg_write_wb),
+    .i1_wen          (i1_reg_write_wb),
+    // input data
+    .i0_instr        (i0_instr_id),
+    .i1_instr        (i1_instr_id),
+    .i0_rd           (i0_rd_addr_wb),
+    .i0_wdata        (i0_wdata_wb),
+    .i0_wpc          (i0_pc_wb),
+    .i1_rd           (i1_rd_addr_wb),
+    .i1_wdata        (i1_wdata_wb),
+    .i1_wpc          (i1_pc_wb),
+    // output data
+    .i0_lane_sel     (i0_lane_sel_dec),
+    .i0_opcode       (i0_opcode_dec),
+    .i0_funct3       (i0_funct3_dec),
+    .i0_funct7       (i0_funct7_dec),
+    .i0_rd_addr      (i0_rd_dec),
+    .i0_rs1_addr     (i0_rs1_dec),
+    .i0_rs2_addr     (i0_rs2_dec),
+    .i0_imm          (i0_imm_dec),
+    .i0_rs1_data     (i0_rs1_data),
+    .i0_rs2_data     (i0_rs2_data),
+    .i1_lane_sel     (i1_lane_sel_dec),
+    .i1_opcode       (i1_opcode_dec),
+    .i1_funct3       (i1_funct3_dec),
+    .i1_funct7       (i1_funct7_dec),
+    .i1_rd_addr      (i1_rd_dec),
+    .i1_rs1_addr     (i1_rs1_dec),
+    .i1_rs2_addr     (i1_rs2_dec),
+    .i1_imm          (i1_imm_dec),
+    .i1_rs1_data     (i1_rs1_data),
+    .i1_rs2_data     (i1_rs2_data),
+    // output controls
+    .i0_valid        (i0_valid_dec),
+    .i0_brch_en     (i0_brch_en_dec),
+    .i0_reg_write    (i0_reg_write_dec),
+    .i1_valid        (i1_valid_dec),
+    .i1_brch_en     (i1_brch_en_dec),
+    .i1_rs1_use      (i1_rs1_use_dec),
+    .i1_rs2_use      (i1_rs2_use_dec),
+    .i1_reg_write    (i1_reg_write_dec)
   );
+
+  // Same-bundle / in-flight GPR RAW: id_ex_dispatch scoreboard (stall_id, I1 hold replay).
 
   // -------------------------------------------------------------------------
   // ID/EX dispatch — fixed slot map into four lane copies
   // -------------------------------------------------------------------------
+  logic        ev0_reg_write_exwb;
+  logic [4:0]  ev0_rd_addr_exwb;
+  logic [31:0] ev0_wdata_exwb;
+  logic [31:0] ev0_pc_exwb;
+  logic        ev1_reg_write_exwb;
+  logic [4:0]  ev1_rd_addr_exwb;
+  logic [31:0] ev1_wdata_exwb;
+  logic [31:0] ev1_pc_exwb;
+
   logic        i0_reg_write_ex;
   logic        i1_reg_write_ex;
   logic [31:0] i0_pc_ex;
@@ -168,9 +261,24 @@ module risc_dis_unit
   logic [31:0] od1_rs2_data_ex;
   logic [31:0] od1_pc_ex;
 
+  logic [31:0] od0_load_mem_data;
+  logic [31:0] od1_load_mem_data;
+  logic [31:0] od0_wdata_mem_fwd;
+  logic [31:0] od1_wdata_mem_fwd;
+
+  logic        wb_push0_valid;
+  logic [4:0]  wb_push0_rd;
+  logic [31:0] wb_push0_wdata;
+  logic [31:0] wb_push0_pc;
+  logic        wb_push1_valid;
+  logic [4:0]  wb_push1_rd;
+  logic [31:0] wb_push1_wdata;
+  logic [31:0] wb_push1_pc;
+
   id_ex_dispatch u_dispatch (
     .clk             (clk),
     .rst_n           (rst_n),
+    .enable          (enable),
     .flush           (flush),
     .i0_valid_id     (i0_valid_dec),
     .i0_lane_sel_id  (i0_lane_sel_dec),
@@ -193,11 +301,14 @@ module risc_dis_unit
     .i1_rd_addr_id   (i1_rd_dec),
     .i1_rs1_addr_id  (i1_rs1_dec),
     .i1_rs2_addr_id  (i1_rs2_dec),
+    .i1_rs1_use_id   (i1_rs1_use_dec),
+    .i1_rs2_use_id   (i1_rs2_use_dec),
     .i1_reg_write_id (i1_reg_write_dec),
     .i1_imm_id       (i1_imm_dec),
     .i1_rs1_data_id  (i1_rs1_data),
     .i1_rs2_data_id  (i1_rs2_data),
     .i1_pc_id        (i1_pc_id),
+    .stall_id        (stall_id),
     .i0_reg_write_ex (i0_reg_write_ex),
     .i1_reg_write_ex (i1_reg_write_ex),
     .i0_pc_ex        (i0_pc_ex),
@@ -247,12 +358,13 @@ module risc_dis_unit
   );
 
   // -------------------------------------------------------------------------
-  // Execution lanes (combinational) — wired after forward_unit below
+  // Execute — forward unit + four lanes 
   // -------------------------------------------------------------------------
   logic [31:0] ev0_alu_result;
   logic [31:0] ev1_alu_result;
 
-  logic        od0_unit_done;
+  logic        od0_use_link_ex;
+  logic        od1_use_link_ex;
   logic        od0_brch_taken;
   logic [31:0] od0_brch_pc;
   logic        od0_mem_en;
@@ -273,152 +385,126 @@ module risc_dis_unit
   logic [31:0] od1_link_pc;
   logic [31:0] od1_alu_result;
 
-  logic [31:0] ev0_rs1_data_fwd;
-  logic [31:0] ev0_rs2_data_fwd;
-  logic [31:0] ev1_rs1_data_fwd;
-  logic [31:0] ev1_rs2_data_fwd;
-  logic [31:0] od0_rs1_data_fwd;
-  logic [31:0] od0_rs2_data_fwd;
-  logic [31:0] od1_rs1_data_fwd;
-  logic [31:0] od1_rs2_data_fwd;
+  logic        od0_use_link_mem;
+  logic        od1_use_link_mem;
+  logic        od0_reg_write_mem;
+  logic [4:0]  od0_rd_mem;
+  logic        od0_brch_taken_mem;
+  logic [31:0] od0_brch_pc_mem;
+  logic        od0_mem_en_mem;
+  logic        od0_mem_act_mem;
+  logic [31:0] od0_mem_addr_mem;
+  logic [31:0] od0_mem_wdata_mem;
+  logic [3:0]  od0_mem_besel_mem;
+  logic [31:0] od0_link_pc_mem;
+  logic [31:0] od0_alu_result_mem;
+  logic [31:0] od0_pc_mem;
 
-  // I0 odd-lane producer result for same-cycle forward (link_pc vs alu_result)
-  logic [31:0] od0_result_fwd;
-  assign od0_result_fwd = ((od0_opcode_ex == OPC_JAL) || (od0_opcode_ex == OPC_JALR))
-                          ? od0_link_pc : od0_alu_result;
+  logic        od1_reg_write_mem;
+  logic [4:0]  od1_rd_mem;
+  logic        od1_brch_taken_mem;
+  logic [31:0] od1_brch_pc_mem;
+  logic        od1_mem_en_mem;
+  logic        od1_mem_act_mem;
+  logic [31:0] od1_mem_addr_mem;
+  logic [31:0] od1_mem_wdata_mem;
+  logic [3:0]  od1_mem_besel_mem;
+  logic [31:0] od1_link_pc_mem;
+  logic [31:0] od1_alu_result_mem;
+  logic [31:0] od1_pc_mem;
 
-  // -------------------------------------------------------------------------
-  // Forward unit — WB ports tied off until mem_wb is integrated
-  // -------------------------------------------------------------------------
-  forward_unit u_forward (
-    .clk              (clk),
-    .rst_n            (rst_n),
-    .ev0_enable       (ev0_enable_ex),
-    .ev0_rs1_addr     (ev0_rs1_addr_ex),
-    .ev0_rs2_addr     (ev0_rs2_addr_ex),
-    .ev0_rs1_data     (ev0_rs1_data_ex),
-    .ev0_rs2_data     (ev0_rs2_data_ex),
-    .ev1_enable       (ev1_enable_ex),
-    .ev1_rs1_addr     (ev1_rs1_addr_ex),
-    .ev1_rs2_addr     (ev1_rs2_addr_ex),
-    .ev1_rs1_data     (ev1_rs1_data_ex),
-    .ev1_rs2_data     (ev1_rs2_data_ex),
-    .od0_enable       (od0_enable_ex),
-    .od0_rs1_addr     (od0_rs1_addr_ex),
-    .od0_rs2_addr     (od0_rs2_addr_ex),
-    .od0_rs1_data     (od0_rs1_data_ex),
-    .od0_rs2_data     (od0_rs2_data_ex),
-    .od1_enable       (od1_enable_ex),
-    .od1_rs1_addr     (od1_rs1_addr_ex),
-    .od1_rs2_addr     (od1_rs2_addr_ex),
-    .od1_rs1_data     (od1_rs1_data_ex),
-    .od1_rs2_data     (od1_rs2_data_ex),
-    .i0_reg_write     (i0_reg_write_ex),
-    .i0_rd_addr       (ev0_rd_ex),
-    .ev0_unit_done    (ev0_enable_ex),
-    .ev0_result       (ev0_alu_result),
-    .od0_unit_done    (od0_unit_done),
-    .od0_result       (od0_result_fwd),
-    .wb0_reg_write    (1'b0),
-    .wb0_rd_addr      (5'd0),
-    .wb0_data         ('0),
-    .wb0_pc           ('0),
-    .wb1_reg_write    (1'b0),
-    .wb1_rd_addr      (5'd0),
-    .wb1_data         ('0),
-    .wb1_pc           ('0),
-    .ev0_rs1_data_fwd (ev0_rs1_data_fwd),
-    .ev0_rs2_data_fwd (ev0_rs2_data_fwd),
-    .ev1_rs1_data_fwd (ev1_rs1_data_fwd),
-    .ev1_rs2_data_fwd (ev1_rs2_data_fwd),
-    .od0_rs1_data_fwd (od0_rs1_data_fwd),
-    .od0_rs2_data_fwd (od0_rs2_data_fwd),
-    .od1_rs1_data_fwd (od1_rs1_data_fwd),
-    .od1_rs2_data_fwd (od1_rs2_data_fwd),
-    .i1_stall         (i1_stall)
-  );
-
-  even_lane_i0 u_ev0 (
-    .enable     (ev0_enable_ex),
-    .opcode     (ev0_opcode_ex),
-    .funct3     (ev0_funct3_ex),
-    .funct7     (ev0_funct7_ex),
-    .rs1_data   (ev0_rs1_data_fwd),
-    .rs2_data   (ev0_rs2_data_fwd),
-    .imm        (ev0_imm_ex),
-    .alu_result (ev0_alu_result)
-  );
-
-  even_lane_i1 u_ev1 (
-    .enable     (ev1_enable_ex),
-    .opcode     (ev1_opcode_ex),
-    .funct3     (ev1_funct3_ex),
-    .funct7     (ev1_funct7_ex),
-    .rs1_data   (ev1_rs1_data_fwd),
-    .rs2_data   (ev1_rs2_data_fwd),
-    .imm        (ev1_imm_ex),
-    .alu_result (ev1_alu_result)
-  );
-
-  odd_lane_i0 u_od0 (
-    .enable     (od0_enable_ex),
-    .opcode     (od0_opcode_ex),
-    .funct3     (od0_funct3_ex),
-    .rs1_data   (od0_rs1_data_fwd),
-    .rs2_data   (od0_rs2_data_fwd),
-    .imm        (od0_imm_ex),
-    .pc         (od0_pc_ex),
-    .unit_done  (od0_unit_done),
-    .brch_taken (od0_brch_taken),
-    .brch_pc    (od0_brch_pc),
-    .mem_en     (od0_mem_en),
-    .mem_act    (od0_mem_act),
-    .mem_addr   (od0_mem_addr),
-    .mem_wdata  (od0_mem_wdata),
-    .mem_besel  (od0_mem_besel),
-    .link_pc    (od0_link_pc),
-    .alu_result (od0_alu_result)
-  );
-
-  odd_lane_i1 u_od1 (
-    .enable     (od1_enable_ex),
-    .opcode     (od1_opcode_ex),
-    .funct3     (od1_funct3_ex),
-    .rs1_data   (od1_rs1_data_fwd),
-    .rs2_data   (od1_rs2_data_fwd),
-    .imm        (od1_imm_ex),
-    .pc         (od1_pc_ex),
-    .brch_taken (od1_brch_taken),
-    .brch_pc    (od1_brch_pc),
-    .mem_en     (od1_mem_en),
-    .mem_act    (od1_mem_act),
-    .mem_addr   (od1_mem_addr),
-    .mem_wdata  (od1_mem_wdata),
-    .mem_besel  (od1_mem_besel),
-    .link_pc    (od1_link_pc),
-    .alu_result (od1_alu_result)
+  s3_execute_struct u_execute (
+    // internal controls
+    .i0_reg_write_ex     (i0_reg_write_ex),
+    .i1_reg_write_ex     (i1_reg_write_ex),
+    .ev0_enable_ex       (ev0_enable_ex),
+    .ev1_enable_ex       (ev1_enable_ex),
+    .od0_enable_ex       (od0_enable_ex),
+    .od1_enable_ex       (od1_enable_ex),
+    .wb0_reg_write       (i0_reg_write_wb),
+    .wb1_reg_write       (i1_reg_write_wb),
+    // input data
+    .i0_pc_ex            (i0_pc_ex),
+    .i1_pc_ex            (i1_pc_ex),
+    .ev0_opcode_ex       (ev0_opcode_ex),
+    .ev0_funct3_ex       (ev0_funct3_ex),
+    .ev0_funct7_ex       (ev0_funct7_ex),
+    .ev0_rd_ex           (ev0_rd_ex),
+    .ev0_rs1_addr_ex     (ev0_rs1_addr_ex),
+    .ev0_rs2_addr_ex     (ev0_rs2_addr_ex),
+    .ev0_imm_ex          (ev0_imm_ex),
+    .ev0_rs1_data_ex     (ev0_rs1_data_ex),
+    .ev0_rs2_data_ex     (ev0_rs2_data_ex),
+    .ev0_pc_ex           (ev0_pc_ex),
+    .ev1_opcode_ex       (ev1_opcode_ex),
+    .ev1_funct3_ex       (ev1_funct3_ex),
+    .ev1_funct7_ex       (ev1_funct7_ex),
+    .ev1_rd_ex           (ev1_rd_ex),
+    .ev1_rs1_addr_ex     (ev1_rs1_addr_ex),
+    .ev1_rs2_addr_ex     (ev1_rs2_addr_ex),
+    .ev1_imm_ex          (ev1_imm_ex),
+    .ev1_rs1_data_ex     (ev1_rs1_data_ex),
+    .ev1_rs2_data_ex     (ev1_rs2_data_ex),
+    .ev1_pc_ex           (ev1_pc_ex),
+    .od0_opcode_ex       (od0_opcode_ex),
+    .od0_funct3_ex       (od0_funct3_ex),
+    .od0_rd_ex           (od0_rd_ex),
+    .od0_rs1_addr_ex     (od0_rs1_addr_ex),
+    .od0_rs2_addr_ex     (od0_rs2_addr_ex),
+    .od0_imm_ex          (od0_imm_ex),
+    .od0_rs1_data_ex     (od0_rs1_data_ex),
+    .od0_rs2_data_ex     (od0_rs2_data_ex),
+    .od0_pc_ex           (od0_pc_ex),
+    .od1_opcode_ex       (od1_opcode_ex),
+    .od1_funct3_ex       (od1_funct3_ex),
+    .od1_rd_ex           (od1_rd_ex),
+    .od1_rs1_addr_ex     (od1_rs1_addr_ex),
+    .od1_rs2_addr_ex     (od1_rs2_addr_ex),
+    .od1_imm_ex          (od1_imm_ex),
+    .od1_rs1_data_ex     (od1_rs1_data_ex),
+    .od1_rs2_data_ex     (od1_rs2_data_ex),
+    .od1_pc_ex           (od1_pc_ex),
+    .wb0_rd_addr         (i0_rd_addr_wb),
+    .wb0_data            (i0_wdata_wb),
+    .wb0_pc              (i0_pc_wb),
+    .wb1_rd_addr         (i1_rd_addr_wb),
+    .wb1_data            (i1_wdata_wb),
+    .wb1_pc              (i1_pc_wb),
+    // output controls
+    .od0_use_link_ex     (od0_use_link_ex),
+    .od1_use_link_ex     (od1_use_link_ex),
+    .od0_brch_taken      (od0_brch_taken),
+    .od0_mem_en          (od0_mem_en),
+    .od0_mem_act         (od0_mem_act),
+    .od1_brch_taken      (od1_brch_taken),
+    .od1_mem_en          (od1_mem_en),
+    .od1_mem_act         (od1_mem_act),
+    // output data
+    .ev0_alu_result      (ev0_alu_result),
+    .ev1_alu_result      (ev1_alu_result),
+    .od0_brch_pc         (od0_brch_pc),
+    .od0_mem_addr        (od0_mem_addr),
+    .od0_mem_wdata       (od0_mem_wdata),
+    .od0_mem_besel       (od0_mem_besel),
+    .od0_link_pc         (od0_link_pc),
+    .od0_alu_result      (od0_alu_result),
+    .od1_brch_pc         (od1_brch_pc),
+    .od1_mem_addr        (od1_mem_addr),
+    .od1_mem_wdata       (od1_mem_wdata),
+    .od1_mem_besel       (od1_mem_besel),
+    .od1_link_pc         (od1_link_pc),
+    .od1_alu_result      (od1_alu_result)
   );
 
   // -------------------------------------------------------------------------
-  // EX/MEM — four lane copies in one pipeline register
+  // EX/MEM — odd-lane pipeline register
   // -------------------------------------------------------------------------
   ex_mem u_ex_mem (
     .clk                 (clk),
     .rst_n               (rst_n),
-    .stall_ev0           (1'b0),
-    .stall_ev1           (1'b0),
+    .enable              (enable),
     .stall_od0           (1'b0),
     .stall_od1           (1'b0),
-    .ev0_enable_ex       (ev0_enable_ex),
-    .ev0_reg_write_ex    (i0_reg_write_ex),
-    .ev0_rd_ex           (ev0_rd_ex),
-    .ev0_alu_result_ex   (ev0_alu_result),
-    .ev0_pc_ex           (i0_pc_ex),
-    .ev1_enable_ex       (ev1_enable_ex),
-    .ev1_reg_write_ex    (i1_reg_write_ex),
-    .ev1_rd_ex           (ev1_rd_ex),
-    .ev1_alu_result_ex   (ev1_alu_result),
-    .ev1_pc_ex           (i1_pc_ex),
     .od0_enable_ex       (od0_enable_ex),
     .od0_reg_write_ex    (i0_reg_write_ex),
     .od0_rd_ex           (od0_rd_ex),
@@ -431,6 +517,7 @@ module risc_dis_unit
     .od0_mem_besel_ex    (od0_mem_besel),
     .od0_link_pc_ex      (od0_link_pc),
     .od0_alu_result_ex   (od0_alu_result),
+    .od0_use_link_ex     (od0_use_link_ex),
     .od0_pc_ex           (i0_pc_ex),
     .od1_enable_ex       (od1_enable_ex),
     .od1_reg_write_ex    (i1_reg_write_ex),
@@ -444,7 +531,124 @@ module risc_dis_unit
     .od1_mem_besel_ex    (od1_mem_besel),
     .od1_link_pc_ex      (od1_link_pc),
     .od1_alu_result_ex   (od1_alu_result),
-    .od1_pc_ex           (i1_pc_ex)
+    .od1_use_link_ex     (od1_use_link_ex),
+    .od1_pc_ex           (i1_pc_ex),
+    .od0_reg_write_mem   (od0_reg_write_mem),
+    .od0_rd_mem          (od0_rd_mem),
+    .od0_brch_taken_mem  (od0_brch_taken_mem),
+    .od0_brch_pc_mem     (od0_brch_pc_mem),
+    .od0_mem_en_mem      (od0_mem_en_mem),
+    .od0_mem_act_mem     (od0_mem_act_mem),
+    .od0_mem_addr_mem    (od0_mem_addr_mem),
+    .od0_mem_wdata_mem   (od0_mem_wdata_mem),
+    .od0_mem_besel_mem   (od0_mem_besel_mem),
+    .od0_link_pc_mem     (od0_link_pc_mem),
+    .od0_alu_result_mem  (od0_alu_result_mem),
+    .od0_use_link_mem    (od0_use_link_mem),
+    .od0_pc_mem          (od0_pc_mem),
+    .od1_reg_write_mem   (od1_reg_write_mem),
+    .od1_rd_mem          (od1_rd_mem),
+    .od1_brch_taken_mem  (od1_brch_taken_mem),
+    .od1_brch_pc_mem     (od1_brch_pc_mem),
+    .od1_mem_en_mem      (od1_mem_en_mem),
+    .od1_mem_act_mem     (od1_mem_act_mem),
+    .od1_mem_addr_mem    (od1_mem_addr_mem),
+    .od1_mem_wdata_mem   (od1_mem_wdata_mem),
+    .od1_mem_besel_mem   (od1_mem_besel_mem),
+    .od1_link_pc_mem     (od1_link_pc_mem),
+    .od1_alu_result_mem  (od1_alu_result_mem),
+    .od1_use_link_mem    (od1_use_link_mem),
+    .od1_pc_mem          (od1_pc_mem)
   );
+
+  // -------------------------------------------------------------------------
+  // Memory — L1 data cache
+  // -------------------------------------------------------------------------
+  logic        dcache_busy;
+
+  s4_memory_struct u_memory (
+    // external controls
+    .clk               (clk),
+    .rst_n             (rst_n),
+    .enable            (enable),
+    // internal controls
+    .od0_mem_en_mem    (od0_mem_en_mem),
+    .od0_mem_act_mem   (od0_mem_act_mem),
+    .od1_mem_en_mem    (od1_mem_en_mem),
+    .od1_mem_act_mem   (od1_mem_act_mem),
+    // input data
+    .od0_mem_addr_mem  (od0_mem_addr_mem),
+    .od0_mem_wdata_mem (od0_mem_wdata_mem),
+    .od0_mem_besel_mem (od0_mem_besel_mem),
+    .od1_mem_addr_mem  (od1_mem_addr_mem),
+    .od1_mem_wdata_mem (od1_mem_wdata_mem),
+    .od1_mem_besel_mem (od1_mem_besel_mem),
+    // output data
+    .od0_load_mem_data (od0_load_mem_data),
+    .od1_load_mem_data (od1_load_mem_data),
+    // output controls
+    .dcache_busy       (dcache_busy)
+  );
+
+  // -------------------------------------------------------------------------
+  // EX/WB + MEM/WB — even EX bank + odd MEM bank (ex_mem_wb)
+  // -------------------------------------------------------------------------
+  ex_mem_wb u_ex_mem_wb (
+    .clk                (clk),
+    .rst_n              (rst_n),
+    .enable             (enable),
+    .flush              (flush),
+    .ev0_reg_write_ex   (ev0_enable_ex && i0_reg_write_ex),
+    .ev0_rd_addr_ex     (ev0_rd_ex),
+    .ev0_wdata_ex       (ev0_alu_result),
+    .ev0_pc_ex          (i0_pc_ex),
+    .ev1_reg_write_ex   (ev1_enable_ex && i1_reg_write_ex),
+    .ev1_rd_addr_ex     (ev1_rd_ex),
+    .ev1_wdata_ex       (ev1_alu_result),
+    .ev1_pc_ex          (i1_pc_ex),
+    .od0_reg_write_mem  (od0_reg_write_mem),
+    .od0_rd_addr_mem    (od0_rd_mem),
+    .od0_pc_mem         (od0_pc_mem),
+    .od0_use_link_mem   (od0_use_link_mem),
+    .od0_alu_result_mem (od0_alu_result_mem),
+    .od0_mem_en_mem     (od0_mem_en_mem),
+    .od0_mem_act_mem    (od0_mem_act_mem),
+    .od0_load_mem_data     (od0_load_mem_data),
+    .od1_reg_write_mem  (od1_reg_write_mem),
+    .od1_rd_addr_mem    (od1_rd_mem),
+    .od1_pc_mem         (od1_pc_mem),
+    .od1_use_link_mem   (od1_use_link_mem),
+    .od1_alu_result_mem (od1_alu_result_mem),
+    .od1_mem_en_mem     (od1_mem_en_mem),
+    .od1_mem_act_mem    (od1_mem_act_mem),
+    .od1_load_mem_data     (od1_load_mem_data),
+    .ev0_reg_write_exwb (ev0_reg_write_exwb),
+    .ev0_rd_addr_exwb   (ev0_rd_addr_exwb),
+    .ev0_wdata_exwb     (ev0_wdata_exwb),
+    .ev0_pc_exwb        (ev0_pc_exwb),
+    .ev1_reg_write_exwb (ev1_reg_write_exwb),
+    .ev1_rd_addr_exwb   (ev1_rd_addr_exwb),
+    .ev1_wdata_exwb     (ev1_wdata_exwb),
+    .ev1_pc_exwb        (ev1_pc_exwb),
+    .od0_wdata_mem      (od0_wdata_mem_fwd),
+    .od1_wdata_mem      (od1_wdata_mem_fwd),
+    .push0_valid        (wb_push0_valid),
+    .push0_rd           (wb_push0_rd),
+    .push0_wdata        (wb_push0_wdata),
+    .push0_pc           (wb_push0_pc),
+    .push1_valid        (wb_push1_valid),
+    .push1_rd           (wb_push1_rd),
+    .push1_wdata        (wb_push1_wdata),
+    .push1_pc           (wb_push1_pc)
+  );
+
+  assign i0_reg_write_wb = wb_push0_valid;
+  assign i0_rd_addr_wb   = wb_push0_rd;
+  assign i0_wdata_wb     = wb_push0_wdata;
+  assign i0_pc_wb        = wb_push0_pc;
+  assign i1_reg_write_wb = wb_push1_valid;
+  assign i1_rd_addr_wb   = wb_push1_rd;
+  assign i1_wdata_wb     = wb_push1_wdata;
+  assign i1_pc_wb        = wb_push1_pc;
 
 endmodule

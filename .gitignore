@@ -1,14 +1,23 @@
-# Vivado / simulator generated
+# Vivado / simulator generated (repo root — use sim/build via run_vivado_sim.ps1)
+/xvlog.log
+/xvlog.pb
+/xelab.log
+/xelab.pb
+/xsim.log
+/xsim.jou
+/xsim.dir/
 *.jou
 *.log
 *.pb
 *.wdb
 *.str
 dfx_runtime.txt
+**/dfx_runtime.txt
 Xilinx/
 .xsim/
 xsim.dir/
 sim/xsim.dir/
+sim/build/
 
 # Local sim log archives (keep scripts/config tracked)
 sim/logs/register_file_tb_*/

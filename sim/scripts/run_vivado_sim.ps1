@@ -1,22 +1,30 @@
-# Run Vivado XSIM for a selected TB and archive logs under sim/logs.
+# Vivado XSIM runner + artifact cleanup for this repo.
 #
-# Example:
+# Run simulation:
 #   .\sim\scripts\run_vivado_sim.ps1 -Top pc_tb
 #   .\sim\scripts\run_vivado_sim.ps1 -All
 #   .\sim\scripts\run_vivado_sim.ps1 -All -DeleteOddLogs
 #
+# Clean Vivado junk only (xvlog.log, xsim.dir, etc.):
+#   .\sim\scripts\run_vivado_sim.ps1 -Clean
+#
 # Behavior:
-# - Runs xvlog/xelab/xsim from repo root
+# - Runs xvlog/xelab/xsim from sim/build (no tool logs in repo root)
 # - Writes full simulation output log to sim/logs
 # - Writes current run logs to sim/logs/current/<tb_top>/
-# - Moves previous current run logs to sim/logs/temp/
-# - Removes xsim.dir and root-generated simulator artifacts by default
+# - Moves previous current run logs to sim/logs/temp/<timestamp>/ (accumulates; delete manually)
+# - Removes sim/build (including xsim.dir) and stray Vivado artifacts after each run
 
 param(
+    [switch]$Clean,
+
     [ValidateSet(
       "pc_tb",
+      "instruction_cache_tb",
+      "target_buffer_tb",
       "if_id_tb",
       "decoder_tb",
+      "state_buffer_tb",
       "register_file_tb",
       "dispatch_hazard_tb",
       "even_lane_tb",
@@ -24,7 +32,9 @@ param(
       "id_ex_dispatch_tb",
       "forward_unit_tb",
       "ex_mem_tb",
-      "memory_cache_tb"
+      "memory_cache_tb",
+      "scoreboard_tb",
+      "ex_mem_wb_tb"
     )]
     [string]$Top,
 
@@ -38,8 +48,11 @@ $ErrorActionPreference = "Stop"
 
 $AllTops = @(
   "pc_tb",
+  "instruction_cache_tb",
+  "target_buffer_tb",
   "if_id_tb",
   "decoder_tb",
+  "state_buffer_tb",
   "register_file_tb",
   #"dispatch_hazard_tb",
   "even_lane_tb",
@@ -47,100 +60,188 @@ $AllTops = @(
   "id_ex_dispatch_tb",
   "forward_unit_tb",
   "ex_mem_tb",
-  "memory_cache_tb"
+  "memory_cache_tb",
+  "scoreboard_tb",
+  "ex_mem_wb_tb"
 )
 
-if ($All -and $Top) {
-  throw "Use either -All or -Top, not both."
+function Remove-VivadoRootArtifacts([string]$RepoRoot) {
+  $artifactNames = @(
+    "xvlog.log", "xvlog.pb",
+    "xelab.log", "xelab.pb",
+    "xsim.log",  "xsim.jou",
+    "xsim_*.backup.log", "xsim_*.backup.jou",
+    "*.wdb",
+    "dfx_runtime.txt"
+  )
+
+  $runtimePaths = @(
+    (Join-Path $RepoRoot "dfx_runtime.txt"),
+    (Join-Path $RepoRoot "sim\dfx_runtime.txt"),
+    (Join-Path $RepoRoot "sim\build\dfx_runtime.txt")
+  )
+
+  foreach ($path in $runtimePaths) {
+    Remove-Item $path -Force -ErrorAction SilentlyContinue
+  }
+
+  $xsimDirPaths = @(
+    (Join-Path $RepoRoot "xsim.dir"),
+    (Join-Path $RepoRoot "sim\xsim.dir"),
+    (Join-Path $RepoRoot "sim\build\xsim.dir")
+  )
+
+  foreach ($dir in $xsimDirPaths) {
+    Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  Get-ChildItem -Path $RepoRoot -Directory -Filter "xsim.dir" -Recurse -Depth 3 `
+    -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+  $simRoot = Join-Path $RepoRoot "sim"
+  if (Test-Path $simRoot) {
+    Get-ChildItem -Path $simRoot -Filter "dfx_runtime.txt" -Recurse `
+      -ErrorAction SilentlyContinue |
+      Remove-Item -Force -ErrorAction SilentlyContinue
+  }
+
+  foreach ($pattern in $artifactNames) {
+    Get-ChildItem -Path $RepoRoot -Filter $pattern -Recurse -Depth 3 `
+      -ErrorAction SilentlyContinue |
+      Remove-Item -Force -ErrorAction SilentlyContinue
+  }
 }
-if (-not $All -and -not $Top) {
-  throw "Provide one target (-Top <tb>) or run all (-All)."
+
+function Remove-VivadoBuildDir([string]$BuildDir) {
+  if (Test-Path $BuildDir) {
+    Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }
 
 function Get-TbSources([string]$TbTop) {
     switch ($TbTop) {
         "pc_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s1_fetch/pc.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s1_fetch/core/pc.sv",
                 "sim/tb/s1_fetch/pc_tb.sv"
+            )
+        }
+        "instruction_cache_tb" {
+            return @(
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
+                "rtl/s1_fetch/core/instruction_cache.sv",
+                "sim/tb/s1_fetch/instruction_cache_tb.sv"
+            )
+        }
+        "target_buffer_tb" {
+            return @(
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
+                "rtl/s1_fetch/branch/target_buffer.sv",
+                "sim/tb/s1_fetch/target_buffer_tb.sv"
             )
         }
         "if_id_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/if_id.sv",
                 "sim/tb/s2_decode/if_id_tb.sv"
             )
         }
         "decoder_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/decode_pkg.sv",
-                "rtl/s2_decode/decoder.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
                 "sim/tb/s2_decode/decoder_tb.sv"
+            )
+        }
+        "state_buffer_tb" {
+            return @(
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
+                "rtl/s4_memory/branch/state_LUT.sv",
+                "rtl/s2_decode/branch/state_buffer.sv",
+                "sim/tb/s2_decode/state_buffer_tb.sv"
             )
         }
         "register_file_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/decode_pkg.sv",
-                "rtl/s2_decode/register_file.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
+                "rtl/s2_decode/core/register_file.sv",
                 "sim/tb/s2_decode/register_file_tb.sv"
             )
         }
         "dispatch_hazard_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/decode_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
                 "sim/tb/s2_decode/dispatch_hazard_tb.sv"
             )
         }
         "even_lane_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/decode_pkg.sv",
-                "rtl/s3_execution/even_lane/scalar_alu.sv",
-                "rtl/s3_execution/even_lane/even_lane.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decoder.sv",
+                "rtl/s3_execution/core/even_funct/scalar_alu.sv",
+                "rtl/s3_execution/core/even_lane.sv",
                 "sim/tb/s3_execute/even_lane_tb.sv"
             )
         }
         "odd_lane_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s2_decode/decode_pkg.sv",
-                "rtl/s3_execution/odd_lane/branch_unit.sv",
-                "rtl/s3_execution/odd_lane/memory_access.sv",
-                "rtl/s3_execution/odd_lane/odd_lane.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s3_execution/core/odd_funct/branch_unit.sv",
+                "rtl/s3_execution/core/odd_funct/memory_access.sv",
+                "rtl/s3_execution/core/odd_lane.sv",
                 "sim/tb/s3_execute/odd_lane_tb.sv"
             )
         }
         "id_ex_dispatch_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s3_execution/dispatch_funct/scoreboard.sv",
                 "rtl/s3_execution/id_ex_dispatch.sv",
                 "sim/tb/s3_execute/id_ex_dispatch_tb.sv"
             )
         }
         "forward_unit_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s3_execution/forward_unit.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s3_execution/core/forward_unit.sv",
                 "sim/tb/s3_execute/forward_unit_tb.sv"
             )
         }
         "ex_mem_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
+                "rtl/package/rv_dis_pkg.sv",
                 "rtl/s4_memory/ex_mem.sv",
                 "sim/tb/s4_memory/ex_mem_tb.sv"
             )
         }
         "memory_cache_tb" {
             return @(
-                "rtl/common/rv_dis_pkg.sv",
-                "rtl/s4_memory/memory_cache.sv",
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/package/cache_pkg.sv",
+                "rtl/s4_memory/core/memory_cache.sv",
                 "sim/tb/s4_memory/memory_cache_tb.sv"
+            )
+        }
+        "scoreboard_tb" {
+            return @(
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s3_execution/dispatch_funct/scoreboard.sv",
+                "sim/tb/s3_execute/scoreboard_tb.sv"
+            )
+        }
+        "ex_mem_wb_tb" {
+            return @(
+                "rtl/package/rv_dis_pkg.sv",
+                "rtl/s5_wback/ex_mem_wb.sv",
+                "sim/tb/s5_wback/ex_mem_wb_tb.sv"
             )
         }
         default {
@@ -152,6 +253,7 @@ function Get-TbSources([string]$TbTop) {
 function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [string]$SettingsBat) {
   $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
   $tbOutDir = Join-Path $CurrentDir $TbTop
+  $buildDir = Join-Path $RepoRoot "sim\build"
 
   $srcs = Get-TbSources $TbTop
   foreach ($src in $srcs) {
@@ -162,19 +264,21 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
   }
 
   New-Item -ItemType Directory -Force -Path $tbOutDir | Out-Null
+  Remove-VivadoBuildDir -BuildDir $buildDir
+  New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
   $snapshot = "${TbTop}_sim"
-  $srcArg = ($srcs -join " ")
-  $runCmd = "xvlog --sv -i sim/tb $srcArg && xelab $TbTop -s $snapshot && xsim $snapshot -runall"
+  $srcArg = (($srcs | ForEach-Object { "../../$_" }) -join " ")
+  $runCmd = "xvlog --sv -i ../../sim/tb $srcArg && xelab $TbTop -s $snapshot && xsim $snapshot -runall"
 
-  Push-Location $RepoRoot
+  Push-Location $buildDir
   try {
     cmd /c """$SettingsBat"" && $runCmd"
     if ($LASTEXITCODE -ne 0) {
       throw "Vivado simulation failed for top '$TbTop' (exit $LASTEXITCODE)."
     }
 
-    $xsimLog = Join-Path $RepoRoot "xsim.log"
+    $xsimLog = Join-Path $buildDir "xsim.log"
     if (-not (Test-Path $xsimLog)) {
       throw "xsim.log not found after simulation."
     }
@@ -208,22 +312,9 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
     $tbLines | Set-Content (Join-Path $tbOutDir "tb.log")
     $summaryLines | Set-Content (Join-Path $tbOutDir "summary.txt")
 
-    $artifactNames = @(
-      "xvlog.log", "xvlog.pb",
-      "xelab.log", "xelab.pb",
-      "xsim.log",  "xsim.jou",
-      "xsim_*.backup.log", "xsim_*.backup.jou",
-      "dfx_runtime.txt"
-    )
-
-    Remove-Item (Join-Path $RepoRoot "xsim.dir") -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item (Join-Path $RepoRoot "sim\xsim.dir") -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item (Join-Path $RepoRoot "$snapshot.wdb") -Force -ErrorAction SilentlyContinue
-
-    foreach ($pattern in $artifactNames) {
-      Get-ChildItem -Path $RepoRoot -Filter $pattern -ErrorAction SilentlyContinue |
-        Remove-Item -Force -ErrorAction SilentlyContinue
-    }
+    Remove-Item (Join-Path $buildDir "$snapshot.wdb") -Force -ErrorAction SilentlyContinue
+    Remove-VivadoBuildDir -BuildDir $buildDir
+    Remove-VivadoRootArtifacts -RepoRoot $RepoRoot
 
     Write-Host "OK  top:       $TbTop"
     Write-Host "OK  tb.log:    $(Join-Path $tbOutDir 'tb.log')"
@@ -246,6 +337,8 @@ function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [s
   }
   finally {
     Pop-Location
+    Remove-VivadoBuildDir -BuildDir $buildDir
+    Remove-VivadoRootArtifacts -RepoRoot $RepoRoot
   }
 }
 
@@ -256,20 +349,43 @@ function Rotate-CurrentToTemp([string]$LogsRoot) {
   New-Item -ItemType Directory -Force -Path $currentDir | Out-Null
   New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
-  # 1) Delete old temp contents completely.
-  Get-ChildItem -Path $tempDir -Force -ErrorAction SilentlyContinue |
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-
-  # 2) Move previous current contents into temp.
-  $currentItems = Get-ChildItem -Path $currentDir -Force -ErrorAction SilentlyContinue
-  foreach ($item in $currentItems) {
-    Move-Item -Path $item.FullName -Destination $tempDir -Force
+  $currentItems = @(Get-ChildItem -Path $currentDir -Force -ErrorAction SilentlyContinue)
+  if ($currentItems.Count -eq 0) {
+    Write-Host "Prepared logs folders: current empty, temp unchanged."
+    return
   }
 
-  Write-Host "Prepared logs folders: moved current -> temp, temp refreshed."
+  $archiveDir = Join-Path $tempDir (Get-Date -Format "yyyyMMdd_HHmmss")
+  New-Item -ItemType Directory -Force -Path $archiveDir | Out-Null
+
+  foreach ($item in $currentItems) {
+    Move-Item -Path $item.FullName -Destination $archiveDir -Force
+  }
+
+  Write-Host "Prepared logs folders: moved current -> temp/$(Split-Path $archiveDir -Leaf)."
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$buildDir = Join-Path $repoRoot "sim\build"
+
+if ($Clean) {
+  if ($Top -or $All -or $DeleteOddLogs) {
+    throw "Use -Clean alone, or run simulation with -Top/-All."
+  }
+
+  Remove-VivadoBuildDir -BuildDir $buildDir
+  Remove-VivadoRootArtifacts -RepoRoot $repoRoot
+  Write-Host "OK  removed Vivado artifacts under $repoRoot"
+  exit 0
+}
+
+if ($All -and $Top) {
+  throw "Use either -All or -Top, not both."
+}
+if (-not $All -and -not $Top) {
+  throw "Provide one target (-Top <tb> or -All) or use -Clean."
+}
+
 $logsRoot = Join-Path $repoRoot "sim\logs"
 $currentDir = Join-Path $logsRoot "current"
 $settingsBat = Join-Path $VivadoRoot "settings64.bat"
@@ -278,6 +394,7 @@ if (-not (Test-Path $settingsBat)) {
 }
 
 Rotate-CurrentToTemp -LogsRoot $logsRoot
+Remove-VivadoRootArtifacts -RepoRoot $repoRoot
 
 if ($DeleteOddLogs) {
   Get-ChildItem -Path $logsRoot -Directory -Filter "odd_lane_tb_*" -ErrorAction SilentlyContinue |

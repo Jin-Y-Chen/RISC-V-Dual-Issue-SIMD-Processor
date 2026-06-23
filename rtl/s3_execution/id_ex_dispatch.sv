@@ -1,155 +1,252 @@
 `timescale 1ns / 1ps
 
 // ID/EX dispatch — pipeline register into the S3 lanes (project_outline "Dispatch").
-// Takes all S2 (decode) outputs for the fetch pair I0 (older) / I1 (younger).
-//
-// Port-based EX: each lane has two copies (ev0/ev1, od0/od1), so an
-// even/even or odd/odd pair dual-issues with no structural hazard. Fixed slot
-// mapping: I0 -> *0 ports, I1 -> *1 ports. No stall: RAW dependences are
-// resolved by same-cycle forwarding in EX (forward_unit), not by blocking I1.
+// In-order hazards: partial-issue I0, buffer I1 in a single node, full stall until
+// stall_remain counts down (1 cycle ALU RAW, 2 cycles load-use), then replay I1.
 module id_ex_dispatch
   import rv_dis_pkg::*;
 (
+  // external controls
   input  logic        clk,
   input  logic        rst_n,
+  input  logic        enable,
+  // internal controls
   input  logic        flush,
-
-  //input logic stall_od0,
-  //input logic stall_od1, 
-  //input logic stall_ev0,
-  //input logic stall_ev1,
-
-  // --- I0 slot (older insn) from S2: decoder + register file + pc ---
   input  logic        i0_valid_id,
-  input  lane_sel_e   i0_lane_sel_id,
-  input  logic [6:0]  i0_opcode_id,
-  input  logic [2:0]  i0_funct3_id,
-  input  logic [6:0]  i0_funct7_id,
-  input  logic [4:0]  i0_rd_addr_id,
-  input  logic [4:0]  i0_rs1_addr_id,
-  input  logic [4:0]  i0_rs2_addr_id,
+  input  logic        i0_lane_sel_id,
   input  logic        i0_reg_write_id,
-  input  logic [31:0] i0_imm_id,
-  input  logic [31:0] i0_rs1_data_id,
-  input  logic [31:0] i0_rs2_data_id,
-  input  logic [31:0] i0_pc_id,
-
-  // --- I1 slot (younger insn) from S2: decoder + register file + pc ---
   input  logic        i1_valid_id,
-  input  lane_sel_e   i1_lane_sel_id,
-  input  logic [6:0]  i1_opcode_id,
-  input  logic [2:0]  i1_funct3_id,
-  input  logic [6:0]  i1_funct7_id,
-  input  logic [4:0]  i1_rd_addr_id,
-  input  logic [4:0]  i1_rs1_addr_id,
-  input  logic [4:0]  i1_rs2_addr_id,
+  input  logic        i1_lane_sel_id,
+  input  logic        i1_rs1_use_id,
+  input  logic        i1_rs2_use_id,
   input  logic        i1_reg_write_id,
-  input  logic [31:0] i1_imm_id,
-  input  logic [31:0] i1_rs1_data_id,
-  input  logic [31:0] i1_rs2_data_id,
-  input  logic [31:0] i1_pc_id,
 
-  // --- Per-slot writeback control (EX, registered; independent of lane_sel) ---
-  // One reg_write + pc per instruction slot; instruction order/age is
-  // determined by pc downstream (slot 0 = I0 = older), not by lane.
+  // input data
+  input  opcode_t     i0_opcode_id,
+  input  funct3_t     i0_funct3_id,
+  input  funct7_t     i0_funct7_id,
+  input  gpr_addr_t   i0_rd_addr_id,
+  input  gpr_addr_t   i0_rs1_addr_id,
+  input  gpr_addr_t   i0_rs2_addr_id,
+  input  imm_t        i0_imm_id,
+  input  reg_t        i0_rs1_data_id,
+  input  reg_t        i0_rs2_data_id,
+  input  pc_t         i0_pc_id,
+  input  opcode_t     i1_opcode_id,
+  input  funct3_t     i1_funct3_id,
+  input  funct7_t     i1_funct7_id,
+  input  gpr_addr_t   i1_rd_addr_id,
+  input  gpr_addr_t   i1_rs1_addr_id,
+  input  gpr_addr_t   i1_rs2_addr_id,
+  input  imm_t        i1_imm_id,
+  input  reg_t        i1_rs1_data_id,
+  input  reg_t        i1_rs2_data_id,
+  input  pc_t         i1_pc_id,
+
+  // output controls
+  output logic        stall_id,
   output logic        i0_reg_write_ex,
   output logic        i1_reg_write_ex,
-  output logic [31:0] i0_pc_ex,
-  output logic [31:0] i1_pc_ex,
-
-  // --- Even lane pair (EX, registered): ALU OP / OP-IMM ---
   output logic        ev0_enable_ex,
-  output logic [6:0]  ev0_opcode_ex,
-  output logic [2:0]  ev0_funct3_ex,
-  output logic [6:0]  ev0_funct7_ex,
-  output logic [4:0]  ev0_rd_ex,
-  output logic [4:0]  ev0_rs1_addr_ex,
-  output logic [4:0]  ev0_rs2_addr_ex,
-  output logic [31:0] ev0_imm_ex,
-  output logic [31:0] ev0_rs1_data_ex,
-  output logic [31:0] ev0_rs2_data_ex,
-  output logic [31:0] ev0_pc_ex,
-
   output logic        ev1_enable_ex,
-  output logic [6:0]  ev1_opcode_ex,
-  output logic [2:0]  ev1_funct3_ex,
-  output logic [6:0]  ev1_funct7_ex,
-  output logic [4:0]  ev1_rd_ex,
-  output logic [4:0]  ev1_rs1_addr_ex,
-  output logic [4:0]  ev1_rs2_addr_ex,
-  output logic [31:0] ev1_imm_ex,
-  output logic [31:0] ev1_rs1_data_ex,
-  output logic [31:0] ev1_rs2_data_ex,
-  output logic [31:0] ev1_pc_ex,
-
-  // --- Odd lane pair (EX, registered): LOAD/STORE, BRANCH, JAL/JALR, LUI/AUIPC ---
   output logic        od0_enable_ex,
-  output logic [6:0]  od0_opcode_ex,
-  output logic [2:0]  od0_funct3_ex,
-  output logic [4:0]  od0_rd_ex,
-  output logic [4:0]  od0_rs1_addr_ex,
-  output logic [4:0]  od0_rs2_addr_ex,
-  output logic [31:0] od0_imm_ex,
-  output logic [31:0] od0_rs1_data_ex,
-  output logic [31:0] od0_rs2_data_ex,
-  output logic [31:0] od0_pc_ex,
-
   output logic        od1_enable_ex,
-  output logic [6:0]  od1_opcode_ex,
-  output logic [2:0]  od1_funct3_ex,
-  output logic [4:0]  od1_rd_ex,
-  output logic [4:0]  od1_rs1_addr_ex,
-  output logic [4:0]  od1_rs2_addr_ex,
-  output logic [31:0] od1_imm_ex,
-  output logic [31:0] od1_rs1_data_ex,
-  output logic [31:0] od1_rs2_data_ex,
-  output logic [31:0] od1_pc_ex
+
+  // output data
+  output pc_t         i0_pc_ex,
+  output pc_t         i1_pc_ex,
+  output opcode_t     ev0_opcode_ex,
+  output funct3_t     ev0_funct3_ex,
+  output funct7_t     ev0_funct7_ex,
+  output gpr_addr_t   ev0_rd_ex,
+  output gpr_addr_t   ev0_rs1_addr_ex,
+  output gpr_addr_t   ev0_rs2_addr_ex,
+  output imm_t        ev0_imm_ex,
+  output reg_t        ev0_rs1_data_ex,
+  output reg_t        ev0_rs2_data_ex,
+  output pc_t         ev0_pc_ex,
+  output opcode_t     ev1_opcode_ex,
+  output funct3_t     ev1_funct3_ex,
+  output funct7_t     ev1_funct7_ex,
+  output gpr_addr_t   ev1_rd_ex,
+  output gpr_addr_t   ev1_rs1_addr_ex,
+  output gpr_addr_t   ev1_rs2_addr_ex,
+  output imm_t        ev1_imm_ex,
+  output reg_t        ev1_rs1_data_ex,
+  output reg_t        ev1_rs2_data_ex,
+  output pc_t         ev1_pc_ex,
+  output opcode_t     od0_opcode_ex,
+  output funct3_t     od0_funct3_ex,
+  output gpr_addr_t   od0_rd_ex,
+  output gpr_addr_t   od0_rs1_addr_ex,
+  output gpr_addr_t   od0_rs2_addr_ex,
+  output imm_t        od0_imm_ex,
+  output reg_t        od0_rs1_data_ex,
+  output reg_t        od0_rs2_data_ex,
+  output pc_t         od0_pc_ex,
+  output opcode_t     od1_opcode_ex,
+  output funct3_t     od1_funct3_ex,
+  output gpr_addr_t   od1_rd_ex,
+  output gpr_addr_t   od1_rs1_addr_ex,
+  output gpr_addr_t   od1_rs2_addr_ex,
+  output imm_t        od1_imm_ex,
+  output reg_t        od1_rs1_data_ex,
+  output reg_t        od1_rs2_data_ex,
+  output pc_t         od1_pc_ex
 );
 
   // ---------------------------------------------------------------------
-  // Lane routing: fixed slot mapping, no muxes.
-  // I0 -> slot-0 copy of its lane, I1 -> slot-1 copy of its lane.
+  // I1 buffer node — single entry for in-order hazard replay
   // ---------------------------------------------------------------------
-  logic ev0_enable_next;
-  logic od0_enable_next;
-  logic ev1_enable_next;
-  logic od1_enable_next;
+  i1_buffer_node_t buf_q;
 
-  assign ev0_enable_next = i0_valid_id && (i0_lane_sel_id == LANE_EVEN);
-  assign ev1_enable_next = i1_valid_id && (i1_lane_sel_id == LANE_EVEN);
-  assign od1_enable_next = i1_valid_id && (i1_lane_sel_id == LANE_ODD);
+  logic [31:0] held_bundle_i0_pc_q;
+  logic [31:0] held_bundle_i1_pc_q;
+  logic        suppress_bundle_raw_q;
 
-  // ---------------------------------------------------------------------
-  // Dual-issue memory port arbitration (same eff. byte addr at ID)
-  // RAR: lw + lw  -> I1 read only (clear od0_enable)
-  // WAW: sw + sw  -> I1 write only (clear od0_enable)
-  // ---------------------------------------------------------------------
-  logic        i0_load_id;
-  logic        i0_store_id;
-  logic        i1_load_id;
-  logic        i1_store_id;
-  logic [31:0] i0_eff_addr_id;
-  logic [31:0] i1_eff_addr_id;
-  logic        mem_same_addr_id;
-  logic        suppress_od0_mem_port;
+  logic        set_i1_hold;
 
-  assign i0_load_id  = i0_valid_id && (i0_lane_sel_id == LANE_ODD) && (i0_opcode_id == OPC_LOAD);
-  assign i0_store_id = i0_valid_id && (i0_lane_sel_id == LANE_ODD) && (i0_opcode_id == OPC_STORE);
-  assign i1_load_id  = i1_valid_id && (i1_lane_sel_id == LANE_ODD) && (i1_opcode_id == OPC_LOAD);
-  assign i1_store_id = i1_valid_id && (i1_lane_sel_id == LANE_ODD) && (i1_opcode_id == OPC_STORE);
-
-  assign i0_eff_addr_id = i0_rs1_data_id + i0_imm_id;
-  assign i1_eff_addr_id = i1_rs1_data_id + i1_imm_id;
-  assign mem_same_addr_id = (i0_eff_addr_id == i1_eff_addr_id);
-
-  assign suppress_od0_mem_port = mem_same_addr_id &&
-                                 ((i0_load_id && i1_load_id) || (i0_store_id && i1_store_id));
-
-  assign od0_enable_next = i0_valid_id && (i0_lane_sel_id == LANE_ODD) && !suppress_od0_mem_port;
+  wire issue_i1_from_hold =
+      buf_q.valid && (buf_q.wait_cnt == 2'd1) && !set_i1_hold;
 
   // ---------------------------------------------------------------------
-  // ID/EX pipeline register
+  // Scoreboard — issue gate
   // ---------------------------------------------------------------------
+  logic        issue_i0;
+  logic        issue_i1;
+  logic [1:0]  i1_stall_cycles;
+
+  wire suppress_bundle_raw_eff =
+      suppress_bundle_raw_q &&
+      (i0_pc_id == held_bundle_i0_pc_q) &&
+      (i1_pc_id == held_bundle_i1_pc_q);
+
+  logic        i1_lane_sel_act;
+  logic [6:0]  i1_opcode_act;
+  logic [2:0]  i1_funct3_act;
+  logic [6:0]  i1_funct7_act;
+  logic [4:0]  i1_rd_act;
+  logic [4:0]  i1_rs1_addr_act;
+  logic [4:0]  i1_rs2_addr_act;
+  logic        i1_reg_write_act;
+  logic [31:0] i1_imm_act;
+  logic [31:0] i1_rs1_data_act;
+  logic [31:0] i1_rs2_data_act;
+  logic [31:0] i1_pc_act;
+
+  wire issue_i0_eff = issue_i0 && i0_valid_id;
+  wire issue_i1_eff = issue_i1 &&
+                      (issue_i1_from_hold || i1_valid_id);
+
+  scoreboard u_scoreboard (
+    // internal controls
+    .i0_reg_write         (i0_reg_write_id),
+    .i1_rs1_use           (i1_rs1_use_id),
+    .i1_rs2_use           (i1_rs2_use_id),
+    .buf_valid            (buf_q.valid),
+    .issue_i1_from_hold   (issue_i1_from_hold),
+    .suppress_bundle_raw  (suppress_bundle_raw_eff),
+    // input data
+    .i0_rd                (i0_rd_addr_id),
+    .i0_opcode            (i0_opcode_id),
+    .i1_rs1               (i1_rs1_addr_id),
+    .i1_rs2               (i1_rs2_addr_id),
+    // output controls
+    .issue_i0             (issue_i0),
+    .issue_i1             (issue_i1),
+    .stall_id             (stall_id),
+    .set_i1_hold          (set_i1_hold),
+    .i1_stall_cycles      (i1_stall_cycles)
+  );
+
+  function automatic i1_buffer_node_t pack_i1_from_id;
+    input logic [4:0] producer_rd;
+    input logic [1:0] stall_cycles;
+    pack_i1_from_id.valid        = 1'b1;
+    pack_i1_from_id.lane         = i1_lane_sel_id;
+    pack_i1_from_id.opcode       = i1_opcode_id;
+    pack_i1_from_id.funct3       = i1_funct3_id;
+    pack_i1_from_id.funct7       = i1_funct7_id;
+    pack_i1_from_id.rd           = i1_rd_addr_id;
+    pack_i1_from_id.rs1          = i1_rs1_addr_id;
+    pack_i1_from_id.rs2          = i1_rs2_addr_id;
+    pack_i1_from_id.rs1_use      = i1_rs1_use_id;
+    pack_i1_from_id.rs2_use      = i1_rs2_use_id;
+    pack_i1_from_id.reg_write    = i1_reg_write_id;
+    pack_i1_from_id.imm          = i1_imm_id;
+    pack_i1_from_id.rs1_data     = i1_rs1_data_id;
+    pack_i1_from_id.rs2_data     = i1_rs2_data_id;
+    pack_i1_from_id.pc           = i1_pc_id;
+    pack_i1_from_id.producer_rd  = producer_rd;
+    pack_i1_from_id.bundle_i0_pc = i0_pc_id;
+    pack_i1_from_id.bundle_i1_pc = i1_pc_id;
+    pack_i1_from_id.wait_total   = stall_cycles;
+    pack_i1_from_id.wait_cnt     = stall_cycles + 2'd1;  // ALU:2→1, load:3→2→1
+  endfunction
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n || flush) begin
+      buf_q.valid               <= 1'b0;
+      buf_q.wait_cnt            <= 2'd0;
+      held_bundle_i0_pc_q       <= 32'd0;
+      held_bundle_i1_pc_q       <= 32'd0;
+      suppress_bundle_raw_q      <= 1'b0;
+    end else if (!enable) begin
+      // Global enable low — hold buffer / replay state
+    end else if (issue_i1_from_hold) begin
+      buf_q.valid               <= 1'b0;
+      buf_q.wait_cnt            <= 2'd0;
+      held_bundle_i0_pc_q       <= buf_q.bundle_i0_pc;
+      held_bundle_i1_pc_q       <= buf_q.bundle_i1_pc;
+      suppress_bundle_raw_q     <= 1'b1;
+    end else if (set_i1_hold && i1_valid_id) begin
+      buf_q                     <= pack_i1_from_id(i0_rd_addr_id, i1_stall_cycles);
+    end else if (buf_q.valid && (buf_q.wait_cnt > 2'd1)) begin
+      buf_q.wait_cnt            <= buf_q.wait_cnt - 2'd1;
+    end else if (suppress_bundle_raw_q &&
+                 ((i0_pc_id != held_bundle_i0_pc_q) ||
+                  (i1_pc_id != held_bundle_i1_pc_q))) begin
+      suppress_bundle_raw_q     <= 1'b0;
+    end
+  end
+
+  // Active I1 bundle mux (ID vs buffered replay)
+  always_comb begin
+    if (issue_i1_from_hold) begin
+      i1_lane_sel_act   = buf_q.lane;
+      i1_opcode_act     = buf_q.opcode;
+      i1_funct3_act     = buf_q.funct3;
+      i1_funct7_act     = buf_q.funct7;
+      i1_rd_act         = buf_q.rd;
+      i1_rs1_addr_act   = buf_q.rs1;
+      i1_rs2_addr_act   = buf_q.rs2;
+      i1_reg_write_act  = buf_q.reg_write;
+      i1_imm_act        = buf_q.imm;
+      i1_rs1_data_act   = buf_q.rs1_data;
+      i1_rs2_data_act   = buf_q.rs2_data;
+      i1_pc_act         = buf_q.pc;
+    end else begin
+      i1_lane_sel_act   = i1_lane_sel_id;
+      i1_opcode_act     = i1_opcode_id;
+      i1_funct3_act     = i1_funct3_id;
+      i1_funct7_act     = i1_funct7_id;
+      i1_rd_act         = i1_rd_addr_id;
+      i1_rs1_addr_act   = i1_rs1_addr_id;
+      i1_rs2_addr_act   = i1_rs2_addr_id;
+      i1_reg_write_act  = i1_reg_write_id;
+      i1_imm_act        = i1_imm_id;
+      i1_rs1_data_act   = i1_rs1_data_id;
+      i1_rs2_data_act   = i1_rs2_data_id;
+      i1_pc_act         = i1_pc_id;
+    end
+  end
+
+  wire ev0_enable_next = issue_i0_eff && !i0_lane_sel_id;
+  wire ev1_enable_next = issue_i1_eff && !i1_lane_sel_act;
+  wire od0_enable_next = issue_i0_eff &&  i0_lane_sel_id;
+  wire od1_enable_next = issue_i1_eff &&  i1_lane_sel_act;
+
+  // ID/EX pipeline register — freeze entire EX block while stalling with no issue
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
       i0_reg_write_ex <= 1'b0;
@@ -202,60 +299,78 @@ module id_ex_dispatch
       od1_rs1_data_ex <= 32'd0;
       od1_rs2_data_ex <= 32'd0;
       od1_pc_ex       <= 32'd0;
+    end else if (!enable) begin
+      // Global enable low — hold all EX lane copies
+    end else if (stall_id && !issue_i0_eff && !issue_i1_eff) begin
+      // Full stall — hold all lane copies (including after partial I0 issue)
     end else begin
-      // Per-slot writeback control (lane-independent)
-      i0_reg_write_ex <= i0_valid_id && i0_reg_write_id;
-      i1_reg_write_ex <= i1_valid_id && i1_reg_write_id;
-      i0_pc_ex        <= i0_pc_id;
-      i1_pc_ex        <= i1_pc_id;
+      if (issue_i0_eff) begin
+        i0_reg_write_ex <= i0_reg_write_id &&
+                           (ev0_enable_next || od0_enable_next);
+        i0_pc_ex        <= i0_pc_id;
 
-      // Slot 0 <- I0 (older)
-      ev0_enable_ex   <= ev0_enable_next;
-      ev0_opcode_ex   <= i0_opcode_id;
-      ev0_funct3_ex   <= i0_funct3_id;
-      ev0_funct7_ex   <= i0_funct7_id;
-      ev0_rd_ex       <= i0_rd_addr_id;
-      ev0_rs1_addr_ex <= i0_rs1_addr_id;
-      ev0_rs2_addr_ex <= i0_rs2_addr_id;
-      ev0_imm_ex      <= i0_imm_id;
-      ev0_rs1_data_ex <= i0_rs1_data_id;
-      ev0_rs2_data_ex <= i0_rs2_data_id;
-      ev0_pc_ex       <= i0_pc_id;
+        ev0_enable_ex   <= ev0_enable_next;
+        ev0_opcode_ex   <= i0_opcode_id;
+        ev0_funct3_ex   <= i0_funct3_id;
+        ev0_funct7_ex   <= i0_funct7_id;
+        ev0_rd_ex       <= i0_rd_addr_id;
+        ev0_rs1_addr_ex <= i0_rs1_addr_id;
+        ev0_rs2_addr_ex <= i0_rs2_addr_id;
+        ev0_imm_ex      <= i0_imm_id;
+        ev0_rs1_data_ex <= i0_rs1_data_id;
+        ev0_rs2_data_ex <= i0_rs2_data_id;
+        ev0_pc_ex       <= i0_pc_id;
 
-      od0_enable_ex   <= od0_enable_next;
-      od0_opcode_ex   <= i0_opcode_id;
-      od0_funct3_ex   <= i0_funct3_id;
-      od0_rd_ex       <= i0_rd_addr_id;
-      od0_rs1_addr_ex <= i0_rs1_addr_id;
-      od0_rs2_addr_ex <= i0_rs2_addr_id;
-      od0_imm_ex      <= i0_imm_id;
-      od0_rs1_data_ex <= i0_rs1_data_id;
-      od0_rs2_data_ex <= i0_rs2_data_id;
-      od0_pc_ex       <= i0_pc_id;
+        od0_enable_ex   <= od0_enable_next;
+        od0_opcode_ex   <= i0_opcode_id;
+        od0_funct3_ex   <= i0_funct3_id;
+        od0_rd_ex       <= i0_rd_addr_id;
+        od0_rs1_addr_ex <= i0_rs1_addr_id;
+        od0_rs2_addr_ex <= i0_rs2_addr_id;
+        od0_imm_ex      <= i0_imm_id;
+        od0_rs1_data_ex <= i0_rs1_data_id;
+        od0_rs2_data_ex <= i0_rs2_data_id;
+        od0_pc_ex       <= i0_pc_id;
+      end else begin
+        i0_reg_write_ex <= 1'b0;
+        i0_pc_ex        <= 32'd0;
+        ev0_enable_ex   <= 1'b0;
+        od0_enable_ex   <= 1'b0;
+      end
 
-      // Slot 1 <- I1 (younger)
-      ev1_enable_ex   <= ev1_enable_next;
-      ev1_opcode_ex   <= i1_opcode_id;
-      ev1_funct3_ex   <= i1_funct3_id;
-      ev1_funct7_ex   <= i1_funct7_id;
-      ev1_rd_ex       <= i1_rd_addr_id;
-      ev1_rs1_addr_ex <= i1_rs1_addr_id;
-      ev1_rs2_addr_ex <= i1_rs2_addr_id;
-      ev1_imm_ex      <= i1_imm_id;
-      ev1_rs1_data_ex <= i1_rs1_data_id;
-      ev1_rs2_data_ex <= i1_rs2_data_id;
-      ev1_pc_ex       <= i1_pc_id;
+      if (issue_i1_eff) begin
+        i1_reg_write_ex <= i1_reg_write_act &&
+                           (ev1_enable_next || od1_enable_next);
+        i1_pc_ex        <= i1_pc_act;
 
-      od1_enable_ex   <= od1_enable_next;
-      od1_opcode_ex   <= i1_opcode_id;
-      od1_funct3_ex   <= i1_funct3_id;
-      od1_rd_ex       <= i1_rd_addr_id;
-      od1_rs1_addr_ex <= i1_rs1_addr_id;
-      od1_rs2_addr_ex <= i1_rs2_addr_id;
-      od1_imm_ex      <= i1_imm_id;
-      od1_rs1_data_ex <= i1_rs1_data_id;
-      od1_rs2_data_ex <= i1_rs2_data_id;
-      od1_pc_ex       <= i1_pc_id;
+        ev1_enable_ex   <= ev1_enable_next;
+        ev1_opcode_ex   <= i1_opcode_act;
+        ev1_funct3_ex   <= i1_funct3_act;
+        ev1_funct7_ex   <= i1_funct7_act;
+        ev1_rd_ex       <= i1_rd_act;
+        ev1_rs1_addr_ex <= i1_rs1_addr_act;
+        ev1_rs2_addr_ex <= i1_rs2_addr_act;
+        ev1_imm_ex      <= i1_imm_act;
+        ev1_rs1_data_ex <= i1_rs1_data_act;
+        ev1_rs2_data_ex <= i1_rs2_data_act;
+        ev1_pc_ex       <= i1_pc_act;
+
+        od1_enable_ex   <= od1_enable_next;
+        od1_opcode_ex   <= i1_opcode_act;
+        od1_funct3_ex   <= i1_funct3_act;
+        od1_rd_ex       <= i1_rd_act;
+        od1_rs1_addr_ex <= i1_rs1_addr_act;
+        od1_rs2_addr_ex <= i1_rs2_addr_act;
+        od1_imm_ex      <= i1_imm_act;
+        od1_rs1_data_ex <= i1_rs1_data_act;
+        od1_rs2_data_ex <= i1_rs2_data_act;
+        od1_pc_ex       <= i1_pc_act;
+      end else begin
+        i1_reg_write_ex <= 1'b0;
+        i1_pc_ex        <= 32'd0;
+        ev1_enable_ex   <= 1'b0;
+        od1_enable_ex   <= 1'b0;
+      end
     end
   end
 
