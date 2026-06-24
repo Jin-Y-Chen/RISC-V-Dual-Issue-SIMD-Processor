@@ -1,3 +1,0 @@
-top:    state_buffer_tb
-time:   20260622_172328
-result: 6 passed, 0 failed - OK

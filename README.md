@@ -1,76 +1,41 @@
 # RISC-V Dual-Issue SIMD Processor (RV-DIS)
 
-**Full title:** RV-DIS — A RISC-V Dual-Issue In-Order Processor with 128-bit SIMD  
-**ISA:** RV32I scalar (active) + 128-bit SIMD extension (planned)  
-**Style:** Static even/odd dual-issue lanes (Cell SPU–inspired partitioning)  
-**Target:** FPGA (Artix-7 / Basys 3)
+RV32I scalar (active) + 128-bit SIMD (planned). Static even/odd dual-issue lanes.
 
-Dual-issue, in-order, 5-stage pipelined CPU. Detailed design notes: [project_outline.txt](project_outline.txt). Full requirements: [arm_spu_spulite_project_spec.txt](arm_spu_spulite_project_spec.txt).
+Design notes: [project_outline.txt](project_outline.txt). Spec: [arm_spu_spulite_project_spec.txt](arm_spu_spulite_project_spec.txt).
 
-**HDL:** SystemVerilog bring-up under `rtl/` (VHDL top integration planned in `rtl/core/`).
+HDL is SystemVerilog under `rtl/`. Verification uses Yosys (WSL) and Verilator (optional `-Sim`) via `scripts/run_yosys.ps1`.
 
----
+## Layout
 
-## Repository layout
-
-| Path | Purpose |
-|------|---------|
-| `rtl/common/` | `rv_dis_pkg.sv` — widths, types, shared constants |
-| `rtl/s1_fetch/` | PC, branch target buffer (WIP) |
-| `rtl/s2_decode/` | Decode, `register_file`, IF/ID buffers |
-| `rtl/s3_execution/` | `id_ex`, even/odd execution lanes |
-| `rtl/s4_memory/` | Per-lane EX/MEM, memory/cache (WIP) |
-| `rtl/s5_wback/` | MEM/WB pipeline register |
-| `rtl/issue_dispatch/` | Pairing / stall policy (placeholder) |
-| `rtl/core/` | CPU top integration (placeholder) |
-| `sim/tb/` | Unit testbenches + `common/tb_console.svh` |
-| `sim/filelists/` | Vivado `read_verilog -f` lists |
-| `tests/` | ASM and system test programs (planned) |
-| `docs/` | ISA, architecture notes |
-| `fpga/constraints/` | Pin constraints (planned) |
-
----
-
-## Pipeline (target)
-
-| Stage | Role |
-|-------|------|
-| **IF** | Fetch up to two 32-bit instructions per cycle |
-| **ID** | Decode, GPR read, lane classify, issue 0–2 ops |
-| **EX** | Parallel even (ALU) and odd (LSU / branch) |
-| **MEM** | Loads / stores |
-| **WB** | Dual write-back to unified scalar GPR |
-
-**Even lane:** ADD, SUB, AND, OR, XOR (+ future SIMD ALU)  
-**Odd lane:** LOAD, STORE, BRANCH, JUMP (+ future VLD128/VST128)
-
----
-
-## Verification
-
-Vivado behavioral sim from repo root:
-
-```tcl
-read_verilog -f sim/filelists/<top>.f
+```
+project/
+├── rtl/              synthesizable design (Yosys input)
+├── tb/               testbenches (Verilator input)
+├── sim/              Verilator build outputs (verilator/, waves/, obj_dir/)
+├── synth/            netlists, reports, Yosys run logs
+├── scripts/          run_yosys.ps1, run_*.sh
+├── tests/            ASM programs + assembler
+├── docs/             ISA and architecture notes
+└── Makefile
 ```
 
-| Top | File list |
-|-----|-----------|
-| `register_file_tb` | `sim/filelists/register_file_tb.f` |
-| `dispatch_hazard_tb` | `sim/filelists/dispatch_hazard_tb.f` |
+| Path | Contents |
+|------|----------|
+| `rtl/` | Pipeline RTL — [rtl/README.md](rtl/README.md) |
+| `tb/` | Unit testbenches — [tb/README.md](tb/README.md) |
+| `sim/verilator/` | Verilator compile scratch per top |
+| `synth/latest/` | Published netlists per top |
+| `synth/reports/runs/` | Yosys run logs (`latest/`, `temp/`) |
+| `scripts/` | Drivers — [scripts/README.md](scripts/README.md) |
 
-See [sim/README.md](sim/README.md) and [sim/tb/README.md](sim/tb/README.md) for all TBs, logging, and `register_file_tb` chained-state methodology.
-
-Run and archive TB logs:
+## Quick start
 
 ```powershell
-.\sim\scripts\run_vivado_sim.ps1 -Top pc_tb
+# WSL: sudo apt install yosys verilator
+.\scripts\run_yosys.ps1 -Top pc_tb
+.\scripts\run_yosys.ps1 -Top pc_tb -Sim
+make synth TOP=pc_tb
 ```
 
----
-
-## Getting started
-
-1. Read [project_outline.txt](project_outline.txt) for ISA policy, RF ports, and milestone checklist.
-2. Run unit TBs bottom-up (`register_file_tb`, `decoder_tb`, lane TBs) before core integration.
-3. Point Vivado at `sim/filelists/*.f` and add FPGA constraints when ready.
+Details: [scripts/README.md](scripts/README.md), [synth/README.md](synth/README.md).

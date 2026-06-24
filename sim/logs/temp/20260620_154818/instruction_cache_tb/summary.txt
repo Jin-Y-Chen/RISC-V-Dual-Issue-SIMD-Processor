@@ -1,3 +1,0 @@
-top:    instruction_cache_tb
-time:   20260620_154759
-result: unknown

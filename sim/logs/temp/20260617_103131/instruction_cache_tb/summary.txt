@@ -1,3 +1,0 @@
-top:    instruction_cache_tb
-time:   20260617_103052
-result: 2 passed, 4 FAILED

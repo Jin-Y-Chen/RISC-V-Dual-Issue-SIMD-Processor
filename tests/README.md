@@ -1,10 +1,18 @@
 # Test programs
 
-| Folder | Focus |
-|--------|--------|
-| `asm/` | Basic ISA smoke tests |
-| `hazard/` | RAW stalls, forwarding, branch flush |
-| `dual_issue/` | Valid even+odd pairs, single-issue, illegal pair stalls |
-| `integration/` | Full programs run on CPU TB or FPGA |
+ASM sources for instruction smoke tests and future integration runs.
 
-Assemble `.asm` sources with `tests/scripts/assembler.py` (writes `tests/bin/<name>.{hex,mem,txt}` — flat, no subfolders).
+| Folder | Purpose |
+|--------|---------|
+| `asm/` | Source `.asm` files (`demo_instructions.asm` is the main example) |
+| `asm/hazard/`, `asm/dual_issue/`, `asm/simd/` | Placeholders for future tests |
+| `bin/` | Assembler output (gitignored except checked-in demo artifacts) |
+| `scripts/` | [assembler.py](scripts/assembler.py) — [scripts/README.md](scripts/README.md) |
+
+Assemble:
+
+```bash
+py tests/scripts/assembler.py tests/asm/demo_instructions.asm
+```
+
+Writes `tests/bin/demo_instructions.{txt,hex,mem}`.

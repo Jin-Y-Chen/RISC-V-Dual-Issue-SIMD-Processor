@@ -107,12 +107,12 @@ package rv_dis_pkg;
   // =========================================================================
   // imm_align4 — force imm[1:0]=00 on branch/jump offsets (B, J, JALR)
   function automatic imm_t imm_align4(input imm_t imm);
-    return imm_t'({imm[31:2], 2'b00});
+    imm_align4 = {imm[31:2], 2'b00};
   endfunction
 
   // sign_extend — I-type / OP-IMM 12-bit field to 32-bit byte offset
   function automatic imm_t sign_extend(input logic [11:0] imm12);
-    return imm_t'({{20{imm12[11]}}, imm12});
+    sign_extend = {{20{imm12[11]}}, imm12};
   endfunction
 
 endpackage

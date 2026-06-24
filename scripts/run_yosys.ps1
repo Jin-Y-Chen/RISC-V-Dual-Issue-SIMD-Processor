@@ -1,22 +1,15 @@
-# RTL sim (Vivado XSIM) and synthesis (Yosys via WSL2 Ubuntu) for this repo.
+# Yosys elaboration / synthesis runner (WSL2 Ubuntu) for this repo.
 #
-# Vivado simulation (default):
-#   .\sim\scripts\run_vivado_sim.ps1 -Top pc_tb
-#   .\sim\scripts\run_vivado_sim.ps1 -All
+#   .\scripts\run_yosys.ps1 -Top pc_tb
+#   .\scripts\run_yosys.ps1 -All
+#   .\scripts\run_yosys.ps1 -Top pc_tb -Synth
+#   .\scripts\run_yosys.ps1 -SynthRtl
+#   .\scripts\run_yosys.ps1 -Clean
 #
-# Yosys via WSL (install: sudo apt install yosys in Ubuntu):
-#   .\sim\scripts\run_vivado_sim.ps1 -Tool Yosys -Top pc_tb
-#   .\sim\scripts\run_vivado_sim.ps1 -Tool Yosys -Top pc_tb -ElabOnly
-#   .\sim\scripts\run_vivado_sim.ps1 -Tool Yosys -SynthRtl
-#   .\sim\scripts\run_vivado_sim.ps1 -Yosys -SynthRtl -RtlTop risc_dis_unit
-#
-# Clean tool artifacts:
-#   .\sim\scripts\run_vivado_sim.ps1 -Clean
-#
-# Yosys runs in WSL at /mnt/c/Users/.../RISC-V-Dual-Issue-SIMD-Processor
-# Vivado runs xvlog/xelab/xsim from sim/build; logs under sim/logs/current/<top>/
+# Logs: synth/reports/runs/latest/<top>/  |  build scratch: synth/build/yosys/
 
 param(
+    [switch]$Help,
     [switch]$Clean,
 
     [ValidateSet(
@@ -41,22 +34,48 @@ param(
 
     [switch]$All,
     [switch]$DeleteOddLogs,
-
-    [ValidateSet("Vivado", "Yosys")]
-    [string]$Tool = "Vivado",
-
-    [switch]$Yosys,
-    [switch]$ElabOnly,
+    [switch]$Synth,
+    [switch]$Sim,
     [switch]$SynthRtl,
-    [string]$RtlTop = "risc_dis_unit",
-
-    [string]$VivadoRoot = "C:\FPGA\2025.2\Vivado"
+    [string]$RtlTop = "risc_dis_unit"
 )
 
 $ErrorActionPreference = "Stop"
 
-if ($Yosys) {
-  $Tool = "Yosys"
+. (Join-Path $PSScriptRoot "log_layout.ps1")
+
+function Show-RunYosysHelp {
+  @"
+Usage: .\scripts\run_yosys.ps1 [flags]
+
+Yosys RTL elaboration / synthesis (WSL). Optional Verilator TB self-test with -Sim.
+
+Flags:
+  -Top <name>     One testbench (e.g. pc_tb, decoder_tb)
+  -All            All 15 unit TBs
+  -Synth           Run synthesis on DUT (with -Top or -All)
+  -Sim             Verilator compile + TB self-test
+  -SynthRtl        Full-chip synthesis (default top: risc_dis_unit)
+  -RtlTop <name>   Chip top for -SynthRtl
+  -Clean           Remove Yosys build scratch only
+  -DeleteOddLogs   Drop archived odd_lane_tb* logs before run
+  -Help            Show this message
+
+Examples:
+  .\scripts\run_yosys.ps1 -Top pc_tb
+  .\scripts\run_yosys.ps1 -Top pc_tb -Sim
+  .\scripts\run_yosys.ps1 -All -Synth
+
+Logs:  synth/reports/runs/latest/<top>/
+Build: synth/build/yosys/  |  Verilator: sim/verilator/<top>/
+
+Shell wrappers: ./scripts/run_synth.sh --help  ./scripts/run_sim.sh --help
+"@
+}
+
+if ($Help) {
+  Show-RunYosysHelp
+  exit 0
 }
 
 $AllTops = @(
@@ -67,7 +86,6 @@ $AllTops = @(
   "decoder_tb",
   "state_buffer_tb",
   "register_file_tb",
-  #"dispatch_hazard_tb",
   "even_lane_tb",
   "odd_lane_tb",
   "id_ex_dispatch_tb",
@@ -78,72 +96,31 @@ $AllTops = @(
   "ex_mem_wb_tb"
 )
 
-function Remove-VivadoRootArtifacts([string]$RepoRoot) {
-  $artifactNames = @(
-    "xvlog.log", "xvlog.pb",
-    "xelab.log", "xelab.pb",
-    "xsim.log",  "xsim.jou",
-    "xsim_*.backup.log", "xsim_*.backup.jou",
-    "*.wdb",
-    "dfx_runtime.txt"
-  )
-
-  $runtimePaths = @(
-    (Join-Path $RepoRoot "dfx_runtime.txt"),
-    (Join-Path $RepoRoot "sim\dfx_runtime.txt"),
-    (Join-Path $RepoRoot "sim\build\dfx_runtime.txt")
-  )
-
-  foreach ($path in $runtimePaths) {
-    Remove-Item $path -Force -ErrorAction SilentlyContinue
-  }
-
-  $xsimDirPaths = @(
-    (Join-Path $RepoRoot "xsim.dir"),
-    (Join-Path $RepoRoot "sim\xsim.dir"),
-    (Join-Path $RepoRoot "sim\build\xsim.dir")
-  )
-
-  foreach ($dir in $xsimDirPaths) {
-    Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
-  }
-
-  Get-ChildItem -Path $RepoRoot -Directory -Filter "xsim.dir" -Recurse -Depth 3 `
-    -ErrorAction SilentlyContinue |
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-
-  $simRoot = Join-Path $RepoRoot "sim"
-  if (Test-Path $simRoot) {
-    Get-ChildItem -Path $simRoot -Filter "dfx_runtime.txt" -Recurse `
-      -ErrorAction SilentlyContinue |
-      Remove-Item -Force -ErrorAction SilentlyContinue
-  }
-
-  foreach ($pattern in $artifactNames) {
-    Get-ChildItem -Path $RepoRoot -Filter $pattern -Recurse -Depth 3 `
-      -ErrorAction SilentlyContinue |
-      Remove-Item -Force -ErrorAction SilentlyContinue
+function Remove-YosysBuildDir([string]$YosysBuildDir) {
+  if (Test-Path $YosysBuildDir) {
+    Get-ChildItem -Path $YosysBuildDir -Force -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -ne ".gitkeep" } |
+      Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 
-function Remove-VivadoBuildDir([string]$BuildDir) {
-  if (Test-Path $BuildDir) {
-    Remove-Item $BuildDir -Recurse -Force -ErrorAction SilentlyContinue
-  }
-}
-
-function Remove-YosysBuildArtifacts([string]$BuildDir) {
-  if (-not (Test-Path $BuildDir)) { return }
-  Get-ChildItem -Path $BuildDir -Filter "yosys_*" -ErrorAction SilentlyContinue |
-    Remove-Item -Force -ErrorAction SilentlyContinue
-  Get-ChildItem -Path $BuildDir -Filter "*_out.v" -ErrorAction SilentlyContinue |
-    Remove-Item -Force -ErrorAction SilentlyContinue
-  Get-ChildItem -Path $BuildDir -Filter "*_out.json" -ErrorAction SilentlyContinue |
-    Remove-Item -Force -ErrorAction SilentlyContinue
+function Write-Utf8NoBomLines([string]$Path, [string[]]$Lines) {
+  $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+  [System.IO.File]::WriteAllLines($Path, $Lines, $utf8NoBom)
 }
 
 function ConvertTo-WslPath([string]$WinPath) {
-  $resolved = (Resolve-Path $WinPath).Path
+  if (Test-Path -LiteralPath $WinPath) {
+    $resolved = (Resolve-Path -LiteralPath $WinPath).Path
+  } else {
+    $parent = Split-Path -Parent $WinPath
+    $leaf = Split-Path -Leaf $WinPath
+    if ($parent -and (Test-Path -LiteralPath $parent)) {
+      $resolved = Join-Path (Resolve-Path -LiteralPath $parent).Path $leaf
+    } else {
+      $resolved = [System.IO.Path]::GetFullPath($WinPath)
+    }
+  }
   if ($resolved -match '^([A-Za-z]):\\(.*)$') {
     $drive = $Matches[1].ToLower()
     $rest = $Matches[2] -replace '\\', '/'
@@ -168,6 +145,17 @@ Yosys not found in WSL2 Ubuntu.
   }
 }
 
+function Assert-WslVerilator {
+  $check = wsl bash -lc "command -v verilator" 2>&1
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($check)) {
+    throw @"
+Verilator not found in WSL2 Ubuntu (needed for -Sim).
+  wsl
+  sudo apt update && sudo apt install -y verilator
+"@
+  }
+}
+
 function Get-RtlSources([string]$RepoRoot) {
   $pkgDir = Join-Path $RepoRoot "rtl\package"
   $ordered = @()
@@ -184,6 +172,15 @@ function Get-RtlSources([string]$RepoRoot) {
   }
 }
 
+function Get-DutTopFromTb([string]$TbTop) {
+  if ($TbTop -match '^(.*)_tb$') { return $Matches[1] }
+  return $TbTop
+}
+
+function Get-RtlSourcesForTb([string]$TbTop) {
+  return @(Get-TbSources $TbTop | Where-Object { $_ -notmatch '^tb/' })
+}
+
 function New-YosysScriptLines(
   [string]$WslRepo,
   [string[]]$Sources,
@@ -192,8 +189,7 @@ function New-YosysScriptLines(
   [string]$OutBase
 ) {
   $lines = New-Object System.Collections.Generic.List[string]
-  $lines.Add("# Auto-generated by run_vivado_sim.ps1")
-  $lines.Add("read -sv -I $WslRepo/sim/tb")
+  $lines.Add("# Auto-generated by run_yosys.ps1")
   foreach ($src in $Sources) {
     $norm = $src -replace '\\', '/'
     $lines.Add("read -sv $WslRepo/$norm")
@@ -206,9 +202,94 @@ function New-YosysScriptLines(
     $lines.Add("opt")
   }
   $lines.Add("stat")
-  $lines.Add("write_verilog $WslRepo/sim/build/${OutBase}_out.v")
-  $lines.Add("write_json $WslRepo/sim/build/${OutBase}_out.json")
+  $lines.Add("write_verilog $WslRepo/synth/build/yosys/${OutBase}_out.v")
+  $lines.Add("write_json $WslRepo/synth/build/yosys/${OutBase}_out.json")
   return $lines
+}
+
+function Invoke-WslBash([string]$Command) {
+  wsl bash -lc $Command
+  return $LASTEXITCODE
+}
+
+function Get-SimResultFromLog([string]$LogText) {
+  if ($LogText -match '(?m)^\*\*\* SUMMARY: (\d+) passed, 0 failed - OK \*\*\*') {
+    return "passed"
+  }
+  if ($LogText -match '(?m)^\*\*\* SUMMARY:') {
+    return "failed"
+  }
+  if ($LogText -match '(?m)%Error:|^\[FAIL\]|TB FAILED|\$fatal') {
+    return "failed"
+  }
+  return "failed"
+}
+
+function Invoke-VerilatorSim(
+  [string]$TbTop,
+  [string]$RepoRoot,
+  [string]$RunOutDir
+) {
+  $wslRepo = ConvertTo-WslPath $RepoRoot
+  $verRel = "sim/verilator/$TbTop"
+  $verBuild = Get-VerilatorBuildDir $RepoRoot $TbTop
+  $srcs = Get-TbSources $TbTop
+
+  foreach ($src in $srcs) {
+    $fullPath = Join-Path $RepoRoot $src
+    if (-not (Test-Path $fullPath)) {
+      throw "Missing source file for ${TbTop} sim: $src"
+    }
+  }
+
+  if (Test-Path $verBuild) {
+    Remove-Item $verBuild -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  New-Item -ItemType Directory -Force -Path $verBuild | Out-Null
+
+  $readArgs = ($srcs | ForEach-Object {
+    $norm = $_ -replace '\\', '/'
+    "$wslRepo/$norm"
+  }) -join " "
+
+  $compileCmd = "cd '$wslRepo' && verilator --binary --timing -Wall -Wno-fatal --top-module $TbTop -Mdir $verRel/obj_dir -I $wslRepo/tb $readArgs > $verRel/compile.log 2>&1"
+  Invoke-WslBash $compileCmd | Out-Null
+
+  $compileLogPath = Join-Path $verBuild "compile.log"
+  if (-not (Test-Path $compileLogPath)) {
+    throw "Verilator compile log not found: $compileLogPath"
+  }
+
+  $compileText = Get-Content -Raw $compileLogPath
+  if ($compileText -match '(?m)%Error:|^ERROR:') {
+    Copy-Item $compileLogPath (Join-Path $RunOutDir "sim.log") -Force
+    return [pscustomobject]@{
+      Result = "failed"
+      Failed = $true
+      LogPath = Join-Path $RunOutDir "sim.log"
+    }
+  }
+
+  $simCmd = "cd '$wslRepo' && $verRel/obj_dir/V$TbTop > $verRel/sim.log 2>&1"
+  Invoke-WslBash $simCmd | Out-Null
+
+  $simLogPath = Join-Path $verBuild "sim.log"
+  if (-not (Test-Path $simLogPath)) {
+    throw "Verilator sim log not found: $simLogPath"
+  }
+
+  $simOutPath = Join-Path $RunOutDir "sim.log"
+  Copy-Item $simLogPath $simOutPath -Force
+
+  $simText = Get-Content -Raw $simLogPath
+  $simResult = Get-SimResultFromLog $simText
+  $failed = ($simResult -ne "passed")
+
+  return [pscustomobject]@{
+    Result = $simResult
+    Failed = $failed
+    LogPath = $simOutPath
+  }
 }
 
 function Invoke-WslYosys([string]$WslRepo, [string]$WslScriptPath, [string]$WslLogPath) {
@@ -223,7 +304,7 @@ function Get-TbSources([string]$TbTop) {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s1_fetch/core/pc.sv",
-                "sim/tb/s1_fetch/pc_tb.sv"
+                "tb/s1_fetch/pc_tb.sv"
             )
         }
         "instruction_cache_tb" {
@@ -231,7 +312,7 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/package/cache_pkg.sv",
                 "rtl/s1_fetch/core/instruction_cache.sv",
-                "sim/tb/s1_fetch/instruction_cache_tb.sv"
+                "tb/s1_fetch/instruction_cache_tb.sv"
             )
         }
         "target_buffer_tb" {
@@ -239,21 +320,21 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/package/cache_pkg.sv",
                 "rtl/s1_fetch/branch/target_buffer.sv",
-                "sim/tb/s1_fetch/target_buffer_tb.sv"
+                "tb/s1_fetch/target_buffer_tb.sv"
             )
         }
         "if_id_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/if_id.sv",
-                "sim/tb/s2_decode/if_id_tb.sv"
+                "tb/s2_decode/if_id_tb.sv"
             )
         }
         "decoder_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/core/decoder.sv",
-                "sim/tb/s2_decode/decoder_tb.sv"
+                "tb/s2_decode/decoder_tb.sv"
             )
         }
         "state_buffer_tb" {
@@ -262,7 +343,7 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/package/cache_pkg.sv",
                 "rtl/s4_memory/branch/state_LUT.sv",
                 "rtl/s2_decode/branch/state_buffer.sv",
-                "sim/tb/s2_decode/state_buffer_tb.sv"
+                "tb/s2_decode/state_buffer_tb.sv"
             )
         }
         "register_file_tb" {
@@ -270,14 +351,14 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/core/decoder.sv",
                 "rtl/s2_decode/core/register_file.sv",
-                "sim/tb/s2_decode/register_file_tb.sv"
+                "tb/s2_decode/register_file_tb.sv"
             )
         }
         "dispatch_hazard_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s2_decode/core/decoder.sv",
-                "sim/tb/s2_decode/dispatch_hazard_tb.sv"
+                "tb/s2_decode/dispatch_hazard_tb.sv"
             )
         }
         "even_lane_tb" {
@@ -286,7 +367,7 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/s2_decode/core/decoder.sv",
                 "rtl/s3_execution/core/even_funct/scalar_alu.sv",
                 "rtl/s3_execution/core/even_lane.sv",
-                "sim/tb/s3_execute/even_lane_tb.sv"
+                "tb/s3_execute/even_lane_tb.sv"
             )
         }
         "odd_lane_tb" {
@@ -295,7 +376,7 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/s3_execution/core/odd_funct/branch_unit.sv",
                 "rtl/s3_execution/core/odd_funct/memory_access.sv",
                 "rtl/s3_execution/core/odd_lane.sv",
-                "sim/tb/s3_execute/odd_lane_tb.sv"
+                "tb/s3_execute/odd_lane_tb.sv"
             )
         }
         "id_ex_dispatch_tb" {
@@ -303,21 +384,21 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/dispatch_funct/scoreboard.sv",
                 "rtl/s3_execution/id_ex_dispatch.sv",
-                "sim/tb/s3_execute/id_ex_dispatch_tb.sv"
+                "tb/s3_execute/id_ex_dispatch_tb.sv"
             )
         }
         "forward_unit_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/core/forward_unit.sv",
-                "sim/tb/s3_execute/forward_unit_tb.sv"
+                "tb/s3_execute/forward_unit_tb.sv"
             )
         }
         "ex_mem_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s4_memory/ex_mem.sv",
-                "sim/tb/s4_memory/ex_mem_tb.sv"
+                "tb/s4_memory/ex_mem_tb.sv"
             )
         }
         "memory_cache_tb" {
@@ -325,21 +406,21 @@ function Get-TbSources([string]$TbTop) {
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/package/cache_pkg.sv",
                 "rtl/s4_memory/core/memory_cache.sv",
-                "sim/tb/s4_memory/memory_cache_tb.sv"
+                "tb/s4_memory/memory_cache_tb.sv"
             )
         }
         "scoreboard_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s3_execution/dispatch_funct/scoreboard.sv",
-                "sim/tb/s3_execute/scoreboard_tb.sv"
+                "tb/s3_execute/scoreboard_tb.sv"
             )
         }
         "ex_mem_wb_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
                 "rtl/s5_wback/ex_mem_wb.sv",
-                "sim/tb/s5_wback/ex_mem_wb_tb.sv"
+                "tb/s5_wback/ex_mem_wb_tb.sv"
             )
         }
         default {
@@ -348,110 +429,22 @@ function Get-TbSources([string]$TbTop) {
     }
 }
 
-function Invoke-OneTb([string]$TbTop, [string]$RepoRoot, [string]$CurrentDir, [string]$SettingsBat) {
-  $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-  $tbOutDir = Join-Path $CurrentDir $TbTop
-  $buildDir = Join-Path $RepoRoot "sim\build"
-
-  $srcs = Get-TbSources $TbTop
-  foreach ($src in $srcs) {
-    $fullPath = Join-Path $RepoRoot $src
-    if (-not (Test-Path $fullPath)) {
-      throw "Missing source file for ${TbTop}: $src"
-    }
-  }
-
-  New-Item -ItemType Directory -Force -Path $tbOutDir | Out-Null
-  Remove-VivadoBuildDir -BuildDir $buildDir
-  New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
-
-  $snapshot = "${TbTop}_sim"
-  $srcArg = (($srcs | ForEach-Object { "../../$_" }) -join " ")
-  $runCmd = "xvlog --sv -i ../../sim/tb $srcArg && xelab $TbTop -s $snapshot && xsim $snapshot -runall"
-
-  Push-Location $buildDir
-  try {
-    cmd /c """$SettingsBat"" && $runCmd"
-    if ($LASTEXITCODE -ne 0) {
-      throw "Vivado simulation failed for top '$TbTop' (exit $LASTEXITCODE)."
-    }
-
-    $xsimLog = Join-Path $buildDir "xsim.log"
-    if (-not (Test-Path $xsimLog)) {
-      throw "xsim.log not found after simulation."
-    }
-
-    $xsimText = Get-Content -Raw $xsimLog
-    $xsimLines = Get-Content $xsimLog
-    $result = "unknown"
-    if ($xsimText -match '\*\*\* SUMMARY:\s*(.+?)\s*\*\*\*') {
-      $result = $Matches[1].Trim()
-    }
-
-    $summaryLines = @(
-      "top:    $TbTop",
-      "time:   $timestamp",
-      "result: $result"
-    )
-
-    # Hide xsim session/system metadata while keeping full TB output.
-    $tbLines = $xsimLines | Where-Object {
-      ($_ -notmatch '^\s*#') -and
-      ($_ -notmatch '^\s*source\s+xsim\.dir\/') -and
-      ($_ -notmatch '^\s*INFO:\s*\[Common 17-206\]')
-    }
-
-    $failLines = $tbLines | Where-Object {
-      ($_ -match '^\s*Error:\s+\[FAIL\]') -or
-      ($_ -match '^\s*\[FAIL\]') -or
-      ($_ -match '^\s*Fatal:')
-    }
-
-    $tbLines | Set-Content (Join-Path $tbOutDir "tb.log")
-    $summaryLines | Set-Content (Join-Path $tbOutDir "summary.txt")
-
-    Remove-Item (Join-Path $buildDir "$snapshot.wdb") -Force -ErrorAction SilentlyContinue
-    Remove-VivadoBuildDir -BuildDir $buildDir
-    Remove-VivadoRootArtifacts -RepoRoot $RepoRoot
-
-    Write-Host "OK  top:       $TbTop"
-    Write-Host "OK  tb.log:    $(Join-Path $tbOutDir 'tb.log')"
-    Write-Host "OK  summary:   $(Join-Path $tbOutDir 'summary.txt')"
-    Write-Host "    result:    $result"
-
-    if ($failLines.Count -gt 0) {
-      Write-Host "    fail details:"
-      foreach ($line in $failLines) {
-        Write-Host "      $line"
-      }
-    }
-
-    return [pscustomobject]@{
-      Top = $TbTop
-      Result = $result
-      Archive = $tbOutDir
-      Failed = (($result -match '(?i)failed') -or ($failLines.Count -gt 0))
-    }
-  }
-  finally {
-    Pop-Location
-    Remove-VivadoBuildDir -BuildDir $buildDir
-    Remove-VivadoRootArtifacts -RepoRoot $RepoRoot
-  }
-}
-
-function Invoke-OneTbYosys(
+function Invoke-OneTb(
   [string]$TbTop,
   [string]$RepoRoot,
-  [string]$CurrentDir,
-  [bool]$DoSynth
+  [string]$LatestDir,
+  [bool]$DoSynth,
+  [bool]$DoSim
 ) {
   $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-  $tbOutDir = Join-Path $CurrentDir $TbTop
-  $buildDir = Join-Path $RepoRoot "sim\build"
+  $runOutDir = Join-Path $LatestDir $TbTop
+  $buildDir = Get-YosysBuildDir $RepoRoot
   $wslRepo = ConvertTo-WslPath $RepoRoot
+  $runBase = $TbTop
+  $mode = if ($DoSynth) { "synth" } else { "elab" }
 
-  $srcs = Get-TbSources $TbTop
+  $dutTop = Get-DutTopFromTb $TbTop
+  $srcs = Get-RtlSourcesForTb $TbTop
   foreach ($src in $srcs) {
     $fullPath = Join-Path $RepoRoot $src
     if (-not (Test-Path $fullPath)) {
@@ -459,17 +452,14 @@ function Invoke-OneTbYosys(
     }
   }
 
-  New-Item -ItemType Directory -Force -Path $tbOutDir | Out-Null
   New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
-  $ysName = "yosys_$TbTop.ys"
-  $logName = "yosys_$TbTop.log"
-  $ysPath = Join-Path $buildDir $ysName
-  $logPath = Join-Path $buildDir $logName
+  $ysPath = Join-Path $buildDir "$runBase.ys"
+  $logPath = Join-Path $buildDir "$runBase.log"
 
-  $lines = New-YosysScriptLines -WslRepo $wslRepo -Sources $srcs -TopModule $TbTop `
-    -DoSynth $DoSynth -OutBase $TbTop
-  $lines | Set-Content -Path $ysPath -Encoding UTF8
+  $lines = New-YosysScriptLines -WslRepo $wslRepo -Sources $srcs -TopModule $dutTop `
+    -DoSynth $DoSynth -OutBase $runBase
+  Write-Utf8NoBomLines -Path $ysPath -Lines $lines
 
   $exitCode = Invoke-WslYosys -WslRepo $wslRepo `
     -WslScriptPath (ConvertTo-WslPath $ysPath) `
@@ -480,32 +470,37 @@ function Invoke-OneTbYosys(
   }
 
   $yosysText = Get-Content -Raw $logPath
-  $yosysLines = Get-Content $logPath
-  $hasError = ($yosysText -match '(?m)^ERROR:') -or ($exitCode -ne 0)
+  $hasError = ($yosysText -match '(?m)^ERROR:')
   $result = if ($hasError) { "failed" } else { "passed" }
 
-  $summaryLines = @(
-    "top:    $TbTop",
-    "tool:   yosys",
-    "mode:   $(if ($DoSynth) { 'synth' } else { 'elab' })",
-    "time:   $timestamp",
-    "result: $result"
-  )
-
-  $yosysLines | Set-Content (Join-Path $tbOutDir "yosys.log")
-  $summaryLines | Set-Content (Join-Path $tbOutDir "summary.txt")
-
-  if (Test-Path (Join-Path $buildDir "${TbTop}_out.v")) {
-    Copy-Item (Join-Path $buildDir "${TbTop}_out.v") (Join-Path $tbOutDir "netlist.v") -Force
+  $simResult = ""
+  $simFailed = $false
+  if ($DoSim) {
+    Write-Host "=== VERILATOR $TbTop ==="
+    $sim = Invoke-VerilatorSim -TbTop $TbTop -RepoRoot $RepoRoot -RunOutDir $runOutDir
+    $simResult = $sim.Result
+    $simFailed = $sim.Failed
+    Write-Host "OK  sim.log:  $($sim.LogPath)"
+    Write-Host "    sim:      $simResult"
   }
 
-  Write-Host "OK  top:       $TbTop (yosys)"
-  Write-Host "OK  yosys.log: $(Join-Path $tbOutDir 'yosys.log')"
-  Write-Host "OK  summary:   $(Join-Path $tbOutDir 'summary.txt')"
+  $overallFailed = $hasError -or $simFailed
+  $summaryLines = New-RunSummaryLines -Top $TbTop -Mode $mode `
+    -Timestamp $timestamp -Result $result -SimResult $simResult
+
+  Publish-YosysRunLogs -RunOutDir $runOutDir -BuildDir $buildDir -RunBase $runBase `
+    -ScriptPath $ysPath -SummaryLines $summaryLines
+  Publish-SynthArtifacts -RepoRoot $RepoRoot -RunOutDir $runOutDir -TopName $TbTop
+
+  Write-Host "OK  tb:        $TbTop"
+  Write-Host "OK  dut:       $dutTop ($mode)"
+  Write-Host "OK  run.log:   $(Join-Path $runOutDir 'run.log')"
+  Write-Host "OK  stat.txt:  $(Join-Path $runOutDir 'stat.txt')"
+  Write-Host "OK  summary:   $(Join-Path $runOutDir 'summary.txt')"
   Write-Host "    result:    $result"
 
   if ($hasError) {
-    $errLines = $yosysLines | Where-Object { $_ -match '^ERROR:' } | Select-Object -First 5
+    $errLines = Get-Content $logPath | Where-Object { $_ -match '^ERROR:' } | Select-Object -First 5
     if ($errLines) {
       Write-Host "    errors:"
       foreach ($line in $errLines) { Write-Host "      $line" }
@@ -514,21 +509,21 @@ function Invoke-OneTbYosys(
 
   return [pscustomobject]@{
     Top = $TbTop
-    Result = $result
-    Archive = $tbOutDir
-    Failed = $hasError
+    Result = if ($overallFailed) { "failed" } else { "passed" }
+    Archive = $runOutDir
+    Failed = $overallFailed
   }
 }
 
 function Invoke-SynthRtl(
   [string]$RepoRoot,
-  [string]$CurrentDir,
+  [string]$LatestDir,
   [string]$RtlTopName
 ) {
   $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-  $outName = "yosys_rtl_$RtlTopName"
-  $tbOutDir = Join-Path $CurrentDir $outName
-  $buildDir = Join-Path $RepoRoot "sim\build"
+  $runBase = "rtl_$RtlTopName"
+  $runOutDir = Join-Path $LatestDir $runBase
+  $buildDir = Get-YosysBuildDir $RepoRoot
   $wslRepo = ConvertTo-WslPath $RepoRoot
 
   $srcs = Get-RtlSources $RepoRoot
@@ -539,15 +534,14 @@ function Invoke-SynthRtl(
     }
   }
 
-  New-Item -ItemType Directory -Force -Path $tbOutDir | Out-Null
   New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
-  $ysPath = Join-Path $buildDir "$outName.ys"
-  $logPath = Join-Path $buildDir "$outName.log"
+  $ysPath = Join-Path $buildDir "$runBase.ys"
+  $logPath = Join-Path $buildDir "$runBase.log"
 
   $lines = New-YosysScriptLines -WslRepo $wslRepo -Sources $srcs -TopModule $RtlTopName `
-    -DoSynth $true -OutBase $outName
-  $lines | Set-Content -Path $ysPath -Encoding UTF8
+    -DoSynth $true -OutBase $runBase
+  Write-Utf8NoBomLines -Path $ysPath -Lines $lines
 
   $exitCode = Invoke-WslYosys -WslRepo $wslRepo `
     -WslScriptPath (ConvertTo-WslPath $ysPath) `
@@ -558,89 +552,60 @@ function Invoke-SynthRtl(
   }
 
   $yosysText = Get-Content -Raw $logPath
-  $yosysLines = Get-Content $logPath
-  $hasError = ($yosysText -match '(?m)^ERROR:') -or ($exitCode -ne 0)
+  $hasError = ($yosysText -match '(?m)^ERROR:')
   $result = if ($hasError) { "failed" } else { "passed" }
 
-  $summaryLines = @(
-    "top:    $RtlTopName",
-    "tool:   yosys",
-    "mode:   synth-rtl",
-    "time:   $timestamp",
-    "result: $result"
-  )
+  $summaryLines = New-RunSummaryLines -Top $RtlTopName -Mode "synth-rtl" `
+    -Timestamp $timestamp -Result $result
 
-  $yosysLines | Set-Content (Join-Path $tbOutDir "yosys.log")
-  $summaryLines | Set-Content (Join-Path $tbOutDir "summary.txt")
+  Publish-YosysRunLogs -RunOutDir $runOutDir -BuildDir $buildDir -RunBase $runBase `
+    -ScriptPath $ysPath -SummaryLines $summaryLines
+  Publish-SynthArtifacts -RepoRoot $RepoRoot -RunOutDir $runOutDir `
+    -TopName $runBase -PromoteToRoot $true
 
-  if (Test-Path (Join-Path $buildDir "${outName}_out.v")) {
-    Copy-Item (Join-Path $buildDir "${outName}_out.v") (Join-Path $tbOutDir "netlist.v") -Force
-  }
-
-  Write-Host "OK  rtl top:   $RtlTopName (yosys synth)"
-  Write-Host "OK  yosys.log: $(Join-Path $tbOutDir 'yosys.log')"
+  Write-Host "OK  rtl top:   $RtlTopName (synth-rtl)"
+  Write-Host "OK  run.log:   $(Join-Path $runOutDir 'run.log')"
+  Write-Host "OK  stat.txt:  $(Join-Path $runOutDir 'stat.txt')"
   Write-Host "    result:    $result"
 
   return [pscustomobject]@{
     Top = $RtlTopName
     Result = $result
-    Archive = $tbOutDir
+    Archive = $runOutDir
     Failed = $hasError
   }
 }
 
-function Rotate-CurrentToTemp([string]$LogsRoot) {
-  $currentDir = Join-Path $LogsRoot "current"
-  $tempDir = Join-Path $LogsRoot "temp"
-
-  New-Item -ItemType Directory -Force -Path $currentDir | Out-Null
-  New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-
-  $currentItems = @(Get-ChildItem -Path $currentDir -Force -ErrorAction SilentlyContinue)
-  if ($currentItems.Count -eq 0) {
-    Write-Host "Prepared logs folders: current empty, temp unchanged."
-    return
-  }
-
-  $archiveDir = Join-Path $tempDir (Get-Date -Format "yyyyMMdd_HHmmss")
-  New-Item -ItemType Directory -Force -Path $archiveDir | Out-Null
-
-  foreach ($item in $currentItems) {
-    Move-Item -Path $item.FullName -Destination $archiveDir -Force
-  }
-
-  Write-Host "Prepared logs folders: moved current -> temp/$(Split-Path $archiveDir -Leaf)."
-}
-
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$buildDir = Join-Path $repoRoot "sim\build"
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$yosysBuildDir = Get-YosysBuildDir $repoRoot
 
 if ($Clean) {
   if ($Top -or $All -or $DeleteOddLogs -or $SynthRtl) {
     throw "Use -Clean alone, or run with -Top/-All/-SynthRtl."
   }
 
-  Remove-VivadoBuildDir -BuildDir $buildDir
-  Remove-YosysBuildArtifacts -BuildDir $buildDir
-  Remove-VivadoRootArtifacts -RepoRoot $repoRoot
-  Write-Host "OK  removed Vivado/Yosys artifacts under $repoRoot"
+  Remove-YosysBuildDir -YosysBuildDir $yosysBuildDir
+  Remove-LegacyLogTrees -RepoRoot $repoRoot
+  Write-Host "OK  removed Yosys build artifacts under $repoRoot"
   exit 0
 }
 
-$logsRoot = Join-Path $repoRoot "sim\logs"
-$currentDir = Join-Path $logsRoot "current"
+Assert-WslYosys
+if ($Sim) {
+  Assert-WslVerilator
+}
 
 if ($SynthRtl) {
   if ($All -or $Top) {
     throw "Use -SynthRtl alone (optional -RtlTop), not with -Top/-All."
   }
 
-  Assert-WslYosys
-  Rotate-CurrentToTemp -LogsRoot $logsRoot
-  Remove-YosysBuildArtifacts -BuildDir $buildDir
+  Rotate-LogsToTemp -RepoRoot $repoRoot
+  Remove-YosysBuildDir -YosysBuildDir $yosysBuildDir
 
+  $latestDir = Get-LogsLatestDir $repoRoot
   Write-Host "=== YOSYS RTL SYNTH $RtlTop ==="
-  $rtlResult = Invoke-SynthRtl -RepoRoot $repoRoot -CurrentDir $currentDir -RtlTopName $RtlTop
+  $rtlResult = Invoke-SynthRtl -RepoRoot $repoRoot -LatestDir $latestDir -RtlTopName $RtlTop
   if ($rtlResult.Failed) { exit 1 }
   exit 0
 }
@@ -652,68 +617,40 @@ if (-not $All -and -not $Top) {
   throw "Provide -Top <tb>, -All, -SynthRtl, or -Clean."
 }
 
-Rotate-CurrentToTemp -LogsRoot $logsRoot
+Rotate-LogsToTemp -RepoRoot $repoRoot
+Remove-YosysBuildDir -YosysBuildDir $yosysBuildDir
 
 if ($DeleteOddLogs) {
-  Get-ChildItem -Path $logsRoot -Directory -Filter "odd_lane_tb_*" -ErrorAction SilentlyContinue |
+  $logsRoot = Get-LogsRoot $repoRoot
+  Get-ChildItem -Path $logsRoot -Directory -Recurse -Filter "odd_lane_tb*" `
+    -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $topsToRun = if ($All) { $AllTops } else { @($Top) }
 $results = @()
+$doSynth = $Synth
+$doSim = $Sim
+$latestDir = Get-LogsLatestDir $repoRoot
 
-if ($Tool -eq "Yosys") {
-  Assert-WslYosys
-  Remove-YosysBuildArtifacts -BuildDir $buildDir
-  $doSynth = -not $ElabOnly
-
-  foreach ($tb in $topsToRun) {
-    Write-Host "=== YOSYS $tb ==="
-    try {
-      $results += Invoke-OneTbYosys -TbTop $tb -RepoRoot $repoRoot `
-        -CurrentDir $currentDir -DoSynth $doSynth
-    }
-    catch {
-      if ($All) {
-        Write-Host "SKIP $tb - $($_.Exception.Message)"
-        $results += [pscustomobject]@{
-          Top = $tb
-          Result = "SKIPPED"
-          Archive = ""
-          Failed = $false
-        }
-        continue
-      }
-      throw
-    }
+foreach ($tb in $topsToRun) {
+  Write-Host "=== YOSYS $tb ==="
+  try {
+    $results += Invoke-OneTb -TbTop $tb -RepoRoot $repoRoot `
+      -LatestDir $latestDir -DoSynth $doSynth -DoSim $doSim
   }
-}
-else {
-  $settingsBat = Join-Path $VivadoRoot "settings64.bat"
-  if (-not (Test-Path $settingsBat)) {
-    throw "Vivado settings not found: $settingsBat"
-  }
-
-  Remove-VivadoRootArtifacts -RepoRoot $repoRoot
-
-  foreach ($tb in $topsToRun) {
-    Write-Host "=== RUN $tb ==="
-    try {
-      $results += Invoke-OneTb -TbTop $tb -RepoRoot $repoRoot -CurrentDir $currentDir -SettingsBat $settingsBat
-    }
-    catch {
-      if ($All) {
-        Write-Host "SKIP $tb - $($_.Exception.Message)"
-        $results += [pscustomobject]@{
-          Top = $tb
-          Result = "SKIPPED"
-          Archive = ""
-          Failed = $false
-        }
-        continue
+  catch {
+    if ($All) {
+      Write-Host "SKIP $tb - $($_.Exception.Message)"
+      $results += [pscustomobject]@{
+        Top = $tb
+        Result = "SKIPPED"
+        Archive = ""
+        Failed = $false
       }
-      throw
+      continue
     }
+    throw
   }
 }
 

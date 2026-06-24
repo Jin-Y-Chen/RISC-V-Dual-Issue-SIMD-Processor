@@ -3,8 +3,6 @@
 // pc_tb - fetch PC update policy for dual-issue front-end.
 module pc_tb;
 
-  import rv_dis_pkg::*;
-
   `include "../common/tb_console.svh"
 
   localparam int CLK_PERIOD = 10;

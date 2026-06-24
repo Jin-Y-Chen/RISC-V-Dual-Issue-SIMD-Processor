@@ -1,75 +1,30 @@
-# ISA documentation
+# ISA notes
 
-Document encoding and pipeline assignment for scalar and **128-bit SIMD** instructions.
+Scalar: RV32I-style subset (ADD/SUB, AND/OR/XOR, LOAD/STORE, BRANCH, JUMP). Each opcode maps to even (compute) or odd (mem/control) for issue.
 
-## Scalar (RV32I-style subset)
+SIMD: 128-bit vectors, `v0`–`v7`, 16-byte aligned loads/stores. Lane modes `.b` (16×8), `.h` (8×16), `.w` (4×32).
 
-- Arithmetic: ADD, SUB
-- Logical: AND, OR, XOR
-- Memory: LOAD, STORE
-- Control: BRANCH, JUMP
-- Immediates: I-type scalar operations
+## Vector ops (planned)
 
-Each scalar opcode maps to **even** (compute) or **odd** (memory/control) for issue logic.
+| Even lane ALU | Odd lane mem |
+|---------------|--------------|
+| VADD, VSUB, VAND, VOR, VXOR | VLD128, VST128 |
 
-## 128-bit SIMD extension
+Valid dual-issue example: `add` + `vld128`, or `vadd.vw` + `beq`. Invalid: two vector ALUs, two vector mem ops, or port conflicts.
 
-| Parameter | Value |
-|-----------|--------|
-| Vector width | 128 bits |
-| Vector registers | `v0`–`v7` (8 × 128-bit), separate from scalar `x0`–`x31` |
-| Alignment | Vector memory ops require **16-byte** aligned addresses |
+## Encoding
 
-### Lane modes (funct3 or opcode subfield)
+Packages: `rtl/package/rv_dis_pkg.sv`. Scalar decode helpers: `decode_pkg` in `rtl/s2_decode/core/decoder.sv`.
 
-| Mode | Lanes | Per-lane op width |
-|------|-------|-------------------|
-| `.b` | 16 | 8-bit |
-| `.h` | 8 | 16-bit |
-| `.w` | 4 | 32-bit |
+Custom opcodes (not RVV `OP-V`):
 
-### Even-lane vector ALU
+| Class | `opcode [6:0]` | Notes |
+|-------|----------------|-------|
+| Vector ALU | `0001011` | R-type; `funct3` = lane mode, `funct7` = op |
+| Vector mem | `0101011` | VLD128 I-type, VST128 S-type |
 
-| Instruction | Operation | Pipeline |
-|-------------|-----------|----------|
-| VADD | Lane-wise add | Even |
-| VSUB | Lane-wise subtract | Even |
-| VAND | Lane-wise AND | Even |
-| VOR | Lane-wise OR | Even |
-| VXOR | Lane-wise XOR | Even |
+Lane `funct3`: `000`=.b, `001`=.h, `010`=.w
 
-Operands: `vd`, `vs1`, `vs2` (vector register indices 0–7).
+Vector ALU `funct7`: VADD=0, VSUB=1, VAND=2, VOR=3, VXOR=4
 
-### Odd-lane vector memory
-
-| Instruction | Operation | Pipeline |
-|-------------|-----------|----------|
-| VLD128 | Load 128 bits from memory → VR | Odd |
-| VST128 | Store 128 bits from VR → memory | Odd |
-
-Address: scalar base register + optional immediate offset; effective address must be 16-byte aligned.
-
-### Dual-issue pairing examples
-
-Valid pairs (even + odd in same cycle):
-
-- `add x5, x6, x7` + `vld128 v2, (x10)`
-- `vadd.vw v1, v2, v3` + `beq x1, x2, label`
-- `vadd.vb v4, v5, v6` + `vst128 v4, (x11)`
-
-Invalid: two vector ALU ops, two vector loads, or any pair with a register/file port conflict.
-
-## Encoding (opcodes in `rtl/common/rv_dis_pkg.sv`; scalar decode in `rtl/s2_decode/decode_pkg.sv`)
-
-Uses RISC-V **custom-0** / **custom-1** major opcodes (not RVV `OP-V`):
-
-| Class | `opcode [6:0]` | Format |
-|-------|----------------|--------|
-| Vector ALU (even) | `0001011` (`OPC_VEC_ALU`) | R-type: `funct7` op, `rs2`/`rs1`/`rd` = `vs2`/`vs1`/`vd` (use `[2:0]`), `funct3` = lane mode |
-| Vector mem (odd) | `0101011` (`OPC_VEC_MEM`) | `F3_VLD128`: I-type imm + scalar base; `F3_VST128`: S-type imm + scalar base, `rs2` = `vs` |
-
-**Lane `funct3`:** `000` = `.b` (16×8), `001` = `.h` (8×16), `010` = `.w` (4×32)
-
-**Vector ALU `funct7`:** `VADD=0`, `VSUB=1`, `VAND=2`, `VOR=3`, `VXOR=4`
-
-Scalar ops remain standard RV32I encodings.
+Scalar ops use standard RV32I encodings.

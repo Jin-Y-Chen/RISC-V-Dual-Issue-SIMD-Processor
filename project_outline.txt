@@ -3,7 +3,7 @@ Project: RV-DIS — RISC-V Dual-Issue SIMD Processor
 
 5-28-2026:
 
-Tool: Vivado simulatiion & Vscode Editor
+Tool: Yosys (WSL2 Ubuntu) & VS Code Editor
 
 6-4-2026 update:
     - Scalar GPR RTL + register_file_tb (chained WB/ID checks)
@@ -26,7 +26,7 @@ RV32I Instruction Set Architecture Deisgned:
     2) can support modern operating system environments
 
     3) Reduce hardware required in a minimal implementation
-    - important to test functionally on the Artix-7
+    - verify RTL with Yosys elaboration / synthesis (scripts/run_yosys.ps1)
 
     4) ~40 unique instructions 
 
@@ -642,22 +642,17 @@ Branch State Look Up
                 10 + 0 -> 00     10 + 1 -> 11
                 11 + 0 -> 10     11 + 1 -> 11
 
-Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
-
-    On-chip block RAM (FPGA BRAM, not SPI flash):
-    - Device total: ~1,800 Kbit ≈ 225 KiB (50 × 36 Kbit RAMB36 tiles)
-    - RV-DIS on-chip cache SRAM budget must stay within this pool (plus separate BRAM for
-      GPR, pipeline regs, FIFOs — not all 225 KiB is available to caches)
+Memory hierarchy (on-chip SRAM budget):
 
     Planned cache sizes (byte-addressed, 8 bits per address):
     - two L2 data cache total (largest): 2^17 bytes = (2 * 64) KiB total
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 
-Verification (Vivado behavioral sim):
+Verification (Yosys via WSL):
 
-    See sim/README.md (run commands, file lists, register_file_tb / dispatch_hazard_tb notes).
-    TB layout and logging: sim/tb/README.md
+    See scripts/README.md (run_yosys.ps1 commands, log layout).
+    TB layout and logging: tb/README.md
 
 128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
 

@@ -115,39 +115,39 @@ package cache_pkg;
   endfunction
 
   // Bank — full [SETS][WAYS] array; set/way derived from PC via cfg
-  function automatic logic [DATA_W-1:0] cache_bank_read #(
-    int DATA_W = 32,
-    int SETS     = 512                      // must match cfg.sets / bank array size
-  )(
-    input logic [DATA_W:0] bank [SETS][CACHE_WAYS],
-    input logic [31:0]       pc,
-    input cache_struct_t     cfg,
-    input logic [DATA_W-1:0] default_data
-  );
-    return cache_set_read#(DATA_W)(
-      bank[pc_set(pc, cfg)],
-      pc_way(pc, cfg),
-      default_data
-    );
-  endfunction
+//   function automatic logic [DATA_W-1:0] cache_bank_read #(
+//     int DATA_W = 32,
+//     int SETS     = 512                      // must match cfg.sets / bank array size
+//   )(
+//     input logic [DATA_W:0] bank [SETS][CACHE_WAYS],
+//     input logic [31:0]       pc,
+//     input cache_struct_t     cfg,
+//     input logic [DATA_W-1:0] default_data
+//   );
+//     return cache_set_read#(DATA_W)(
+//       bank[pc_set(pc, cfg)],
+//       pc_way(pc, cfg),
+//       default_data
+//     );
+//   endfunction
 
-  function automatic logic [DATA_W:0] cache_bank_write #(
-    int DATA_W = 32
-  )(
-    input logic             valid,
-    input logic [DATA_W-1:0] data           // assign to bank[pc_set(pc,cfg)][pc_way(pc,cfg)]
-  );
-    return cache_way_write#(DATA_W)(valid, data);
-  endfunction
+//   function automatic logic [DATA_W:0] cache_bank_write #(
+//     int DATA_W = 32
+//   )(
+//     input logic             valid,
+//     input logic [DATA_W-1:0] data           // assign to bank[pc_set(pc,cfg)][pc_way(pc,cfg)]
+//   );
+//     return cache_way_write#(DATA_W)(valid, data);
+//   endfunction
 
-  // Alias for cache_way_write
-  function automatic logic [DATA_W:0] cache_way_pack #(
-    int DATA_W = 32
-  )(
-    input logic             valid,
-    input logic [DATA_W-1:0] data
-  );
-    return cache_way_write#(DATA_W)(valid, data);
-  endfunction
+//   // Alias for cache_way_write
+//   function automatic logic [DATA_W:0] cache_way_pack #(
+//     int DATA_W = 32
+//   )(
+//     input logic             valid,
+//     input logic [DATA_W-1:0] data
+//   );
+//     return cache_way_write#(DATA_W)(valid, data);
+//   endfunction
 
 endpackage

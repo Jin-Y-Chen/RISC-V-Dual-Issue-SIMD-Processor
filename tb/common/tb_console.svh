@@ -1,8 +1,8 @@
-// Shared testbench logging (required in all sim/tb/<unit>/*_tb.sv).
+// Shared testbench logging (required in all tb/<unit>/*_tb.sv).
 //
-// From sim/tb/<unit>/*_tb.sv:
+// From tb/<unit>/*_tb.sv:
 //   `include "../common/tb_console.svh"
-// Optional Vivado include path: <repo>/sim/tb (then `include "common/tb_console.svh")
+// Include path for Verilator: -I <repo>/tb
 //
 // Multi-line result format (tb_report_open + tb_field_* + tb_report_close):
 //   [PASS] beq_taken | BEQ x1,x2,+8
@@ -12,7 +12,7 @@
 //   ---------------------------------------
 //
 // Labels use full DUT / pipeline signal names.
-// End every TB with tb_summary(pass_cnt, fail_cnt) for run_vivado_sim.ps1.
+// End every TB with tb_summary(pass_cnt, fail_cnt) for run_yosys.ps1.
 
 task automatic tb_pass_msg(input string msg);
   $display("[PASS] %s", msg);

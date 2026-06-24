@@ -1,44 +1,22 @@
-# Vivado / simulator generated (repo root — use sim/build via run_vivado_sim.ps1)
-/xvlog.log
-/xvlog.pb
-/xelab.log
-/xelab.pb
-/xsim.log
-/xsim.jou
-/xsim.dir/
-*.jou
-*.log
-*.pb
-*.wdb
-*.str
-dfx_runtime.txt
-**/dfx_runtime.txt
-Xilinx/
-.xsim/
-xsim.dir/
-sim/xsim.dir/
-sim/build/
+# Tool / simulator generated
+sim/verilator/**/*
+!sim/verilator/.gitkeep
+sim/waves/**/*
+!sim/waves/.gitkeep
+sim/obj_dir/**/*
+!sim/obj_dir/.gitkeep
 
-# Local sim log archives (keep scripts/config tracked)
-sim/logs/register_file_tb_*/
-sim/logs/decoder_tb_*/
-sim/logs/dispatch_hazard_tb_*/
-sim/logs/even_lane_tb_*/
-sim/logs/odd_lane_tb_*/
-sim/logs/ex_mem_tb_*/
-sim/logs/pc_tb_*/
-sim/logs/if_id_tb_*/
-sim/logs/_latest/tb.log
-sim/logs/_latest/summary.txt
-sim/logs/_latest_run.txt
+# Yosys scratch + run logs (tracked: .gitkeep only)
+synth/build/**/*
+!synth/build/.gitkeep
+synth/reports/runs/temp/**
+synth/reports/runs/latest/**
+!synth/reports/runs/latest/.gitkeep
+!synth/reports/runs/temp/.gitkeep
 
-# KiCad diagrams (track only the .kicad_sch schematics)
-docs/diagram/**
-!docs/diagram/**/
-!docs/diagram/**/*.kicad_sch
-
-# Editor / OS
-.vscode/
-*.swp
-Thumbs.db
-Desktop.ini
+# Published synthesis artifacts
+synth/latest/**/*
+!synth/latest/.gitkeep
+synth/netlist.v
+synth/netlist.json
+synth/reports/stat.txt
