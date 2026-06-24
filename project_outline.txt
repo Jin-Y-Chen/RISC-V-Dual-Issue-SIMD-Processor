@@ -1,15 +1,6 @@
 Project: RV-DIS — RISC-V Dual-Issue SIMD Processor
 (RV32I scalar + 128-bit SIMD; in-order even/odd dual-issue)
 
-5-28-2026:
-
-Tool: Vivado simulatiion & Vscode Editor
-
-6-4-2026 update:
-    - Scalar GPR RTL + register_file_tb (chained WB/ID checks)
-    - dispatch_hazard_tb golden model; pipeline regs under s1_fetch … s5_wback
-    - See "Pipeline RTL map" and "Verification" sections below
-
 RISC-V 32-bit instructions formate
 
 RV32I Instruction Set Architecture Deisgned:
@@ -166,6 +157,8 @@ Branch State Buffer with 4-State:
         - 2-bit saturating counter (4 states). Predict from MSB: 0 = not taken, 1 = taken.
         - Reset / default value: 01 (weakly not taken)
 
+        c) indirect BTB state coherent 
+
 Branch Target Prediction 
 
     1) Early branch target address calulation
@@ -176,10 +169,9 @@ Branch Target Prediction
 
         - if valid = 0, pc_predict uses pc + imm (decode) or BTB fallthrough pc + 4 (fetch miss)
         - if valid = 1, pc_predict is set to pc_target from BTB, case of hit in BTB
-        - The case of valid = 1, but pc + imm != pc_target should not be possible by the assembler ie label value
-        are static by the compilier 
+        - The case of valid = 1, but pc + imm != pc_target should not be possible by the assembler ie label value are static by the compilier or BTB does not use direct map
 
-            Possible instruction(register dependent branch label):
+            Non-RISC-V Possible instruction(register dependent branch label):
 
                 addi r3, r0, 0x00           ;
                 beq r1, r2, main(r3)       ;label + r3 
@@ -546,7 +538,7 @@ Execution Flow and Design:
         2) ex_mem_wb: 4-port enable merge → push0/push1 retire candidates
         3) ex_mem_wb retire merge → GPR i0/i1 write ports (2 per cycle, register_file wpc merge)
 
-Cache Memory Design:
+Memory Cache Design:
 
     1) Byte addressing — 8-bits per address(same as intruction cache) as standard RV32I data memory map   
     - Address N and N+1 are adjacent bytes
@@ -654,10 +646,6 @@ Memory hierarchy — Basys 3 (XC7A35T / Artix-7):
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 
-Verification (Vivado behavioral sim):
-
-    See sim/README.md (run commands, file lists, register_file_tb / dispatch_hazard_tb notes).
-    TB layout and logging: sim/tb/README.md
 
 128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
 
