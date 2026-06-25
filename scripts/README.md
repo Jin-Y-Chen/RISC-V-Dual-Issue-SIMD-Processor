@@ -2,7 +2,7 @@
 
 Entry point: `run_yosys.ps1` (Yosys + optional Verilator). Helpers: `log_layout.ps1` (dot-sourced), `run_synth.sh` / `run_sim.sh` / `run_all.sh` (bash wrappers).
 
-Related: [../synth/reports/runs/README.md](../synth/reports/runs/README.md), [../tb/README.md](../tb/README.md).
+Related: [../sim/README.md](../sim/README.md), [../synth/README.md](../synth/README.md), [../tb/README.md](../tb/README.md).
 
 ---
 
@@ -20,21 +20,35 @@ It does **not** run testbench self-tests unless you pass **`-Sim`** (Verilator i
 
 ---
 
-## One-time setup
+## Install (WSL)
+
+Both tools run in **WSL** (Ubuntu). Yosys was originally developed for Linux; this repo calls both through WSL from PowerShell on `/mnt/c/...`.
+
+From an Ubuntu shell:
 
 ```bash
-# in WSL
-sudo apt update && sudo apt install -y yosys verilator
+sudo apt update
+sudo apt install -y yosys verilator
+yosys -V
+verilator --version
 ```
+
+| Tool | Role | Output folder |
+|------|------|---------------|
+| **Yosys** | Elaboration / synthesis | [../synth/README.md](../synth/README.md) |
+| **Verilator** | TB compile + self-test (`-Sim` only) | [../sim/README.md](../sim/README.md) |
+
+Yosys alone covers `-Top` / `-All` / `-Synth` / `-SynthRtl`. Install Verilator only if you use **`-Sim`**.
 
 ### Verify from repo root (PowerShell)
 
 ```powershell
-wsl bash -lc "command -v yosys"
-.\scripts\run_yosys.ps1 -Top pc_tb -Sim
+wsl bash -lc "command -v yosys && command -v verilator"
+.\scripts\run_yosys.ps1 -Top pc_tb          # Yosys elab → synth/reports/runs/latest/
+.\scripts\run_yosys.ps1 -Top pc_tb -Sim     # + Verilator → sim/verilator/<top>/
 ```
 
-TB self-test output goes to `synth/reports/runs/latest/pc_tb/sim.log`. `run.log` stays Yosys-only; check `summary.txt` for `result:` and `sim:`.
+Check `synth/reports/runs/latest/<top>/summary.txt` for `result:` (Yosys) and `sim:` (Verilator).
 
 ---
 

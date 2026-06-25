@@ -1,11 +1,16 @@
-# Simulation build outputs
+# Simulation outputs
 
-Verilator compile trees and wave dumps only. Yosys logs live under `synth/reports/runs/`; drivers live in `scripts/`.
+**Verilator** compiles SystemVerilog testbenches to a C++ simulator and runs them natively. Here it is the cycle-accurate half of `-Sim`: after Yosys elaborates the DUT, Verilator builds `tb/<top>` and executes self-checks (`[PASS]`, `*** SUMMARY ***`). Output is executable simulation, not a netlist.
 
-| Path | Purpose |
-|------|---------|
-| `sim/verilator/<top>/` | Verilator `-Mdir` + `obj_dir/` |
+Drivers and install: [../scripts/README.md](../scripts/README.md). Testbenches: [../tb/README.md](../tb/README.md).
+
+| Path | Contents |
+|------|----------|
+| `sim/verilator/<top>/` | Verilator `-Mdir`: `compile.log`, `sim.log`, `obj_dir/V<top>` binary |
+| `sim/verilator/<top>/obj_dir/` | Generated C++ and the compiled simulator |
 | `sim/waves/` | VCD/FST dumps (future) |
 | `sim/obj_dir/` | Optional shared compile output |
 
-Run TB sim: `.\scripts\run_yosys.ps1 -Top pc_tb -Sim` or `make sim TOP=pc_tb`.
+Human-readable TB results are copied to `synth/reports/runs/latest/<top>/sim.log`. Each `-Sim` run rebuilds `sim/verilator/<top>/` from scratch.
+
+Generated files are gitignored except `.gitkeep` markers.
