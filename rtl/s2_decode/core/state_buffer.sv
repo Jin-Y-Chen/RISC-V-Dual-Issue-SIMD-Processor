@@ -37,13 +37,13 @@ module state_buffer
   br_state_t raw_state0;
   br_state_t raw_state1;
 
-  assign raw_state0 = br_state_t'(cache_set_read#(DATA_W)(
+  assign raw_state0 = br_state_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
     bank[pc_set(i0_pc, CACHE)],
     pc_way(i0_pc, CACHE),
     DEFAULT_STATE
   ));
 
-  assign raw_state1 = br_state_t'(cache_set_read#(DATA_W)(
+  assign raw_state1 = br_state_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
     bank[pc_set(i1_pc, CACHE)],
     pc_way(i1_pc, CACHE),
     DEFAULT_STATE

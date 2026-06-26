@@ -1,19 +1,16 @@
 `timescale 1ns / 1ps
 
-// Instruction memory — dual combinational fetch (RV32I, one 32-bit word per slot).
-// 8192 entries over 32 KiB I$ (PC[14:2]); 512 sets × 16 ways via cache_pkg.
+// Instruction memory — dual combinational fetch (RV32I, ILEN=32 per slot).
+// 32 KiB I$: 8192 entries (PC[14:2]), 2048 sets × 4 ways; byte-addressed map (8 B/addr).
 // Miss (valid=0) => 32'h0; each slot holds one little-endian instruction word.
 module instruction_cache
   import rv_dis_pkg::*;
   import cache_pkg::*;
 #(
-  parameter int INDEX_W = PC_INDEX_AW,
-  parameter int DATA_W  = ILEN
+  parameter int INDEX_W = PC_INDEX_AW,  // 13 => 2^13 insn slots × 4 B = 32 KiB
+  parameter int DATA_W  = ILEN,         // 32-bit instruction per entry
+  parameter int WAYS    = 4             // 4-way set-associative
 ) (
-  // retained for s1_fetch_struct port compatibility; fetch read is combinational
-  input  logic        clk,
-  input  logic        rst_n,
-
   // input data
   input  pc_t         pc0,
   input  pc_t         pc1,
@@ -23,7 +20,8 @@ module instruction_cache
   output instr_t      instr1
 );
 
-  localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(DATA_W), .INDEX_W(INDEX_W))();
+  localparam cache_struct_t CACHE =
+    cache_struct_build#(.DATA_W(DATA_W), .INDEX_W(INDEX_W), .WAYS(WAYS))();
 
   logic [DATA_W:0] bank [CACHE.sets][CACHE.ways];
 
@@ -31,13 +29,13 @@ module instruction_cache
     return {DATA_W{1'b0}};
   endfunction
 
-  assign instr0 = instr_t'(cache_set_read#(DATA_W)(
+  assign instr0 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
     bank[pc_set(pc0, CACHE)],
     pc_way(pc0, CACHE),
     insn_default(pc0)
   ));
 
-  assign instr1 = instr_t'(cache_set_read#(DATA_W)(
+  assign instr1 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
     bank[pc_set(pc1, CACHE)],
     pc_way(pc1, CACHE),
     insn_default(pc1)

@@ -50,9 +50,6 @@ module s1_fetch_struct
   );
 
   instruction_cache u_icache (
-    // external controls
-    .clk    (clk),
-    .rst_n  (rst_n),
     // input data
     .pc0    (pc0),
     .pc1    (pc1),

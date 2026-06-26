@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
-// S3 execute structure — forward unit + four lane copies (combinational EX).
-// id_ex_dispatch, ex_mem, and s4_memory_struct live outside this block.
-module s3_execute_struct
+// S4 execute structure — forward unit + four lane copies (combinational EX).
+// dp_ex, ex_mem, and s5_memory_struct live outside this block.
+module s4_execute_struct
   import rv_dis_pkg::*;
 (
   // internal controls

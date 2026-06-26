@@ -1,20 +1,28 @@
 `timescale 1ns / 1ps
 
+typedef rv_dis_pkg::pc_t pc_t;
+
 // Fetch-stage program counter for dual-issue RV32I.
 module pc #(
   parameter logic [31:0] RESET_PC = 32'h0000_0000
 ) (
+  // external controls
   input  logic               clk,
   input  logic               rst_n,
   input  logic               enable,
+
+  // internal controls
   input  logic               stall,
   input  logic               set,
-  input  rv_dis_pkg::pc_t    set_pc,
-  output rv_dis_pkg::pc_t    pc0,
-  output rv_dis_pkg::pc_t    pc1
+
+  // input data
+  input  pc_t                set_pc,
+
+  // output data
+  output pc_t                pc0,
+  output pc_t                pc1
 );
 
-  typedef rv_dis_pkg::pc_t pc_t;
   pc_t pc_q, pc_next;
 
   always_comb begin

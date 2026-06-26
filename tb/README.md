@@ -1,8 +1,22 @@
 # Testbenches
 
-Run: `.\sim\scripts\run_yosys.ps1 -Top <name>` from repo root.
+Run from repo root:
+
+```bash
+./run-sim -TOP <name>
+```
+
+```powershell
+.\scripts\run_yosys.ps1 -Top <name> -Sim
+```
 
 Shared logging: `common/tb_console.svh` (`tb_report_open`, `tb_field_*`, `tb_summary`).
+
+## Conventions (Verilator / WSL)
+
+- **`tb_advance(clk)`** — `tick` tasks call this: `@(posedge clk)` then `@(negedge clk)` so NBA updates are visible under Verilator (plain `#0` samples too early).
+- **Includes** — `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
+- **`tb_summary`** — end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
 
 ```
 tb/

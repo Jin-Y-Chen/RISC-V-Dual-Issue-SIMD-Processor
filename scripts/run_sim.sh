@@ -7,5 +7,5 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 show_help_if_requested show_run_sim_help "$@"
 
-TOP="${TOP:-pc_tb}"
-run_yosys_invoke -Top "$TOP" -Sim "$@"
+parse_top_from_args "${TOP:-pc_tb}" "$@"
+run_yosys_invoke -Top "$TOP_RESOLVED" -Sim "${FILTERED_ARGS[@]}"

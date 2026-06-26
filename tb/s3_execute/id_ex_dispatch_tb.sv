@@ -109,8 +109,7 @@ module id_ex_dispatch_tb;
   end
 
   task automatic tick;
-    @(posedge clk);
-    #1step;
+    tb_advance(clk);
   endtask
 
   function automatic string lane_name(input logic lane);

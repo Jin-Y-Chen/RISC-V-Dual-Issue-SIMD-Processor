@@ -14,7 +14,10 @@ project/
 ├── tb/               testbenches (Verilator input)
 ├── sim/              Verilator build outputs (verilator/, waves/, obj_dir/)
 ├── synth/            netlists, reports, Yosys run logs
-├── scripts/          run_yosys.ps1, run_*.sh
+├── scripts/          run_yosys.ps1, run_*.sh, fix-sh-lf.ps1
+├── run-sim           one-command Verilator sim (WSL / Git Bash)
+├── run-synth         one-command Yosys elab/synth
+├── run-all           all unit TBs
 ├── tests/            ASM programs + assembler
 ├── docs/             ISA and architecture notes
 └── Makefile
@@ -31,11 +34,22 @@ project/
 
 ## Quick start
 
+**One-time (WSL):**
+
+```bash
+sudo apt update && sudo apt install -y yosys build-essential verilator
+```
+
+**Run (repo root):**
+
+```bash
+./run-synth -TOP pc_tb    # Yosys check
+./run-sim -TOP pc_tb      # + Verilator TB test
+```
+
 ```powershell
-# WSL: sudo apt install yosys verilator
-.\scripts\run_yosys.ps1 -Top pc_tb
 .\scripts\run_yosys.ps1 -Top pc_tb -Sim
 make synth TOP=pc_tb
 ```
 
-Details: [scripts/README.md](scripts/README.md), [synth/README.md](synth/README.md).
+Setup and troubleshooting: [scripts/README.md](scripts/README.md). Sim output: [sim/README.md](sim/README.md). Synth output: [synth/README.md](synth/README.md).

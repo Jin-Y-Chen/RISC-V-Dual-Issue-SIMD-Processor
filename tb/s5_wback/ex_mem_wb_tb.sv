@@ -76,8 +76,7 @@ module ex_mem_wb_tb;
   end
 
   task automatic tick;
-    @(posedge clk);
-    #1step;
+    tb_advance(clk);
   endtask
 
   task automatic clear_inputs;

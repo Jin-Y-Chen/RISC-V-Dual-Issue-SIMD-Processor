@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// RV-DIS scalar core: fetch top + decode top + ID/EX dispatch through MEM/WB.
+// RV-DIS scalar core: fetch → decode → dispatch → execute → memory → writeback.
 module risc_dis_unit
   import rv_dis_pkg::*;
 #(
@@ -196,10 +196,99 @@ module risc_dis_unit
     .i1_reg_write    (i1_reg_write_dec)
   );
 
-  // Same-bundle / in-flight GPR RAW: id_ex_dispatch scoreboard (stall_id, I1 hold replay).
+  // -------------------------------------------------------------------------
+  // Dispatch — pass-through bundle into dp_ex (s3)
+  // -------------------------------------------------------------------------
+  logic        issue_i0;
+  logic        issue_i1;
+
+  logic        i0_valid_dp;
+  logic        i0_lane_sel_dp;
+  logic        i0_reg_write_dp;
+  logic        i1_valid_dp;
+  logic        i1_lane_sel_dp;
+  logic        i1_reg_write_dp;
+  logic [6:0]  i0_opcode_dp;
+  logic [2:0]  i0_funct3_dp;
+  logic [6:0]  i0_funct7_dp;
+  logic [4:0]  i0_rd_dp;
+  logic [4:0]  i0_rs1_dp;
+  logic [4:0]  i0_rs2_dp;
+  logic [31:0] i0_imm_dp;
+  logic [31:0] i0_rs1_data_dp;
+  logic [31:0] i0_rs2_data_dp;
+  logic [31:0] i0_pc_dp;
+  logic [6:0]  i1_opcode_dp;
+  logic [2:0]  i1_funct3_dp;
+  logic [6:0]  i1_funct7_dp;
+  logic [4:0]  i1_rd_dp;
+  logic [4:0]  i1_rs1_dp;
+  logic [4:0]  i1_rs2_dp;
+  logic [31:0] i1_imm_dp;
+  logic [31:0] i1_rs1_data_dp;
+  logic [31:0] i1_rs2_data_dp;
+  logic [31:0] i1_pc_dp;
+
+  id_dp u_dispatch (
+    .i0_valid_id     (i0_valid_dec),
+    .i0_lane_sel_id  (i0_lane_sel_dec),
+    .i0_reg_write_id (i0_reg_write_dec),
+    .i1_valid_id     (i1_valid_dec),
+    .i1_lane_sel_id  (i1_lane_sel_dec),
+    .i1_reg_write_id (i1_reg_write_dec),
+    .i0_opcode_id    (i0_opcode_dec),
+    .i0_funct3_id    (i0_funct3_dec),
+    .i0_funct7_id    (i0_funct7_dec),
+    .i0_rd_addr_id   (i0_rd_dec),
+    .i0_rs1_addr_id  (i0_rs1_dec),
+    .i0_rs2_addr_id  (i0_rs2_dec),
+    .i0_imm_id       (i0_imm_dec),
+    .i0_rs1_data_id  (i0_rs1_data),
+    .i0_rs2_data_id  (i0_rs2_data),
+    .i0_pc_id        (i0_pc_id),
+    .i1_opcode_id    (i1_opcode_dec),
+    .i1_funct3_id    (i1_funct3_dec),
+    .i1_funct7_id    (i1_funct7_dec),
+    .i1_rd_addr_id   (i1_rd_dec),
+    .i1_rs1_addr_id  (i1_rs1_dec),
+    .i1_rs2_addr_id  (i1_rs2_dec),
+    .i1_imm_id       (i1_imm_dec),
+    .i1_rs1_data_id  (i1_rs1_data),
+    .i1_rs2_data_id  (i1_rs2_data),
+    .i1_pc_id        (i1_pc_id),
+    .stall_id        (stall_id),
+    .issue_i0        (issue_i0),
+    .issue_i1        (issue_i1),
+    .i0_valid_dp     (i0_valid_dp),
+    .i0_lane_sel_dp  (i0_lane_sel_dp),
+    .i0_reg_write_dp (i0_reg_write_dp),
+    .i1_valid_dp     (i1_valid_dp),
+    .i1_lane_sel_dp  (i1_lane_sel_dp),
+    .i1_reg_write_dp (i1_reg_write_dp),
+    .i0_opcode_dp    (i0_opcode_dp),
+    .i0_funct3_dp    (i0_funct3_dp),
+    .i0_funct7_dp    (i0_funct7_dp),
+    .i0_rd_addr_dp   (i0_rd_dp),
+    .i0_rs1_addr_dp  (i0_rs1_dp),
+    .i0_rs2_addr_dp  (i0_rs2_dp),
+    .i0_imm_dp       (i0_imm_dp),
+    .i0_rs1_data_dp  (i0_rs1_data_dp),
+    .i0_rs2_data_dp  (i0_rs2_data_dp),
+    .i0_pc_dp        (i0_pc_dp),
+    .i1_opcode_dp    (i1_opcode_dp),
+    .i1_funct3_dp    (i1_funct3_dp),
+    .i1_funct7_dp    (i1_funct7_dp),
+    .i1_rd_addr_dp   (i1_rd_dp),
+    .i1_rs1_addr_dp  (i1_rs1_dp),
+    .i1_rs2_addr_dp  (i1_rs2_dp),
+    .i1_imm_dp       (i1_imm_dp),
+    .i1_rs1_data_dp  (i1_rs1_data_dp),
+    .i1_rs2_data_dp  (i1_rs2_data_dp),
+    .i1_pc_dp        (i1_pc_dp)
+  );
 
   // -------------------------------------------------------------------------
-  // ID/EX dispatch — fixed slot map into four lane copies
+  // ID/EX pipeline register (s4)
   // -------------------------------------------------------------------------
   logic        ev0_reg_write_exwb;
   logic [4:0]  ev0_rd_addr_exwb;
@@ -275,40 +364,40 @@ module risc_dis_unit
   logic [31:0] wb_push1_wdata;
   logic [31:0] wb_push1_pc;
 
-  id_ex_dispatch u_dispatch (
+  dp_ex u_dp_ex (
     .clk             (clk),
     .rst_n           (rst_n),
     .enable          (enable),
     .flush           (flush),
-    .i0_valid_id     (i0_valid_dec),
-    .i0_lane_sel_id  (i0_lane_sel_dec),
-    .i0_opcode_id    (i0_opcode_dec),
-    .i0_funct3_id    (i0_funct3_dec),
-    .i0_funct7_id    (i0_funct7_dec),
-    .i0_rd_addr_id   (i0_rd_dec),
-    .i0_rs1_addr_id  (i0_rs1_dec),
-    .i0_rs2_addr_id  (i0_rs2_dec),
-    .i0_reg_write_id (i0_reg_write_dec),
-    .i0_imm_id       (i0_imm_dec),
-    .i0_rs1_data_id  (i0_rs1_data),
-    .i0_rs2_data_id  (i0_rs2_data),
-    .i0_pc_id        (i0_pc_id),
-    .i1_valid_id     (i1_valid_dec),
-    .i1_lane_sel_id  (i1_lane_sel_dec),
-    .i1_opcode_id    (i1_opcode_dec),
-    .i1_funct3_id    (i1_funct3_dec),
-    .i1_funct7_id    (i1_funct7_dec),
-    .i1_rd_addr_id   (i1_rd_dec),
-    .i1_rs1_addr_id  (i1_rs1_dec),
-    .i1_rs2_addr_id  (i1_rs2_dec),
-    .i1_rs1_use_id   (i1_rs1_use_dec),
-    .i1_rs2_use_id   (i1_rs2_use_dec),
-    .i1_reg_write_id (i1_reg_write_dec),
-    .i1_imm_id       (i1_imm_dec),
-    .i1_rs1_data_id  (i1_rs1_data),
-    .i1_rs2_data_id  (i1_rs2_data),
-    .i1_pc_id        (i1_pc_id),
     .stall_id        (stall_id),
+    .issue_i0        (issue_i0),
+    .issue_i1        (issue_i1),
+    .i0_valid_id     (i0_valid_dp),
+    .i0_lane_sel_id  (i0_lane_sel_dp),
+    .i0_reg_write_id (i0_reg_write_dp),
+    .i1_valid_id     (i1_valid_dp),
+    .i1_lane_sel_id  (i1_lane_sel_dp),
+    .i1_reg_write_id (i1_reg_write_dp),
+    .i0_opcode_id    (i0_opcode_dp),
+    .i0_funct3_id    (i0_funct3_dp),
+    .i0_funct7_id    (i0_funct7_dp),
+    .i0_rd_addr_id   (i0_rd_dp),
+    .i0_rs1_addr_id  (i0_rs1_dp),
+    .i0_rs2_addr_id  (i0_rs2_dp),
+    .i0_imm_id       (i0_imm_dp),
+    .i0_rs1_data_id  (i0_rs1_data_dp),
+    .i0_rs2_data_id  (i0_rs2_data_dp),
+    .i0_pc_id        (i0_pc_dp),
+    .i1_opcode_id    (i1_opcode_dp),
+    .i1_funct3_id    (i1_funct3_dp),
+    .i1_funct7_id    (i1_funct7_dp),
+    .i1_rd_addr_id   (i1_rd_dp),
+    .i1_rs1_addr_id  (i1_rs1_dp),
+    .i1_rs2_addr_id  (i1_rs2_dp),
+    .i1_imm_id       (i1_imm_dp),
+    .i1_rs1_data_id  (i1_rs1_data_dp),
+    .i1_rs2_data_id  (i1_rs2_data_dp),
+    .i1_pc_id        (i1_pc_dp),
     .i0_reg_write_ex (i0_reg_write_ex),
     .i1_reg_write_ex (i1_reg_write_ex),
     .i0_pc_ex        (i0_pc_ex),
@@ -413,7 +502,7 @@ module risc_dis_unit
   logic [31:0] od1_alu_result_mem;
   logic [31:0] od1_pc_mem;
 
-  s3_execute_struct u_execute (
+  s4_execute_struct u_execute (
     // internal controls
     .i0_reg_write_ex     (i0_reg_write_ex),
     .i1_reg_write_ex     (i1_reg_write_ex),
@@ -497,7 +586,7 @@ module risc_dis_unit
   );
 
   // -------------------------------------------------------------------------
-  // EX/MEM — odd-lane pipeline register
+  // EX/MEM — odd-lane pipeline register (s5)
   // -------------------------------------------------------------------------
   ex_mem u_ex_mem (
     .clk                 (clk),
@@ -562,11 +651,11 @@ module risc_dis_unit
   );
 
   // -------------------------------------------------------------------------
-  // Memory — L1 data cache
+  // Memory — L1 data cache (s5)
   // -------------------------------------------------------------------------
   logic        dcache_busy;
 
-  s4_memory_struct u_memory (
+  s5_memory_struct u_memory (
     // external controls
     .clk               (clk),
     .rst_n             (rst_n),
@@ -591,7 +680,7 @@ module risc_dis_unit
   );
 
   // -------------------------------------------------------------------------
-  // EX/WB + MEM/WB — even EX bank + odd MEM bank (ex_mem_wb)
+  // EX/WB + MEM/WB — even EX bank + odd MEM bank (s6)
   // -------------------------------------------------------------------------
   ex_mem_wb u_ex_mem_wb (
     .clk                (clk),

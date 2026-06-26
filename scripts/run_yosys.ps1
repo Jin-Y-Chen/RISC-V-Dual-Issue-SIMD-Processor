@@ -69,7 +69,10 @@ Examples:
 Logs:  synth/reports/runs/latest/<top>/
 Build: synth/build/yosys/  |  Verilator: sim/verilator/<top>/
 
-Shell wrappers: ./scripts/run_synth.sh --help  ./scripts/run_sim.sh --help
+-Sim requires Verilator + make + g++ in WSL. See scripts/README.md.
+
+Shell wrappers: ./run-sim --help  ./run-synth --help  (repo root)
+Use ./run-sim -TOP pc_tb from repo root.
 "@
 }
 
@@ -151,7 +154,18 @@ function Assert-WslVerilator {
     throw @"
 Verilator not found in WSL2 Ubuntu (needed for -Sim).
   wsl
-  sudo apt update && sudo apt install -y verilator
+  sudo apt update && sudo apt install -y verilator g++ make
+See scripts/README.md
+"@
+  }
+
+  $buildTools = wsl bash -lc "command -v make && command -v g++" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw @"
+Verilator --binary needs make and g++ in WSL.
+  wsl
+  sudo apt update && sudo apt install -y build-essential
+See scripts/README.md
 "@
   }
 }
@@ -230,6 +244,8 @@ function Invoke-VerilatorSim(
   [string]$RepoRoot,
   [string]$RunOutDir
 ) {
+  New-Item -ItemType Directory -Force -Path $RunOutDir | Out-Null
+
   $wslRepo = ConvertTo-WslPath $RepoRoot
   $verRel = "sim/verilator/$TbTop"
   $verBuild = Get-VerilatorBuildDir $RepoRoot $TbTop
@@ -247,12 +263,19 @@ function Invoke-VerilatorSim(
   }
   New-Item -ItemType Directory -Force -Path $verBuild | Out-Null
 
-  $readArgs = ($srcs | ForEach-Object {
+  $quotedSrcs = ($srcs | ForEach-Object {
     $norm = $_ -replace '\\', '/'
-    "$wslRepo/$norm"
+    "'$wslRepo/$norm'"
   }) -join " "
 
-  $compileCmd = "cd '$wslRepo' && verilator --binary --timing -Wall -Wno-fatal --top-module $TbTop -Mdir $verRel/obj_dir -I $wslRepo/tb $readArgs > $verRel/compile.log 2>&1"
+  $compileCmd = @(
+    "cd '$wslRepo' &&"
+    "verilator --binary --timing --relative-includes -Wall -Wno-fatal"
+    "--top-module $TbTop"
+    "-Mdir '$verRel/obj_dir'"
+    $quotedSrcs
+    "> '$verRel/compile.log' 2>&1"
+  ) -join " "
   Invoke-WslBash $compileCmd | Out-Null
 
   $compileLogPath = Join-Path $verBuild "compile.log"
@@ -481,7 +504,6 @@ function Invoke-OneTb(
     $simResult = $sim.Result
     $simFailed = $sim.Failed
     Write-Host "OK  sim.log:  $($sim.LogPath)"
-    Write-Host "    sim:      $simResult"
   }
 
   $overallFailed = $hasError -or $simFailed
@@ -497,7 +519,13 @@ function Invoke-OneTb(
   Write-Host "OK  run.log:   $(Join-Path $runOutDir 'run.log')"
   Write-Host "OK  stat.txt:  $(Join-Path $runOutDir 'stat.txt')"
   Write-Host "OK  summary:   $(Join-Path $runOutDir 'summary.txt')"
-  Write-Host "    result:    $result"
+  if ($DoSim) {
+    Write-Host "    result:    $(if ($overallFailed) { 'failed' } else { 'passed' })"
+    Write-Host "    yosys:     $result"
+    Write-Host "    sim:       $simResult"
+  } else {
+    Write-Host "    result:    $result"
+  }
 
   if ($hasError) {
     $errLines = Get-Content $logPath | Where-Object { $_ -match '^ERROR:' } | Select-Object -First 5
@@ -662,6 +690,6 @@ if ($All) {
   }
 }
 
-if (($results | Where-Object { $_.Failed }).Count -gt 0) {
-  exit 1
+foreach ($r in $results) {
+  if ($r.Failed) { exit 1 }
 }

@@ -51,6 +51,12 @@ task automatic tb_summary(input int passed, input int failed);
     $display("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
 endtask
 
+// Posedge then negedge: NBA updates are visible (Verilator #0 / #1step timing).
+task automatic tb_advance(input logic clk);
+  @(posedge clk);
+  @(negedge clk);
+endtask
+
 // --- Multi-line PASS/FAIL report (use inside check_expect) ---
 
 task automatic tb_case_sep();

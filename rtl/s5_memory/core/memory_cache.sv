@@ -125,7 +125,7 @@ module memory_cache
   function automatic reg_t read_cached_word(input pc_t byte_addr);
     logic [BYTE_AW-1:0] base;
     base = byte_word_base(byte_addr);
-    return reg_t'(cache_set_read#(DATA_W)(
+    return reg_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
       bank[pc_set(byte_addr, CACHE)],
       pc_way(byte_addr, CACHE),
       read_le_word(base)

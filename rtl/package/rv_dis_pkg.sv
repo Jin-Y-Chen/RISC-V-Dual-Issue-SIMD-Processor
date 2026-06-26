@@ -27,11 +27,11 @@ package rv_dis_pkg;
   typedef logic [RLEN-1:0] pc_t;
   typedef logic [RLEN-1:0] imm_t;
   typedef logic [6:0]      opcode_t;
-  typedef logic [2:0]       funct3_t;
-  typedef logic [6:0]       funct7_t;
-  typedef logic [4:0]       gpr_addr_t;
-  typedef logic [1:0]       br_state_t;
-  typedef logic [3:0]       mem_besel_t;
+  typedef logic [2:0]      funct3_t;
+  typedef logic [6:0]      funct7_t;
+  typedef logic [4:0]      gpr_addr_t;
+  typedef logic [1:0]      br_state_t;
+  typedef logic [3:0]      mem_besel_t;
 
   // =========================================================================
   // RV32I opcodes (major opcode field)
@@ -77,7 +77,7 @@ package rv_dis_pkg;
   // lane_sel — 0 = even (OP / OP-IMM), 1 = odd (load/store/branch/jump/LUI/AUIPC)
 
   // =========================================================================
-  // Dispatch — single I1 replay slot (id_ex_dispatch)
+  // Dispatch — single I1 replay slot (id_dp)
   // =========================================================================
   typedef struct packed {
     logic        valid;

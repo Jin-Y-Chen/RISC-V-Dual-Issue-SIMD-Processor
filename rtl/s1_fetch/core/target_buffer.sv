@@ -32,13 +32,13 @@ module target_buffer
     return pc + pc_t'(32'd4);
   endfunction
 
-  assign i0_pc_target = pc_t'(cache_set_read#(DATA_W)(
+  assign i0_pc_target = pc_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
     bank[pc_set(i0_pc, CACHE)],
     pc_way(i0_pc, CACHE),
     fallthrough(i0_pc)
   ));
 
-  assign i1_pc_target = pc_t'(cache_set_read#(DATA_W)(
+  assign i1_pc_target = pc_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
     bank[pc_set(i1_pc, CACHE)],
     pc_way(i1_pc, CACHE),
     fallthrough(i1_pc)

@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
-// In-order issue gate at ID→EX (project_outline §6).
+// In-order issue gate at ID→DP (project_outline §6).
 // Same-bundle RAW: partial-issue I0, buffer I1, full stall until replay.
-// Valid/lane gating is applied in id_ex_dispatch (issue_i0_eff / issue_i1_eff).
+// Valid/lane gating is applied in id_dp (issue_i0_eff / issue_i1_eff).
 module scoreboard
   import rv_dis_pkg::*;
 (

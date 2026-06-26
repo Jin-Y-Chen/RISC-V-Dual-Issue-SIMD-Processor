@@ -1,0 +1,5 @@
+# Shell entry points must use LF so WSL/Git Bash do not see bash\r in the shebang.
+*.sh text eol=lf
+run-sim text eol=lf
+run-synth text eol=lf
+run-all text eol=lf

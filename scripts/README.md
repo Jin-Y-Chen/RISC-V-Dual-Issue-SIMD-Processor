@@ -1,6 +1,6 @@
 # Scripts
 
-Entry point: `run_yosys.ps1` (Yosys + optional Verilator). Helpers: `log_layout.ps1` (dot-sourced), `run_synth.sh` / `run_sim.sh` / `run_all.sh` (bash wrappers).
+Entry point: `run_yosys.ps1` (Yosys + optional Verilator). Helpers: `log_layout.ps1`, `fix-sh-lf.ps1` (CRLF → LF on Windows), `run_*.sh` bash wrappers. Repo-root shortcuts: `run-sim`, `run-synth`, `run-all`.
 
 Related: [../sim/README.md](../sim/README.md), [../synth/README.md](../synth/README.md), [../tb/README.md](../tb/README.md).
 
@@ -20,35 +20,48 @@ It does **not** run testbench self-tests unless you pass **`-Sim`** (Verilator i
 
 ---
 
-## Install (WSL)
+## Install (WSL) — do this once
 
-Both tools run in **WSL** (Ubuntu). Yosys was originally developed for Linux; this repo calls both through WSL from PowerShell on `/mnt/c/...`.
+Yosys and Verilator run in **Ubuntu on WSL**. From Windows, `run-sim` / `run_yosys.ps1` call into WSL (and may hop through PowerShell with `wslpath` so paths look like `C:\...`).
 
-From an Ubuntu shell:
+In an **Ubuntu** shell:
 
 ```bash
 sudo apt update
-sudo apt install -y yosys verilator
+sudo apt install -y yosys build-essential verilator
+```
+
+| Package | Why |
+|---------|-----|
+| `yosys` | Elaboration / synthesis (`run-synth`, `-Synth`) |
+| `verilator` | TB compile + run (`run-sim`, `-Sim`) |
+| `build-essential` | `make` + `g++` — required for `verilator --binary` |
+
+Confirm everything is on PATH:
+
+```bash
+command -v yosys verilator make g++
 yosys -V
 verilator --version
 ```
 
-| Tool | Role | Output folder |
-|------|------|---------------|
-| **Yosys** | Elaboration / synthesis | [../synth/README.md](../synth/README.md) |
-| **Verilator** | TB compile + self-test (`-Sim` only) | [../sim/README.md](../sim/README.md) |
+Ubuntu apt ships Verilator **5.032**; that is fine. TBs use `#0` (not `#1step`) in `tick` tasks so they build without a newer Verilator.
 
-Yosys alone covers `-Top` / `-All` / `-Synth` / `-SynthRtl`. Install Verilator only if you use **`-Sim`**.
+### Run from repo root
 
-### Verify from repo root (PowerShell)
-
-```powershell
-wsl bash -lc "command -v yosys && command -v verilator"
-.\scripts\run_yosys.ps1 -Top pc_tb          # Yosys elab → synth/reports/runs/latest/
-.\scripts\run_yosys.ps1 -Top pc_tb -Sim     # + Verilator → sim/verilator/<top>/
+```bash
+./run-sim -TOP pc_tb      # Yosys elab + Verilator self-test
+./run-synth -TOP pc_tb    # Yosys elab only
+./run-all                 # all unit TBs (Yosys)
 ```
 
-Check `synth/reports/runs/latest/<top>/summary.txt` for `result:` (Yosys) and `sim:` (Verilator).
+PowerShell (same repo root):
+
+```powershell
+.\scripts\run_yosys.ps1 -Top pc_tb -Sim
+```
+
+After a sim run, check `synth/reports/runs/latest/pc_tb/summary.txt` (`result:` = Yosys, `sim:` = Verilator) and `.../sim.log` for `[PASS]` lines.
 
 ---
 
@@ -64,10 +77,10 @@ Check `synth/reports/runs/latest/<top>/summary.txt` for `result:` (Yosys) and `s
 ```
 
 ```bash
-./scripts/run_sim.sh --help
-./scripts/run_synth.sh --help
-TOP=pc_tb ./scripts/run_synth.sh
-TOP=pc_tb ./scripts/run_sim.sh
+./run-sim --help
+./run-synth --help
+./run-sim -TOP pc_tb
+./run-synth -TOP pc_tb
 make synth TOP=pc_tb
 ```
 
@@ -96,3 +109,53 @@ PowerShell: `.\scripts\run_yosys.ps1 -Help`
 | `-SynthRtl` | Full-chip synthesis |
 | `-Clean` | Clear Yosys scratch |
 | `-DeleteOddLogs` | Remove archived `odd_lane_tb*` under runs/temp |
+
+---
+
+## Before you run `-Sim` (troubleshooting)
+
+### `env: bash\r: No such file or directory`
+
+Shell scripts must use **LF** line endings. After clone on Windows, run once from PowerShell:
+
+```powershell
+.\scripts\fix-sh-lf.ps1
+```
+
+`.gitattributes` keeps `*.sh` and `run-sim` / `run-synth` / `run-all` on LF in git.
+
+### `The argument ... run_yosys.ps1 ... does not exist` (from WSL)
+
+You ran `./run-sim` from WSL; the wrapper calls Windows PowerShell, which needs `C:\...` paths. `scripts/common.sh` converts with `wslpath -w` — pull latest scripts if you still see this.
+
+### `Verilator --binary needs make and g++`
+
+Install the full build toolchain (not just `verilator`):
+
+```bash
+sudo apt install -y build-essential
+```
+
+### `parameter 'Top' is specified more than once`
+
+Use one way to pick the TB: `./run-sim -TOP pc_tb` **or** `TOP=pc_tb ./run-sim`, not both with conflicting flags. The wrapper strips `-Top` before calling PowerShell.
+
+### Where to look when something fails
+
+| Symptom | Check |
+|---------|--------|
+| Yosys elab | `synth/reports/runs/latest/<top>/run.log` — search `ERROR:` |
+| Verilator compile / run | `synth/reports/runs/latest/<top>/sim.log` (also `sim/verilator/<top>/compile.log`) |
+| Pass/fail summary | `synth/reports/runs/latest/<top>/summary.txt` — `result:` (Yosys), `sim:` (Verilator) |
+| Script usage | `./run-sim --help` or `.\scripts\run_yosys.ps1 -Help` |
+
+With `-Sim`, **both** Yosys and Verilator must pass for exit code 0.
+
+### Yosys vs Verilator
+
+| Tool | What it proves |
+|------|----------------|
+| Yosys (`run-synth`) | RTL elaborates / synthesizes — **not** that the testbench passed |
+| Verilator (`run-sim`) | TB self-checks ran — `[PASS]` and `*** SUMMARY ***` in `sim.log` |
+
+Output folders: [../synth/README.md](../synth/README.md), [../sim/README.md](../sim/README.md).

@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// S4 memory structure — L1 data cache only (ex_mem is instantiated in risc_dis_unit).
-module s4_memory_struct
+// S5 memory structure — L1 data cache only (ex_mem is instantiated in risc_dis_unit).
+module s5_memory_struct
   import rv_dis_pkg::*;
 (
   // external controls

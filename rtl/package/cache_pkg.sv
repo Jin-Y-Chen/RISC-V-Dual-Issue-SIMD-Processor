@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-// 16-way prediction/cache bank — geometry lives in cache_struct_t from cache_struct_build.
-// PC: set = pc[cfg.index_w+1 : cfg.way_aw+2], way = pc[cfg.way_aw+1:2] (PC[5:2] at index_w=13).
+// Set-associative prediction/cache bank — geometry lives in cache_struct_t from cache_struct_build.
+// WAYS: power of 2, 1 (direct-mapped) .. 16; PC: set = pc[index_w+1 : way_aw+2], way = pc[way_aw+1:2].
 package cache_pkg;
 
-  localparam int CACHE_WAYS   = 16;
-  localparam int CACHE_WAY_AW = 4;
+  localparam int CACHE_WAYS_MIN = 1;
+  localparam int CACHE_WAYS_MAX = 16;
 
   // -------------------------------------------------------------------------
   // Cache structure — static geometry for one bank instance
@@ -21,10 +21,11 @@ package cache_pkg;
   } cache_struct_t;
 
   // Usage:
-  //   localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(2), .INDEX_W(13))();
+  //   localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(2), .INDEX_W(13), .WAYS(16))();
   //   logic [CACHE.data_w:0] bank [CACHE.sets][CACHE.ways];
-  //   bank[pc_set(pc, CACHE)][pc_way(pc, CACHE)] <= cache_bank_write#(CACHE.data_w)(1'b1, data);
-  //   assign out = cache_bank_read#(CACHE.data_w, CACHE.sets)(bank, pc, CACHE, default);
+  //   bank[pc_set(pc, CACHE)][pc_way(pc, CACHE)] <= cache_set_write#(CACHE.data_w)(1'b1, data);
+  //   assign out = cache_set_read#(.DATA_W(CACHE.data_w), .WAYS(CACHE.ways))(
+  //       bank[pc_set(pc, CACHE)], pc_way(pc, CACHE), default);
 
   // -------------------------------------------------------------------------
   // Public — build cache structure (INDEX_W => entry_count = 2**INDEX_W)
@@ -32,18 +33,31 @@ package cache_pkg;
 
   function automatic cache_struct_t cache_struct_build #(
     int DATA_W  = 32,
-    int INDEX_W = 13
+    int INDEX_W = 13,
+    int WAYS    = 16
   )();
-    if (INDEX_W <= CACHE_WAY_AW) begin
-      $fatal(1, "cache_pkg: INDEX_W=%0d must be > CACHE_WAY_AW=%0d", INDEX_W, CACHE_WAY_AW);
+    int unsigned way_aw;
+    if (WAYS < CACHE_WAYS_MIN) begin
+      $fatal(1, "cache_pkg: WAYS=%0d must be >= %0d", WAYS, CACHE_WAYS_MIN);
+    end
+    if (WAYS > CACHE_WAYS_MAX) begin
+      $fatal(1, "cache_pkg: WAYS=%0d must be <= %0d", WAYS, CACHE_WAYS_MAX);
+    end
+    if ((WAYS & (WAYS - 1)) != 0) begin
+      $fatal(1, "cache_pkg: WAYS=%0d must be a power of 2", WAYS);
+    end
+    way_aw = $clog2(WAYS);
+    if (INDEX_W < way_aw) begin
+      $fatal(1, "cache_pkg: INDEX_W=%0d must be >= way_aw=%0d (WAYS=%0d)",
+             INDEX_W, way_aw, WAYS);
     end
     cache_struct_build.data_w      = DATA_W;
     cache_struct_build.index_w     = INDEX_W;
-    cache_struct_build.way_aw      = CACHE_WAY_AW;
-    cache_struct_build.set_aw      = INDEX_W - CACHE_WAY_AW;
-    cache_struct_build.ways        = CACHE_WAYS;
+    cache_struct_build.way_aw      = way_aw;
+    cache_struct_build.set_aw      = INDEX_W - way_aw;
+    cache_struct_build.ways        = WAYS;
     cache_struct_build.entry_count = (1 << INDEX_W);
-    cache_struct_build.sets        = cache_struct_build.entry_count / CACHE_WAYS;
+    cache_struct_build.sets        = cache_struct_build.entry_count / WAYS;
   endfunction
 
   // -------------------------------------------------------------------------
@@ -57,11 +71,13 @@ package cache_pkg;
     return pc[cfg.index_w+1 : cfg.way_aw+2];
   endfunction
 
-  function automatic logic [CACHE_WAY_AW-1:0] pc_way(
+  function automatic logic [15:0] pc_way(
     input logic [31:0]   pc,
     input cache_struct_t cfg
   );
-    return pc[cfg.way_aw+1:2];
+    logic [15:0] raw;
+    raw = pc[cfg.way_aw+1:2];
+    return raw & ({16{cfg.way_aw > 0}});
   endfunction
 
   function automatic logic [15:0] pc_index(
@@ -96,13 +112,16 @@ package cache_pkg;
 
   // Set — one row bank[set_idx][0:WAYS-1]; read/write selects a way within the set
   function automatic logic [DATA_W-1:0] cache_set_read #(
-    int DATA_W = 32
+    int DATA_W = 32,
+    int WAYS   = 16
   )(
-    input logic [DATA_W:0] set [CACHE_WAYS], // bank[set_idx] — all ways in one set
-    input logic [CACHE_WAY_AW-1:0] way_idx, // which way (PC[5:2] at default geometry)
+    input logic [DATA_W:0] set [WAYS], // bank[set_idx] — all ways in one set
+    input logic [15:0]     way_idx,    // pc_way(pc, cfg); unused when WAYS==1
     input logic [DATA_W-1:0] default_data
   );
-    return cache_way_read#(DATA_W)(set[way_idx], default_data);
+    if (WAYS == 1)
+      return cache_way_read#(DATA_W)(set[0], default_data);
+    return cache_way_read#(DATA_W)(set[way_idx[$clog2(WAYS)-1:0]], default_data);
   endfunction
 
   function automatic logic [DATA_W:0] cache_set_write #(
@@ -117,14 +136,15 @@ package cache_pkg;
   // Bank — full [SETS][WAYS] array; set/way derived from PC via cfg
 //   function automatic logic [DATA_W-1:0] cache_bank_read #(
 //     int DATA_W = 32,
-//     int SETS     = 512                      // must match cfg.sets / bank array size
+//     int SETS   = 512,
+//     int WAYS   = 16
 //   )(
-//     input logic [DATA_W:0] bank [SETS][CACHE_WAYS],
+//     input logic [DATA_W:0] bank [SETS][WAYS],
 //     input logic [31:0]       pc,
 //     input cache_struct_t     cfg,
 //     input logic [DATA_W-1:0] default_data
 //   );
-//     return cache_set_read#(DATA_W)(
+//     return cache_set_read#(.DATA_W(DATA_W), .WAYS(WAYS))(
 //       bank[pc_set(pc, cfg)],
 //       pc_way(pc, cfg),
 //       default_data

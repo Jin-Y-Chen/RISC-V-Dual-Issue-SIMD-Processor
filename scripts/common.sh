@@ -1,13 +1,53 @@
 #!/usr/bin/env bash
 # Shared helpers for run_*.sh wrappers.
 
+# Windows PowerShell needs C:\... paths; WSL/Git Bash pass /mnt/c/... or /c/...
+to_win_path() {
+  local p="$1"
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$p"
+  elif command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$p"
+  else
+    printf '%s' "$p"
+  fi
+}
+
 run_yosys_invoke() {
+  local ps1="$ROOT/scripts/run_yosys.ps1"
   if command -v powershell.exe >/dev/null 2>&1; then
     powershell.exe -NoProfile -ExecutionPolicy Bypass \
-      -File "$ROOT/scripts/run_yosys.ps1" "$@"
+      -File "$(to_win_path "$ps1")" "$@"
+  elif command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -File "$ps1" "$@"
   else
-    pwsh -NoProfile -File "$ROOT/scripts/run_yosys.ps1" "$@"
+    echo "error: need powershell.exe (Windows) or pwsh in PATH" >&2
+    exit 1
   fi
+}
+
+# Sets TOP_RESOLVED and FILTERED_ARGS from TOP env default + optional -Top/-TOP on CLI.
+parse_top_from_args() {
+  local default_top="$1"
+  shift
+  TOP_RESOLVED="$default_top"
+  FILTERED_ARGS=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -Top|-TOP|-top)
+        if [[ $# -lt 2 ]]; then
+          echo "error: $1 requires a testbench name" >&2
+          exit 1
+        fi
+        TOP_RESOLVED="$2"
+        shift 2
+        ;;
+      *)
+        FILTERED_ARGS+=("$1")
+        shift
+        ;;
+    esac
+  done
 }
 
 show_help_if_requested() {
@@ -23,63 +63,44 @@ show_help_if_requested() {
 
 show_run_synth_help() {
   cat <<'EOF'
-Usage: run_synth.sh [options]
+Usage: ./run-synth [options]   (or ./scripts/run_synth.sh)
 
 Yosys elaboration on one testbench (default) or synthesis with extra flags.
 
-Environment:
-  TOP    Testbench top name (default: pc_tb)
-
 Examples:
-  ./scripts/run_synth.sh
-  TOP=decoder_tb ./scripts/run_synth.sh
-  ./scripts/run_synth.sh -Synth
-  ./scripts/run_synth.sh -Top forward_unit_tb -Synth
+  ./run-synth -TOP pc_tb
+  ./run-synth -TOP decoder_tb -Synth
 
-Options are passed through to scripts/run_yosys.ps1 (-Top, -Synth, -Clean, …).
-Run from repo root, or call ./scripts/run_synth.sh (not run_synth without path).
-
-More flags: ./scripts/run_yosys.ps1 -Help   or   scripts/README.md
+More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
 EOF
 }
 
 show_run_sim_help() {
   cat <<'EOF'
-Usage: run_sim.sh [options]
+Usage: ./run-sim [options]   (or ./scripts/run_sim.sh)
 
-Yosys elab + Verilator compile and TB self-test (-Sim). Requires verilator in WSL.
-
-Environment:
-  TOP    Testbench top name (default: pc_tb)
+Yosys elab + Verilator TB self-test. Requires verilator, make, g++ in WSL.
 
 Examples:
-  ./scripts/run_sim.sh
-  TOP=pc_tb ./scripts/run_sim.sh
-  ./scripts/run_sim.sh -Top decoder_tb
+  ./run-sim -TOP pc_tb
+  ./run-sim --help
 
-Output:
-  synth/reports/runs/latest/<top>/sim.log   [PASS] / SUMMARY lines
-  sim/verilator/<top>/                      Verilator build scratch
+Output: synth/reports/runs/latest/<top>/sim.log
 
-Run from repo root: ./scripts/run_sim.sh (not rum_sim or run_sim without ./).
-
-More flags: ./scripts/run_yosys.ps1 -Help   or   scripts/README.md
+More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
 EOF
 }
 
 show_run_all_help() {
   cat <<'EOF'
-Usage: run_all.sh [options]
+Usage: ./run-all [options]   (or ./scripts/run_all.sh)
 
-Run all unit testbenches through Yosys (15 tops). Missing sources are skipped.
+Run all unit testbenches through Yosys (15 tops).
 
 Examples:
-  ./scripts/run_all.sh
-  ./scripts/run_all.sh -Synth
-  ./scripts/run_all.sh -Sim
+  ./run-all
+  ./run-all -Synth
 
-Extra args pass through to scripts/run_yosys.ps1.
-
-More flags: ./scripts/run_yosys.ps1 -Help   or   scripts/README.md
+More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
 EOF
 }

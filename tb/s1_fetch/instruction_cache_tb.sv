@@ -8,10 +8,11 @@ module instruction_cache_tb;
 
   `include "../common/tb_console.svh"
 
-  localparam int CLK_PERIOD = 10;
   localparam int INDEX_W    = 6;  // 64 insn slots => 256 B address span for TB
+  localparam int WAYS       = 4;
 
-  localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(32), .INDEX_W(INDEX_W))();
+  localparam cache_struct_t CACHE =
+    cache_struct_build#(.DATA_W(32), .INDEX_W(INDEX_W), .WAYS(WAYS))();
 
   localparam logic [31:0] PC0      = 32'h0000_0080;
   localparam logic [31:0] PC1      = 32'h0000_0084;
@@ -22,9 +23,6 @@ module instruction_cache_tb;
   localparam logic [31:0] INSN_L0  = 32'h0020_0213;  // addi x4,x4,1
   localparam logic [31:0] INSN_L1  = 32'h0030_0313;  // addi x6,x6,1
 
-  logic        clk;
-  logic        rst_n;
-
   logic [31:0] pc0;
   logic [31:0] pc1;
   logic [31:0] instr0;
@@ -34,18 +32,14 @@ module instruction_cache_tb;
   int fail_cnt;
 
   instruction_cache #(
-    .INDEX_W (INDEX_W)
-  ) dut (.*);
-
-  initial begin
-    clk = 1'b0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-  end
-
-  task automatic tick;
-    @(posedge clk);
-    #1step;
-  endtask
+    .INDEX_W (INDEX_W),
+    .WAYS    (WAYS)
+  ) dut (
+    .pc0    (pc0),
+    .pc1    (pc1),
+    .instr0 (instr0),
+    .instr1 (instr1)
+  );
 
   task automatic preload_word(input logic [31:0] byte_pc, input logic [31:0] word);
     dut.bank[pc_set(byte_pc, CACHE)][pc_way(byte_pc, CACHE)] =
@@ -55,7 +49,7 @@ module instruction_cache_tb;
   task automatic drive_fetch(input logic [31:0] pc0_v, input logic [31:0] pc1_v);
     pc0 = pc0_v;
     pc1 = pc1_v;
-    #1step;
+    #0;
   endtask
 
   task automatic check_fetch(
@@ -65,7 +59,7 @@ module instruction_cache_tb;
     input logic [31:0] exp_i1
   );
     bit pass;
-    #1step;
+    #0;
     pass = (instr0 === exp_i0) && (instr1 === exp_i1);
     tb_report_open(pass, name, detail);
     tb_field_u32("instr0", instr0, exp_i0);
@@ -79,11 +73,6 @@ module instruction_cache_tb;
     fail_cnt = 0;
 
     tb_banner("instruction_cache_tb - dual read, cache_pkg bank");
-
-    rst_n = 1'b0;
-    tick();
-    rst_n = 1'b1;
-    tick();
 
     preload_word(PC0, INSN_I0);
     preload_word(PC1, INSN_I1);

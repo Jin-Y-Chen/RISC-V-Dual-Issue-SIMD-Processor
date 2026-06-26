@@ -99,8 +99,7 @@ module register_file_tb;
   end
 
   task automatic tick;
-    @(posedge clk);
-    #1step;
+    tb_advance(clk);
   endtask
 
   task automatic clear_writes;
@@ -203,7 +202,7 @@ module register_file_tb;
     if (rd == 5'd0) return;
     drive_writes(1'b1, rd, data, '0, 1'b0, 5'd0, '0, '0);
     @(negedge clk);
-    #1step;  // let regs[] NBA commit before wen deassert (same negedge race)
+    #0;  // let regs[] NBA commit before wen deassert (same negedge race)
     clear_writes();
   endtask
 

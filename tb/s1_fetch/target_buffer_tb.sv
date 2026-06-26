@@ -38,8 +38,7 @@ module target_buffer_tb;
   end
 
   task automatic tick;
-    @(posedge clk);
-    #1step;
+    tb_advance(clk);
   endtask
 
   task automatic check_targets(
@@ -49,7 +48,7 @@ module target_buffer_tb;
     input logic [31:0] exp_t1
   );
     bit pass;
-    #1step;
+    #0;
     pass = (i0_pc_target === exp_t0) && (i1_pc_target === exp_t1);
     tb_report_open(pass, name, detail);
     tb_field_u32("i0_pc_target", i0_pc_target, exp_t0);
