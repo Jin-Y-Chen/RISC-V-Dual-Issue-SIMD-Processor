@@ -71,8 +71,8 @@ Build: synth/build/yosys/  |  Verilator: sim/verilator/<top>/
 
 -Sim requires Verilator + make + g++ in WSL. See scripts/README.md.
 
-Shell wrappers: ./run-sim --help  ./run-synth --help  (repo root)
-Use ./run-sim -TOP pc_tb from repo root.
+Shell wrappers: ./scripts/run-sim --help  ./scripts/run-synth --help
+Use ./scripts/run-sim -TOP pc_tb from repo root.
 "@
 }
 
@@ -356,6 +356,7 @@ function Get-TbSources([string]$TbTop) {
         "decoder_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decode_funct/decode.sv",
                 "rtl/s2_decode/core/decoder.sv",
                 "tb/s2_decode/decoder_tb.sv"
             )
@@ -372,6 +373,7 @@ function Get-TbSources([string]$TbTop) {
         "register_file_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decode_funct/decode.sv",
                 "rtl/s2_decode/core/decoder.sv",
                 "rtl/s2_decode/core/register_file.sv",
                 "tb/s2_decode/register_file_tb.sv"
@@ -380,6 +382,7 @@ function Get-TbSources([string]$TbTop) {
         "dispatch_hazard_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decode_funct/decode.sv",
                 "rtl/s2_decode/core/decoder.sv",
                 "tb/s2_decode/dispatch_hazard_tb.sv"
             )
@@ -387,6 +390,7 @@ function Get-TbSources([string]$TbTop) {
         "even_lane_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decode_funct/decode.sv",
                 "rtl/s2_decode/core/decoder.sv",
                 "rtl/s3_execution/core/even_funct/scalar_alu.sv",
                 "rtl/s3_execution/core/even_lane.sv",
@@ -396,6 +400,7 @@ function Get-TbSources([string]$TbTop) {
         "odd_lane_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
+                "rtl/s2_decode/core/decode_funct/decode.sv",
                 "rtl/s3_execution/core/odd_funct/branch_unit.sv",
                 "rtl/s3_execution/core/odd_funct/memory_access.sv",
                 "rtl/s3_execution/core/odd_lane.sv",
@@ -405,7 +410,7 @@ function Get-TbSources([string]$TbTop) {
         "id_ex_dispatch_tb" {
             return @(
                 "rtl/package/rv_dis_pkg.sv",
-                "rtl/s3_execution/dispatch_funct/scoreboard.sv",
+                "rtl/s3_execution/funct_pkg/dispatch.sv",
                 "rtl/s3_execution/id_ex_dispatch.sv",
                 "tb/s3_execute/id_ex_dispatch_tb.sv"
             )

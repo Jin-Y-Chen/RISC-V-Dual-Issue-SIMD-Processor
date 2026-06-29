@@ -63,13 +63,13 @@ show_help_if_requested() {
 
 show_run_synth_help() {
   cat <<'EOF'
-Usage: ./run-synth [options]   (or ./scripts/run_synth.sh)
+Usage: ./scripts/run-synth [options]   (or ./scripts/run_synth.sh)
 
 Yosys elaboration on one testbench (default) or synthesis with extra flags.
 
 Examples:
-  ./run-synth -TOP pc_tb
-  ./run-synth -TOP decoder_tb -Synth
+  ./scripts/run-synth -TOP pc_tb
+  ./scripts/run-synth -TOP decoder_tb -Synth
 
 More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
 EOF
@@ -77,13 +77,13 @@ EOF
 
 show_run_sim_help() {
   cat <<'EOF'
-Usage: ./run-sim [options]   (or ./scripts/run_sim.sh)
+Usage: ./scripts/run-sim [options]   (or ./scripts/run_sim.sh)
 
 Yosys elab + Verilator TB self-test. Requires verilator, make, g++ in WSL.
 
 Examples:
-  ./run-sim -TOP pc_tb
-  ./run-sim --help
+  ./scripts/run-sim -TOP pc_tb
+  ./scripts/run-sim --help
 
 Output: synth/reports/runs/latest/<top>/sim.log
 
@@ -93,13 +93,13 @@ EOF
 
 show_run_all_help() {
   cat <<'EOF'
-Usage: ./run-all [options]   (or ./scripts/run_all.sh)
+Usage: ./scripts/run-all [options]   (or ./scripts/run_all.sh)
 
 Run all unit testbenches through Yosys (15 tops).
 
 Examples:
-  ./run-all
-  ./run-all -Synth
+  ./scripts/run-all
+  ./scripts/run-all -Synth
 
 More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
 EOF

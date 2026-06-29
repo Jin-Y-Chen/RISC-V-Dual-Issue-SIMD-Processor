@@ -5,11 +5,6 @@ Project: RV-DIS — RISC-V Dual-Issue SIMD Processor
 
 Tool: Yosys (WSL2 Ubuntu) & VS Code Editor
 
-6-4-2026 update:
-    - Scalar GPR RTL + register_file_tb (chained WB/ID checks)
-    - dispatch_hazard_tb golden model; pipeline regs under s1_fetch … s5_wback
-    - See "Pipeline RTL map" and "Verification" sections below
-
 RISC-V 32-bit instructions formate
 
 RV32I Instruction Set Architecture Deisgned:
@@ -30,30 +25,65 @@ RV32I Instruction Set Architecture Deisgned:
 
     4) ~40 unique instructions 
 
-Program counter — 32-bit byte address (Unprivileged ISA: PC is not a GPR)
+Program counter (PC) — 32-bit byte address 
 
-    Instruction memory: 8-bit byte map (one address = one byte). Each 32-bit instruction
-    occupies four byte addresses; fetch assembles ILEN=32 into the instruction register.
-    RV-DIS uses PC aligned to 4 bytes for 32-bit instructions (no RVC in base bring-up). 
+    1) PC 32-bit byte address (RV32I)
+    
+        a) PC has a length of 32-bits, not all 32-bits will be used.
+        - Defined max count by Instruction Cache Entry (Instruction Cache.1)
 
+        b) PC address 8-bit data per address 
+        - Increment PC + 4 to address successive 32-bit instruction 
+        - Each instruction must start at an PC address divisible by 4 (IALIGN = 32)
+
+    2) Relevant PC bits: Define max count & IALIGN32 
+
+        a) Max PC count = 32,767 to address each Instruction Cache Entry (Instruction Cache.1)
+
+            32,767 B = 32KiB = 2^15 B => 15-bits address
+
+        - relevant PC-bit of [14:0] from [31:0] byte-per-address
+
+        b) (IALIGN = 32) 32-bit instruction alignment with 8-bit per address
+
+            32-bit / 8-bit = 4 entry => 2-bits
+
+            15 - 2 = 13-bits 
+
+        - relevant PC-bits of [14:2] from [14:0] with PC+4 succession ([1:0] = 00)
+        
+        b.1) Alternative interpertation (Instruction Cache.2): 
+        - Instruction cache is 4-way set associated, byte per entry with only addressable row 
+        - Each row is one instruction, containing 4 bytes for an full 32-bit instruction 
+
+    3) Dual PC address value  
+        a) PC0 and PC1 are directly in order with expection of branch speculation/prediction
+        - Single counter incrementing previouse PC0 and PC1 by 8, where PC1 is initial set to PC0 + 4
+
+        b) independent PC0 and PC1 select to set PC to branch speculative value (dispatch)
+        - Parallel run speclative route and non-speclative route 
+        - Fall-back on wrong prediction or skip-forward on right prediction with flush
+
+            Non-dependent case:
+            PC0 : Beq r1, r2, label;    take 
+            PC1 : addi r1, r2, 0x01;    not take 
+
+        - PC0 will fall-back to PC1+4 on wrong prediction
+        - PC1 will skip-forward to PC0+4 on right prediction
+        - flush in-flight (dispatch) and undo computation (reserved buffer) on the wrong route
+
+            Dependent case
+            PC0 : addi r1, r2, 0x01
+            PC1 : beq r1, r2, label
+
+        - PC1 could fall-back to PC0 or PC0 could skip forward to PC1
+        - Data Hazard managed at Dispatch with Out of Order Stall mitigation
 
 Branch Target Buffer (BTB)
 
     1) Buffer size and structure dependent on the size of the single Instruction cache
-        a) Max byte PC = 32,767 to address 32 KiB of I-cache without roll-over
 
-            32 KiB = 2^15 B => 15-bit byte address
-
-        - relevant PC bits of [14:0] from [31:0]
-
-        b) With byte-per-address and 32-bit instruction alignment ([1:0] = 00),
-
-            15 - 2 = 13-bits (one slot per instruction)
-
-        - relevant PC bits of [14:2] from [14:0]
-        - total entry of 8192
-
-        c) 16-way set-associative target buffer 
+        a) 16-way set-associative target buffer 
 
             16 => 2^4 => 4-bits for ways (columns)
 
@@ -63,7 +93,6 @@ Branch Target Buffer (BTB)
         - 16-way lookup compares all 16 tags in the selected set in parallel
         - tag: upper PC bits above the index (e.g. PC[31:15])
         
-
     2) Dual read and write
         a) BTB miss (valid bit = 0): lookup returns fallthrough(pc) = pc + 4
         - sequential next-instruction address for dual fetch (older lane pc, younger lane pc+4)
@@ -73,73 +102,52 @@ Branch Target Buffer (BTB)
         - write bank[pc_set(pc_wb)][pc_way(pc_wb)] <= {1'b1, align_target(target_wb)}
         - align_target(t) = {t[31:2], 2'b00} before store (4-byte aligned targets only)
 
-    3) RTL — rtl/s1_fetch/branch/target_buffer.sv + rtl/common/cache_pkg.sv
+Instruction Cache and Immediate addressing 
 
-        a) Shared bank geometry (cache_struct_t from cache_struct_build)
-        - DATA_W = 32 (branch/jump target), INDEX_W = 13 => 8192 entries = 512 sets x 16 ways
-        - bank[CACHE.sets][CACHE.ways], each slot [DATA_W:0] packed as {valid, data[31:0]}
+    1) Instruction Cache structure (RV32I)
+        a) Cache addresss uses byte per addressed
+        - Each addressable entry contain 1-byte
 
-        b) Indexing (same as I$ PC[14:2] over 32 KiB)
-        - pc_set(pc, CACHE) = PC[14:6]   (set / row)
-        - pc_way(pc, CACHE) = PC[5:2]    (way / column within set)
+        b) Cache size of 32KiB by Desired Specification 
+        - Total of 2^15 bytes or 15-bits to address each byte 
+        - Require only 15-bits of PC to address full instruction cache
 
-        c) Lookup — cache_set_read#(DATA_W)(bank[set], way, default)
-        - one set row only; does not read the whole bank
-        - default argument = fallthrough(pc) = pc + 4 (see 2a)
-        - dual fetch: i0_pc and i1_pc each index their own set/way in parallel
+        c) Single Instruction is 4-byte for 32-bit entry
+        - Each instruction address must be divisible by 4
 
-        d) Write — cache_set_write#(DATA_W)(1'b1, align_target(target_wb))
-        - fallthrough(pc): BTB miss default on read; predicts sequential fetch until trained
-        - align_target(t): clear target[1:0] on writeback so BTB stores word-aligned addresses
-          (consistent with RV-DIS imm_align4 and 32-bit instruction fetch in section I-cache 5b)
+        d) Total instruction entry 
 
-        e) Note — outline 1c describes full tag-compare across 16 ways; current RTL uses
-        PC-selected set/way (direct index within 16-way bank layout) via cache_pkg helpers.
-        Tag-associative BTB is a future extension if aliasing must be resolved by tag match.
+            cache size: 32KiB = 2^15 Bytes => 15-bits 
+            
+            total entry: 2^15 / 4 = 2^15 / 2^2 = 2^13 entry 
 
-Instruction Cache - Base Instruction Formats (R/I/S/U):
+            - Require 13-bit to address 2^13 or 8192 entries
+            - PC ultized only 13-bit (Program Counter.2)
 
-    1) IALIGN = 32, each instruction must start at an address that’s a multiple of 2.
-
-    2) Instruction cache size = 2^15 bytes =  32 KiB = (32 * 2^10)
-    - PC byte offset within I$: 15 bits [14:0]; max value 32,767 before roll-over
-
-    3) Error detection for invalid branch or jump address, raising misaligned exception
-
-    4) Memory / PC use 8-bit-byte addressing (standard RV32I): one address = one byte (USART map).
-    - Offsets in I/S/B/J/U types are still counted in bytes, not 16-bit words.
+    2) Implement cache structure with 4-way set association (IALIGN = 32)
+        a) 1-byte per entry for 4-byte per addressable row 
+        - non-addressable Column since each instruction address should by divisible by 4
+        - addressable row by [14:2] of PC 
+        
+    3) Invalid Immediate address from branch or jump raise misaligned exception
     
-
-    5) Immediates are sign-extended (not MIPS-style mixed zero/sign) to keep decode simple.
-
-        --- Byte offsets vs alignment (RISC-V default vs RV-DIS policy) ---
-
-        a) RISC-V default (Unprivileged ISA):
-        - Every PC, branch, jump, load/store uses BYTE addresses (8 bits per address).
-        - Branch/jump immediates (B-type, J-type: BEQ, JAL, …) scatter offset bits in the instruction
-        and leave imm[0] out of the encoding; decode appends imm[0]=0 (see imm_b / imm_j in
-        rtl/common/rv_dis_pkg.sv / decode_pkg.sv). That means the offset is always EVEN (multiple of 2 bytes).
-        - Purpose: control-flow targets can sit on 2-byte boundaries (for optional RVC compressed insns).
-        - This is NOT “16-bit per address” and NOT “multiply offset by 2 at execute” — the decoded value
-        is already the full byte offset; other ISAs often store offset/2 and shift left in hardware.
-
-        b) RV-DIS decode policy (this project):
-        - We only fetch 32-bit instructions (no RVC); PC should stay 4-byte aligned in normal code.
-        - imm_align4() in decode_pkg.sv forces imm[1:0]=00 on branch/jump offsets (B, J, JALR).
-        Load/store/OP-IMM use full sign-extended 32-bit byte offsets (no align4).
-        - B/J still have imm[0]=0 in the ISA encoding; decode appends that bit (see imm_b / imm_j).
+        a) RISC-V: Brach and jump immediate values are scatter in the instruction(not fully/directly mapped) 
+        - encoded immediate are rounded down by leaving imm[0] out of the encoding
+        - decoder appends imm[0] = 0, result in the immediate value to always be even 
+        - decoded value concat immediate offset without storing offset or perform left shift
+        
+        b) RV-DIS: Branch and jump immediate should comply with PC Design
+        - immediate values should be divisible by 4 (not just even) for PC to stay IALIGN = 32
+        - Decoder force imm[1:0] = 00, rounding immediate value down by 2-bit, no shifting 
+        - Encoding ISA for immediate values are unchanged 
 
             Summary table:
-            | Layer              | imm[0]   | imm[1:0] | Typical jump +4      |
-            |--------------------|----------|----------|----------------------|
-            | RISC-V ISA (B/J)   | forced 0 | any even | allowed (+4, +6, …)  |
-            | RV-DIS imm_align4  | 0        | forced 00| B/J/JALR only        |
+            | Layer              | imm[0]   | imm[1:0] | imm values         |
+            |--------------------|----------|----------|--------------------|
+            | RISC-V ISA         | 0        | -0       | -2, 0, +2, +4, +6  |
+            | RV-DIS imm_align4  | 0        | 00       | -4, 0, +4, +8, +12 |
 
-        Branch/jump encoding philosophy (RISC-V “rotation”, no execute-time <<1):
-        - Offset bits are permuted in the 32-bit instruction so LSB of offset is zero in the encoding.
-        - Decode rebuilds the byte offset (imm_b / imm_j + 1'b0); no extra shifter in odd_lane pc+imm.
-
-Dual Decoder :
+Dual Decoder
 
     1) Parallel decode — two insns per cycle
     - I0 = older (lower PC), I1 = younger (PC+4): opcode decode, control signals, lane_sel (even / odd)
@@ -166,7 +174,7 @@ Branch State Buffer with 4-State:
         - 2-bit saturating counter (4 states). Predict from MSB: 0 = not taken, 1 = taken.
         - Reset / default value: 01 (weakly not taken)
 
-Branch Target Prediction 
+Branch Target Predictor 
 
     1) Early branch target address calulation
 
@@ -322,11 +330,184 @@ Registers File - 32 addressible register:
         - if Software expects 0xaa as an observable value, complier must space these instructions
           outside the pair.
 
-Dispatch (during ID/EX) — lane checks and hazards
+Dispatch with Reorder Buffer: 
 
-    Dispatch runs at ID_EX (before operands enter EX). It decides whether the fetch pair
-    I0 + I1 issue to the execution lanes. Operand forwarding at EX is forward_unit only
-    (MEM stage mem0/mem1); no WB bypass and no falling-edge forward from GPR commit.
+    Concept:
+    *From the reading, the Reorder Buffer can be integrated into the Instruction Queue with
+    the addition of result field and state controls. Since, instruction are now only clear
+    on commit or flushed on wrong branch speculation, as in Reorder Buffer, the queue must 
+    compenstate for the longer instruction lifespan with larger entry size. We will refer 
+    this combined unit as the Reorder Buffer in the design*
+
+    1. Dual fetch and dispatch with pointers 
+    
+        Purpose: 
+        - address Reorder Buffer with three pointers: commit (head), read (body), and write (tail)
+        - pointers can warp around the buffer, as in a ring buffer, and advance to the next pair of
+        instructions without shifting entry
+
+        a. Write pointer
+            - enqueue pairs of instructions until the buffer is full to trigger an fetch stall
+            - Un-stall or re-enable write on empty buffer 
+        
+        b. Read Pointer
+            - enable pairs of instructions to be routed to the apporpriate reservation station based
+            on decoded lane select (not cleared from the buffer). 
+            - State 
+        
+            and updating instruction state (not cleared). 
+            - 
+        c. commit pointer
+            - clear pair of instruction that finish execution for the result to be visible to be
+            written to the register file.  
+
+    2. Reorder Buffer:
+
+        Purpose:
+        - instructions fetched are stored in the Reorder Buffer, then on the next clock cycle
+        routed by the decoded lane select (even or odd) to a dedicated Reservation Station
+        - maintained FIFO buffered orders of instruction to ensure the correct data flow 
+        - instructions are moved to next available slot in the Reservation Stations 
+        - Pipeline stall until the ROB is full; instructions already in the ROB can still
+        be issued from the ROB to the reservation stations for execution
+
+        a. Field and control signal 
+
+            Entry fields (per ROB slot = rob_entry_t + result/state):
+            | field             | width | purpose                                                 |
+            |-------------------|-------|---------------------------------------------------------|
+            | valid             | 1     | slot occupied (between commit and write pointer)        |
+            | pc                | 32    | program order / flush target for this instruction       |
+            | lane_sel          | 1     | 0 = even RS, 1 = odd RS (routing on read)               |
+            | opcode/funct3/7   | 7/3/7 | decoded operation forwarded to the lane                 |
+            | rd                | 5     | architectural destination register                      |
+            | rs1 / rs2         | 5/5   | source register addresses                               |
+            | rs1_use / rs2_use | 1/1   | source operand required flags                           |
+            | imm               | 32    | sign-extended immediate                                 |
+            | rs1_data/rs2_data | 32/32 | captured operand values at dispatch                     |
+            | reg_write         | 1     | instruction commits a value to rd                       |
+            | result            | 32    | EX/MEM result captured in ROB, written to GPR on commit |
+            | state             | 3     | entry lifecycle + speculation (see state table)         |
+
+            State encoding (3-bit lifecycle codes):
+            | code | name             | meaning                                                    |
+            |------|------------------|------------------------------------------------------------|
+            | 000  | new, unread      | enqueued, not yet routed to a reservation station          |
+            | 001  | read             | routed to a RS, awaiting execute (non-spec)                |
+            | 010  | executed         | EX result captured in ROB, ready for in-order commit       |
+            | 100  | spec, unread     | speculative entry behind unresolved branch                 |
+            | 101  | spec, read       | speculative, routed to a RS                                |
+            | 110  | spec, executed   | speculative, result ready (commit blocked until branch OK) |
+
+            Lifecycle: new (000) -> read (001) -> executed (010) -> commit (freed).
+            Speculative variants (1xx) follow the same path behind an unresolved branch.
+
+            Control signals:
+            | signal        | dir | purpose                                                |
+            |---------------|-----|--------------------------------------------------------|
+            | flush         | in  | branch mispredict — squash spec entries, reset pointers|
+            | full          | out | no free slot for a pair -> stall fetch                 |
+            | empty         | out | nothing to issue                                       |
+            | count         | out | occupancy (commit..write distance)                     |
+            | set_complete  | in  | mark entry executed — capture result, advance to 010/110|
+o
+        b. Branch Speculation
+            - speculative entries use lifecycle codes 100, 101, 110
+            - on correct resolve, clear speculation (100 -> 000, 101 -> 001, 110 -> 010)
+              so executed entries can commit in order
+            - on mispredict, flush every entry in 1xx and rewind the write pointer
+        c. Buffer Size:
+
+            Geometry:
+            - 16-entry ROB (ROB_DEPTH = 16, ROB_AW = 4)
+
+            Why 16 (capacity):
+            - at 2 issues/cycle it buffers ~8 cycles of fetch, enough to cover the front-end
+            (fetch/decode) refill latency on a stall so issue rarely starves; under the Reorder
+            Buffer model entries live until commit/flush, so the longer lifespan needs the
+            extra slots to avoid stalling fetch prematurely
+
+            Why 16 (speculation depth):
+            - depth IS the speculation depth: an entry only frees on commit, and a speculative
+            instruction cannot commit until its branch resolves in EX, so ROB depth caps how
+            many instructions may sit past unresolved branches
+            - sizing: required_depth ~ issue_width x (dispatch-to-resolve cycles) x branches_in_flight
+            - for this core: width 2, branch resolves ~2-3 cycles after dispatch, so ~4-6 entries
+            pile up behind one unresolved branch; 16 / 2 = 8 cycles of runway covers that plus a
+            second in-flight branch (nested speculation) and commit-bandwidth hiccups
+            - trade-off: deeper buffer = deeper speculation (more ILP across branches) at the cost
+            of area and a larger flush penalty (mispredict discards up to 16 / ~8 cycles of work);
+            an 8-deep ROB halves this to ~4 cycles / 1 branch
+
+            Why 16 (power of two):
+            - ROB_AW = 4 indexes it exactly and the write/read pointers wrap for free
+            (no compare/subtract), which a 12- or 20-entry depth would not
+
+Reservation Station with Renaming 
+
+    Register Renaming are performed in the Reservation Station to handle anti-dependency (WAW, WAR). 
+    Instruction can be dispatch out-of-order from the Reservation station to the execution units 
+    in order to reduce RAW dependency stalls. 
+    
+    1. Register Rename:
+        - Renamed is performed as instructions are moved from the instruction queue to the 
+        desired reservation stations (also to the Reorder Buffer)
+        - Instruction's desintation address is renamed to the associated address 
+        of the same instruction that is in the Reorder Buffer.
+        - Instruction's operand address is renamed based on matching register address stored 
+        in the Reorder Buffer before or the value is fetch directly if available.
+
+        a. 
+
+        b. Eliminated WAR cause by false dependency:
+
+            Before Rename:
+                pc0         lw  r3, 0x00(r1)        
+                pc1         sub r1, r4, r5  
+
+            After Rename: let r1 @ pc0 = p5, r1 @ pc1 = p6, 
+                pc0         lw  r3, 0x00(p5)
+                pc1         sub p6, r4, r5
+
+            - Instruction at pc0 must read the old value even if instruction at pc1 forward
+            the result, thus any writes does not affect earlier instructions reading the same register.  
+            - In the case that instruction at pc1 may finsih execution earlier than pc0, instruction
+            result from pc1 will visibily not be forwarded because the renamed value does not match
+
+        c. Eliminated WAW hazards cause by writing to the same desintation:
+
+            Before Rename: 
+                pc0         add  r1, r2, r3       
+                pc1         lw   r1, 0x00(r5)     
+                ...
+                pc0 + 4     sub  r2, r3, r1       
+                pc1 + 4     and  r4, r5, r1  
+
+            After Rename: let r1 @ pc0 = p5, r1 @ pc1 = r6
+                pc0         add  p5, r2, r3       
+                pc1         lw   p6, 0x00(r5)     
+                ...
+                pc0 + 4     sub  p2, r3, p6
+                pc1 + 4     and  p3, r5, p6     
+
+            - Since both instruction at pc0 and pc1 write to the same desintation register, the register
+            will only take the last renamed tag's value or the yongest in-order result of the execution (i1)
+            - In the case that instructions at pc0 may finish execution earlier than pc1, instruction 
+            result from pc0 will visibily not be forwarded because the renamed value does not match 
+
+    3. Reservation Station:
+        - tagged by renamed desintation address, oprand values or 
+
+        a. Reduce stall of RAW dependency by allowing out-of-order execution:
+
+        b. Account for extra memory stage operation:
+            - loads and stores require a two-step execution process; address compute and value
+             to be store/load
+		    - load or store reservation states buffer address computes, awaits values to be 
+            stored or loaded
+
+
+
 
     1) Lane map:
     - Even lane: OP, OP-IMM (ALU)
@@ -497,11 +678,11 @@ Dispatch (during ID/EX) — lane checks and hazards
 
         Signals: stall_id (dispatch out); issue_i0/i1, set_i1_hold, issue_i1_from_hold
         
-Forwarding (EX operand mux — WB stage only)
+Forwarding with Reservation Buffer
 
-    Policy — not used in RV-DIS:
-        - no WB bypass on GPR read ports (no same-cycle wen→read short-circuit for EX)
-        - no falling-edge forward (operands never sourced from negedge GPR commit in the same cycle)
+    Instructions are stored in reservation buffer for Out-of-Order execution by selecting and
+    executing instruction without dependency. Instruction with RAW dependency are flagged and 
+    reserved until the dependeny resources is available to be forwarded. 
 
     forward_unit muxes EX rs operands from:
         a) ID/EX GPR operand (combinational read of regs[] — stale if producer still in flight)
@@ -649,10 +830,63 @@ Memory hierarchy (on-chip SRAM budget):
     - L1 data cache:           2^15 bytes =  32 KiB
     - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
 
+Writback and Retire from Reorder Buffer 
+
+The Register Alias Table (RAT) and the Reorder Buffer (ROB) work together during register
+ renaming and speculative execution, but they serve fundamentally different roles and 
+ operate at different points in the pipeline.
+ 
+ 
+  During the rename stage, the RAT is used to
+  translate architectural source registers into their current physical register mappings 
+  and to allocate a new physical register for any destination register.
+  
+   At the same time,
+   a new entry is created in the ROB for each instruction. That ROB entry records the 
+   architectural destination register, the newly assigned physical register, and the 
+   previous physical register that is being replaced. 
+   
+   After this point, the RAT is 
+   immediately updated to reflect the newest speculative mapping, meaning later 
+   instructions will read the updated physical register even if earlier ones have not 
+   executed yet.
+
+As execution proceeds out of order, functional units operate only on physical registers,
+ and when an instruction finishes, it writes its result back and marks its corresponding 
+ ROB entry as complete. The ROB does not execute instructions; instead, it tracks 
+ completion status and preserves program order. Finally, at the commit stage, the ROB 
+ retires instructions strictly in order. When the head of the ROB is ready, it updates 
+ the architectural state by confirming the mapping in the RAT is now committed and 
+ frees the old physical register stored in the ROB entry. This interaction ensures 
+ that even though execution happens out of order, architectural state updates remain 
+ precise and in-order, with the RAT handling fast speculative mapping and the ROB 
+ enforcing correctness and recovery.
+
 Verification (Yosys via WSL):
 
     See scripts/README.md (run_yosys.ps1 commands, log layout).
     TB layout and logging: tb/README.md
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
 

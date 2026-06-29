@@ -14,13 +14,10 @@ project/
 ├── tb/               testbenches (Verilator input)
 ├── sim/              Verilator build outputs (verilator/, waves/, obj_dir/)
 ├── synth/            netlists, reports, Yosys run logs
-├── scripts/          run_yosys.ps1, run_*.sh, fix-sh-lf.ps1
-├── run-sim           one-command Verilator sim (WSL / Git Bash)
-├── run-synth         one-command Yosys elab/synth
-├── run-all           all unit TBs
+├── scripts/          run_yosys.ps1, Makefile, run-sim/synth/all, run_*.sh
 ├── tests/            ASM programs + assembler
 ├── docs/             ISA and architecture notes
-└── Makefile
+└── Makefile          forwards to scripts/Makefile
 ```
 
 | Path | Contents |
@@ -30,7 +27,7 @@ project/
 | `sim/verilator/` | Verilator compile scratch per top |
 | `synth/latest/` | Published netlists per top |
 | `synth/reports/runs/` | Yosys run logs (`latest/`, `temp/`) |
-| `scripts/` | Drivers — [scripts/README.md](scripts/README.md) |
+| `scripts/` | Drivers — [scripts/README.md](scripts/README.md) (`run-sim`, `run-synth`, `run-all`, `make`) |
 
 ## Quick start
 
@@ -43,8 +40,9 @@ sudo apt update && sudo apt install -y yosys build-essential verilator
 **Run (repo root):**
 
 ```bash
-./run-synth -TOP pc_tb    # Yosys check
-./run-sim -TOP pc_tb      # + Verilator TB test
+./scripts/run-synth -TOP pc_tb    # Yosys check
+./scripts/run-sim -TOP pc_tb      # + Verilator TB test
+make sim TOP=pc_tb                # same as run-sim
 ```
 
 ```powershell

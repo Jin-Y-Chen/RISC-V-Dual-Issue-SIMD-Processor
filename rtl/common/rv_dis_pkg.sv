@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // RV-DIS shared package — RV32I scalar core (dual-issue). Types, geometry, ISA constants.
-// Instruction decode helpers: rtl/s2_decode/core/decoder.sv (decode_pkg).
+// Instruction decode helpers: rtl/s2_decode/core/decode_funct/decode.sv (decode_pkg).
 package rv_dis_pkg;
 
   // =========================================================================
@@ -77,7 +77,32 @@ package rv_dis_pkg;
   // lane_sel — 0 = even (OP / OP-IMM), 1 = odd (load/store/branch/jump/LUI/AUIPC)
 
   // =========================================================================
-  // Dispatch — single I1 replay slot (id_dp)
+  // Dispatch — Reorder Buffer entry (id_ex_dispatch).
+  // Lifecycle codes and helpers: rtl/s3_execution/funct_pkg/dispatch.sv (dispatch_pkg).
+  // =========================================================================
+  localparam int ROB_DEPTH = 16;
+  localparam int ROB_AW    = 4;
+
+  typedef struct packed {
+    logic        valid;
+    logic        lane_sel;
+    opcode_t     opcode;
+    funct3_t     funct3;
+    funct7_t     funct7;
+    gpr_addr_t   rd;
+    gpr_addr_t   rs1;
+    gpr_addr_t   rs2;
+    logic        rs1_use;
+    logic        rs2_use;
+    logic        reg_write;
+    imm_t        imm;
+    reg_t        rs1_data;
+    reg_t        rs2_data;
+    pc_t         pc;
+  } rob_entry_t;
+
+  // =========================================================================
+  // Dispatch — single I1 replay slot (scoreboard RAW hold)
   // =========================================================================
   typedef struct packed {
     logic        valid;

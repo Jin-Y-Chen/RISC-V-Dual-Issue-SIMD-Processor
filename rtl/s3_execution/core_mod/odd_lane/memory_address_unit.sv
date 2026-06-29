@@ -9,6 +9,8 @@ module memory_access
 
   // input data
   input  funct3_t     funct3,
+  input  logic        rs1_use,    // decode: rs1 is a real GPR read (address base)
+  input  logic        rs2_use,    // decode: rs2 is a real GPR read (store data)
   input  reg_t        rs1_data,
   input  reg_t        rs2_data,
   input  imm_t        imm,
@@ -21,9 +23,12 @@ module memory_access
 
   logic [1:0] addr_lsb;
 
-  assign mem_addr  = rs1_data + imm;
+  // Base address is rs1 when it is a real source; with no base register the
+  // effective address is the immediate alone (base 0 + imm). Store data is rs2
+  // when used, otherwise the immediate stands in.
+  assign mem_addr  = (rs1_use ? rs1_data : reg_t'(32'd0)) + imm;
   assign addr_lsb  = mem_addr[1:0];
-  assign mem_wdata = rs2_data;
+  assign mem_wdata = rs2_use ? rs2_data : imm;
 
   always_comb begin
     mem_besel = 4'b0000;

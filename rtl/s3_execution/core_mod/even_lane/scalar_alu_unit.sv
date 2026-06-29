@@ -29,9 +29,14 @@ module scalar_alu
           F3_SLL:     alu_result = operand_a << shamt;
           F3_SLT:     alu_result = ($signed(operand_a) < $signed(operand_b)) ? 32'd1 : 32'd0;
           F3_XOR:     alu_result = operand_a ^ operand_b;
-          F3_SRL_SRA: alu_result = (funct7 == F7_SRA) ?
-                                   $signed(operand_a) >>> shamt :
-                                   operand_a >> shamt;
+          // Split branches so the signed operand stays self-determined; a ternary
+          // would make the whole expression unsigned and turn >>> into a logical shift.
+          F3_SRL_SRA: begin
+            if (funct7 == F7_SRA)
+              alu_result = $signed(operand_a) >>> shamt;
+            else
+              alu_result = operand_a >> shamt;
+          end
           F3_OR:      alu_result = operand_a | operand_b;
           F3_AND:     alu_result = operand_a & operand_b;
           default:    alu_result = operand_a + operand_b;

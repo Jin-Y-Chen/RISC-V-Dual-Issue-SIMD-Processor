@@ -10,6 +10,8 @@ module odd_lane
   // input data
   input  opcode_t     opcode,
   input  funct3_t     funct3,
+  input  logic        rs1_use,    // decode: rs1 is a real GPR read
+  input  logic        rs2_use,    // decode: rs2 is a real GPR read
   input  reg_t        rs1_data,
   input  reg_t        rs2_data,
   input  imm_t        imm,
@@ -33,6 +35,8 @@ module odd_lane
 
   branch_unit u_branch (
     .funct3     (funct3),
+    .rs1_use    (rs1_use),
+    .rs2_use    (rs2_use),
     .rs1_data   (rs1_data),
     .rs2_data   (rs2_data),
     .brch_taken (brch_cond)
@@ -44,6 +48,8 @@ module odd_lane
   memory_access u_mem (
     .funct3    (funct3),
     .is_store  (mem_en && mem_act),
+    .rs1_use   (rs1_use),
+    .rs2_use   (rs2_use),
     .rs1_data  (rs1_data),
     .rs2_data  (rs2_data),
     .imm       (imm),

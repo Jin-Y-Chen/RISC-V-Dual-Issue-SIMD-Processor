@@ -1,6 +1,6 @@
 # Scripts
 
-Entry point: `run_yosys.ps1` (Yosys + optional Verilator). Helpers: `log_layout.ps1`, `fix-sh-lf.ps1` (CRLF → LF on Windows), `run_*.sh` bash wrappers. Repo-root shortcuts: `run-sim`, `run-synth`, `run-all`.
+Entry point: `run_yosys.ps1` (Yosys + optional Verilator). Bash shortcuts: `run-sim`, `run-synth`, `run-all`. Helpers: `Makefile`, `log_layout.ps1`, `fix-sh-lf.ps1`, `run_*.sh`.
 
 Related: [../sim/README.md](../sim/README.md), [../synth/README.md](../synth/README.md), [../tb/README.md](../tb/README.md).
 
@@ -47,12 +47,20 @@ verilator --version
 
 Ubuntu apt ships Verilator **5.032**; that is fine. TBs use `#0` (not `#1step`) in `tick` tasks so they build without a newer Verilator.
 
-### Run from repo root
+### Run (repo root or this directory)
 
 ```bash
-./run-sim -TOP pc_tb      # Yosys elab + Verilator self-test
-./run-synth -TOP pc_tb    # Yosys elab only
-./run-all                 # all unit TBs (Yosys)
+./scripts/run-sim -TOP pc_tb      # Yosys elab + Verilator self-test
+./scripts/run-synth -TOP pc_tb    # Yosys elab only
+./scripts/run-all                 # all unit TBs (Yosys)
+make sim TOP=pc_tb                # same as run-sim (root Makefile forwards here)
+```
+
+From `scripts/`:
+
+```bash
+./run-sim -TOP pc_tb
+make sim TOP=pc_tb
 ```
 
 PowerShell (same repo root):
@@ -77,10 +85,10 @@ After a sim run, check `synth/reports/runs/latest/pc_tb/summary.txt` (`result:` 
 ```
 
 ```bash
-./run-sim --help
-./run-synth --help
-./run-sim -TOP pc_tb
-./run-synth -TOP pc_tb
+./scripts/run-sim --help
+./scripts/run-synth --help
+./scripts/run-sim -TOP pc_tb
+./scripts/run-synth -TOP pc_tb
 make synth TOP=pc_tb
 ```
 
@@ -122,11 +130,11 @@ Shell scripts must use **LF** line endings. After clone on Windows, run once fro
 .\scripts\fix-sh-lf.ps1
 ```
 
-`.gitattributes` keeps `*.sh` and `run-sim` / `run-synth` / `run-all` on LF in git.
+`.gitattributes` keeps `*.sh` and `scripts/run-sim` / `run-synth` / `run-all` on LF in git.
 
 ### `The argument ... run_yosys.ps1 ... does not exist` (from WSL)
 
-You ran `./run-sim` from WSL; the wrapper calls Windows PowerShell, which needs `C:\...` paths. `scripts/common.sh` converts with `wslpath -w` — pull latest scripts if you still see this.
+You ran `./scripts/run-sim` from WSL; the wrapper calls Windows PowerShell, which needs `C:\...` paths. `scripts/common.sh` converts with `wslpath -w` — pull latest scripts if you still see this.
 
 ### `Verilator --binary needs make and g++`
 
@@ -138,7 +146,7 @@ sudo apt install -y build-essential
 
 ### `parameter 'Top' is specified more than once`
 
-Use one way to pick the TB: `./run-sim -TOP pc_tb` **or** `TOP=pc_tb ./run-sim`, not both with conflicting flags. The wrapper strips `-Top` before calling PowerShell.
+Use one way to pick the TB: `./scripts/run-sim -TOP pc_tb` **or** `TOP=pc_tb ./scripts/run-sim`, not both with conflicting flags. The wrapper strips `-Top` before calling PowerShell.
 
 ### Where to look when something fails
 
@@ -147,7 +155,7 @@ Use one way to pick the TB: `./run-sim -TOP pc_tb` **or** `TOP=pc_tb ./run-sim`,
 | Yosys elab | `synth/reports/runs/latest/<top>/run.log` — search `ERROR:` |
 | Verilator compile / run | `synth/reports/runs/latest/<top>/sim.log` (also `sim/verilator/<top>/compile.log`) |
 | Pass/fail summary | `synth/reports/runs/latest/<top>/summary.txt` — `result:` (Yosys), `sim:` (Verilator) |
-| Script usage | `./run-sim --help` or `.\scripts\run_yosys.ps1 -Help` |
+| Script usage | `./scripts/run-sim --help` or `.\scripts\run_yosys.ps1 -Help` |
 
 With `-Sim`, **both** Yosys and Verilator must pass for exit code 0.
 

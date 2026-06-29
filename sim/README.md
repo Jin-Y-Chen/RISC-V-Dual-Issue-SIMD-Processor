@@ -2,7 +2,7 @@
 
 **Verilator** compiles SystemVerilog testbenches to a C++ simulator and runs them natively. Here it is the cycle-accurate half of `-Sim`: after Yosys elaborates the DUT, Verilator builds `tb/<top>` and executes self-checks (`[PASS]`, `*** SUMMARY ***`). Output is executable simulation, not a netlist.
 
-**Run:** `./run-sim -TOP pc_tb` from repo root (WSL). Full setup: [../scripts/README.md](../scripts/README.md).
+**Run:** `./scripts/run-sim -TOP pc_tb` from repo root (WSL). Full setup: [../scripts/README.md](../scripts/README.md).
 
 | Path | Contents |
 |------|----------|

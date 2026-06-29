@@ -4,12 +4,15 @@
 module odd_lane_tb;
 
   import rv_dis_pkg::*;
+  import decode_pkg::*;
 
   `include "../common/tb_console.svh"
 
   logic        enable;
   logic [6:0]  opcode;
   logic [2:0]  funct3;
+  logic        rs1_use;
+  logic        rs2_use;
   logic [31:0] rs1_data;
   logic [31:0] rs2_data;
   logic [31:0] imm;
@@ -27,6 +30,10 @@ module odd_lane_tb;
 
   int pass_cnt;
   int fail_cnt;
+
+  // rs*_use follow decode policy (base/store/compare register reads).
+  assign rs1_use = decode_rs1_use(opcode);
+  assign rs2_use = decode_rs2_use(opcode);
 
   odd_lane dut (.*);
 

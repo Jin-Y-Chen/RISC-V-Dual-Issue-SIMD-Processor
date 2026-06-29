@@ -3,7 +3,7 @@
 Run from repo root:
 
 ```bash
-./run-sim -TOP <name>
+./scripts/run-sim -TOP <name>
 ```
 
 ```powershell

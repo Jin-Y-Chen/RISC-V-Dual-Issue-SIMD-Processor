@@ -4,6 +4,7 @@
 // dp_ex, ex_mem, and s5_memory_struct live outside this block.
 module s4_execute_struct
   import rv_dis_pkg::*;
+  import decode_pkg::*;   // decode_rs1_use / decode_rs2_use (immediate-vs-register select)
 (
   // internal controls
   input  logic        i0_reg_write_ex,
@@ -153,6 +154,8 @@ module s4_execute_struct
     .opcode     (ev0_opcode_ex),
     .funct3     (ev0_funct3_ex),
     .funct7     (ev0_funct7_ex),
+    .rs1_use    (decode_rs1_use(ev0_opcode_ex)),
+    .rs2_use    (decode_rs2_use(ev0_opcode_ex)),
     .rs1_data   (ev0_rs1_data_fwd),
     .rs2_data   (ev0_rs2_data_fwd),
     .imm        (ev0_imm_ex),
@@ -167,6 +170,8 @@ module s4_execute_struct
     .opcode     (ev1_opcode_ex),
     .funct3     (ev1_funct3_ex),
     .funct7     (ev1_funct7_ex),
+    .rs1_use    (decode_rs1_use(ev1_opcode_ex)),
+    .rs2_use    (decode_rs2_use(ev1_opcode_ex)),
     .rs1_data   (ev1_rs1_data_fwd),
     .rs2_data   (ev1_rs2_data_fwd),
     .imm        (ev1_imm_ex),
@@ -180,6 +185,8 @@ module s4_execute_struct
     // input data
     .opcode     (od0_opcode_ex),
     .funct3     (od0_funct3_ex),
+    .rs1_use    (decode_rs1_use(od0_opcode_ex)),
+    .rs2_use    (decode_rs2_use(od0_opcode_ex)),
     .rs1_data   (od0_rs1_data_fwd),
     .rs2_data   (od0_rs2_data_fwd),
     .imm        (od0_imm_ex),
@@ -203,6 +210,8 @@ module s4_execute_struct
     // input data
     .opcode     (od1_opcode_ex),
     .funct3     (od1_funct3_ex),
+    .rs1_use    (decode_rs1_use(od1_opcode_ex)),
+    .rs2_use    (decode_rs2_use(od1_opcode_ex)),
     .rs1_data   (od1_rs1_data_fwd),
     .rs2_data   (od1_rs2_data_fwd),
     .imm        (od1_imm_ex),
