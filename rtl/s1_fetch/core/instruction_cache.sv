@@ -12,8 +12,8 @@ module instruction_cache
   parameter int WAYS    = 4             // 4-way set-associative
 ) (
   // input data
-  input  pc_t         pc0,
-  input  pc_t         pc1,
+  input  word_t         pc0,
+  input  word_t         pc1,
 
   // output data
   output instr_t      instr0,
@@ -25,19 +25,19 @@ module instruction_cache
 
   logic [DATA_W:0] bank [CACHE.sets][CACHE.ways];
 
-  function automatic logic [DATA_W-1:0] insn_default(input pc_t pc);
+  function automatic logic [DATA_W-1:0] insn_default(input word_t pc);
     return {DATA_W{1'b0}};
   endfunction
 
   assign instr0 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[pc_set(pc0, CACHE)],
-    pc_way(pc0, CACHE),
+    bank[bank_set_idx(pc0, CACHE)],
+    bank_way_idx(pc0, CACHE),
     insn_default(pc0)
   ));
 
   assign instr1 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[pc_set(pc1, CACHE)],
-    pc_way(pc1, CACHE),
+    bank[bank_set_idx(pc1, CACHE)],
+    bank_way_idx(pc1, CACHE),
     insn_default(pc1)
   ));
 

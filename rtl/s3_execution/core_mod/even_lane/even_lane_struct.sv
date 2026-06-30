@@ -13,19 +13,19 @@ module even_lane
   input  funct7_t     funct7,
   input  logic        rs1_use,    // decode: rs1 is a real GPR read
   input  logic        rs2_use,    // decode: rs2 is a real GPR read
-  input  reg_t        rs1_data,
-  input  reg_t        rs2_data,
-  input  imm_t        imm,
+  input  word_t        rs1_data,
+  input  word_t        rs2_data,
+  input  word_t        imm,
 
   // output controls
   output logic        reg_write,
 
   // output data
-  output reg_t        alu_result
+  output word_t        alu_result
 );
 
-  reg_t operand_a;
-  reg_t operand_b;
+  word_t operand_a;
+  word_t operand_b;
 
   assign reg_write = enable && ((opcode == OPC_OP) || (opcode == OPC_OP_IMM));
 

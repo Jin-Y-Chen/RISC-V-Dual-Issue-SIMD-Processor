@@ -16,16 +16,16 @@ module s5_memory_struct
   input  logic        od1_mem_act_mem,
 
   // input data
-  input  pc_t         od0_mem_addr_mem,
-  input  reg_t        od0_mem_wdata_mem,
+  input  word_t         od0_mem_addr_mem,
+  input  word_t        od0_mem_wdata_mem,
   input  mem_besel_t  od0_mem_besel_mem,
-  input  pc_t         od1_mem_addr_mem,
-  input  reg_t        od1_mem_wdata_mem,
+  input  word_t         od1_mem_addr_mem,
+  input  word_t        od1_mem_wdata_mem,
   input  mem_besel_t  od1_mem_besel_mem,
 
   // output data
-  output reg_t        od0_load_mem_data,
-  output reg_t        od1_load_mem_data,
+  output word_t        od0_load_mem_data,
+  output word_t        od1_load_mem_data,
 
   // output controls
   output logic        dcache_busy

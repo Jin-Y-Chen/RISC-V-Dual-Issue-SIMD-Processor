@@ -4,7 +4,7 @@
 module s1_fetch_struct
   import rv_dis_pkg::*;
 #(
-  parameter pc_t RESET_PC = pc_t'(32'h0000_0000)
+  parameter word_t RESET_PC = word_t'(32'h0000_0000)
 ) (
   // external controls
   input  logic        clk,
@@ -15,19 +15,19 @@ module s1_fetch_struct
   input  logic        set,
 
   // input data
-  input  pc_t         set_pc,
+  input  word_t         set_pc,
   input  logic        i0_valid_wb,
   input  logic        i1_valid_wb,
-  input  pc_t         i0_pc_wb,
-  input  pc_t         i1_pc_wb,
-  input  pc_t         i0_target_wb,
-  input  pc_t         i1_target_wb,
+  input  word_t         i0_pc_wb,
+  input  word_t         i1_pc_wb,
+  input  word_t         i0_target_wb,
+  input  word_t         i1_target_wb,
 
   // output data
-  output pc_t         pc0,
-  output pc_t         pc1,
-  output pc_t         i0_pc_target,
-  output pc_t         i1_pc_target,
+  output word_t         pc0,
+  output word_t         pc1,
+  output word_t         i0_pc_target,
+  output word_t         i1_pc_target,
   output instr_t      instr0,
   output instr_t      instr1
 );

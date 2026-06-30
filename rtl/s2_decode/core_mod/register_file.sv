@@ -28,20 +28,20 @@ module register_file
   input  gpr_addr_t   i1_rs2_addr,
   input  gpr_addr_t   i0_rd,
   input  gpr_addr_t   i1_rd,
-  input  reg_t        i0_wdata,
-  input  reg_t        i1_wdata,
-  input  reg_t        i0_wpc,
-  input  reg_t        i1_wpc,
+  input  word_t        i0_wdata,
+  input  word_t        i1_wdata,
+  input  word_t        i0_wpc,
+  input  word_t        i1_wpc,
 
   // output data
-  output reg_t        i0_rs1_data,
-  output reg_t        i0_rs2_data,
-  output reg_t        i1_rs1_data,
-  output reg_t        i1_rs2_data
+  output word_t        i0_rs1_data,
+  output word_t        i0_rs2_data,
+  output word_t        i1_rs1_data,
+  output word_t        i1_rs2_data
 );
 
   // x1-x31 stored; x0 is not physical storage
-  reg_t regs [1:NUM_GPR-1];
+  word_t regs [1:NUM_GPR-1];
 
   logic i0_wr;
   logic i1_wr;
@@ -53,17 +53,17 @@ module register_file
   assign same_rd = i0_wr && i1_wr && (i0_rd == i1_rd);
   assign i1_wins = same_rd && (i1_wpc >= i0_wpc);
 
-  function automatic reg_t rf_array_read(input logic [4:0] addr);
+  function automatic word_t rf_array_read(input logic [4:0] addr);
     if (addr == 5'd0)
       rf_array_read = '0;
     else
       rf_array_read = regs[addr];
   endfunction
 
-  function automatic reg_t rf_read_port(input logic rs_use, input logic [4:0] addr);
-    reg_t         stored;
+  function automatic word_t rf_read_port(input logic rs_use, input logic [4:0] addr);
+    word_t         stored;
     logic         i0_byp, i1_byp;
-    reg_t         wdata;
+    word_t         wdata;
 
     if (!rs_use) begin
       rf_read_port = '0;

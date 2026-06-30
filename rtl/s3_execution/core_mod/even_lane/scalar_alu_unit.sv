@@ -8,11 +8,11 @@ module scalar_alu
   input  opcode_t     opcode,
   input  funct3_t     funct3,
   input  funct7_t     funct7,
-  input  reg_t        operand_a,
-  input  reg_t        operand_b,
+  input  word_t        operand_a,
+  input  word_t        operand_b,
 
   // output data
-  output reg_t        alu_result
+  output word_t        alu_result
 );
 
   logic [4:0] shamt;

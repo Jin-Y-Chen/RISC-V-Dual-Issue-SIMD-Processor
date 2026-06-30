@@ -28,21 +28,21 @@ module ex_mem
 
   // input data
   input  gpr_addr_t   od0_rd_ex,
-  input  pc_t         od0_brch_pc_ex,
-  input  pc_t         od0_mem_addr_ex,
-  input  reg_t        od0_mem_wdata_ex,
+  input  word_t         od0_brch_pc_ex,
+  input  word_t         od0_mem_addr_ex,
+  input  word_t        od0_mem_wdata_ex,
   input  mem_besel_t  od0_mem_besel_ex,
-  input  pc_t         od0_link_pc_ex,
-  input  reg_t        od0_alu_result_ex,
-  input  pc_t         od0_pc_ex,
+  input  word_t         od0_link_pc_ex,
+  input  word_t        od0_alu_result_ex,
+  input  word_t         od0_pc_ex,
   input  gpr_addr_t   od1_rd_ex,
-  input  pc_t         od1_brch_pc_ex,
-  input  pc_t         od1_mem_addr_ex,
-  input  reg_t        od1_mem_wdata_ex,
+  input  word_t         od1_brch_pc_ex,
+  input  word_t         od1_mem_addr_ex,
+  input  word_t        od1_mem_wdata_ex,
   input  mem_besel_t  od1_mem_besel_ex,
-  input  pc_t         od1_link_pc_ex,
-  input  reg_t        od1_alu_result_ex,
-  input  pc_t         od1_pc_ex,
+  input  word_t         od1_link_pc_ex,
+  input  word_t        od1_alu_result_ex,
+  input  word_t         od1_pc_ex,
 
   // output controls
   output logic        od0_reg_write_mem,
@@ -58,21 +58,21 @@ module ex_mem
 
   // output data
   output gpr_addr_t   od0_rd_mem,
-  output pc_t         od0_brch_pc_mem,
-  output pc_t         od0_mem_addr_mem,
-  output reg_t        od0_mem_wdata_mem,
+  output word_t         od0_brch_pc_mem,
+  output word_t         od0_mem_addr_mem,
+  output word_t        od0_mem_wdata_mem,
   output mem_besel_t  od0_mem_besel_mem,
-  output pc_t         od0_link_pc_mem,
-  output reg_t        od0_alu_result_mem,
-  output pc_t         od0_pc_mem,
+  output word_t         od0_link_pc_mem,
+  output word_t        od0_alu_result_mem,
+  output word_t         od0_pc_mem,
   output gpr_addr_t   od1_rd_mem,
-  output pc_t         od1_brch_pc_mem,
-  output pc_t         od1_mem_addr_mem,
-  output reg_t        od1_mem_wdata_mem,
+  output word_t         od1_brch_pc_mem,
+  output word_t         od1_mem_addr_mem,
+  output word_t        od1_mem_wdata_mem,
   output mem_besel_t  od1_mem_besel_mem,
-  output pc_t         od1_link_pc_mem,
-  output reg_t        od1_alu_result_mem,
-  output pc_t         od1_pc_mem
+  output word_t         od1_link_pc_mem,
+  output word_t        od1_alu_result_mem,
+  output word_t         od1_pc_mem
 );
 
   always_ff @(posedge clk or negedge rst_n) begin

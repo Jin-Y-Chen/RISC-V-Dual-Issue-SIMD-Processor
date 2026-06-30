@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-typedef rv_dis_pkg::pc_t pc_t;
+typedef rv_dis_pkg::word_t word_t;
 
 // Fetch-stage program counter for dual-issue RV32I.
 module pc #(
@@ -16,14 +16,14 @@ module pc #(
   input  logic               set,
 
   // input data
-  input  pc_t                set_pc,
+  input  word_t                set_pc,
 
   // output data
-  output pc_t                pc0,
-  output pc_t                pc1
+  output word_t                pc0,
+  output word_t                pc1
 );
 
-  pc_t pc_q, pc_next;
+  word_t pc_q, pc_next;
 
   always_comb begin
     pc_next = pc_q;

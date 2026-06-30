@@ -10,37 +10,37 @@ module target_buffer
   parameter int INDEX_W = 13,
   parameter int DATA_W  = 32
 ) (
-  input  pc_t    i0_pc,
-  input  pc_t    i1_pc,
+  input  word_t    i0_pc,
+  input  word_t    i1_pc,
 
   input  logic   i0_valid_wb,
   input  logic   i1_valid_wb,
-  input  pc_t    i0_pc_wb,
-  input  pc_t    i1_pc_wb,
-  input  pc_t    i0_target_wb,
-  input  pc_t    i1_target_wb,
+  input  word_t    i0_pc_wb,
+  input  word_t    i1_pc_wb,
+  input  word_t    i0_target_wb,
+  input  word_t    i1_target_wb,
 
-  output pc_t    i0_pc_target,
-  output pc_t    i1_pc_target
+  output word_t    i0_pc_target,
+  output word_t    i1_pc_target
 );
 
   localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(DATA_W), .INDEX_W(INDEX_W))();
 
   logic [DATA_W:0] bank [CACHE.sets][CACHE.ways];
 
-  function automatic pc_t fallthrough(input pc_t pc);
-    return pc + pc_t'(32'd4);
+  function automatic word_t fallthrough(input word_t pc);
+    return pc + word_t'(32'd4);
   endfunction
 
-  assign i0_pc_target = pc_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[pc_set(i0_pc, CACHE)],
-    pc_way(i0_pc, CACHE),
+  assign i0_pc_target = word_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
+    bank[bank_set_idx(i0_pc, CACHE)],
+    bank_way_idx(i0_pc, CACHE),
     fallthrough(i0_pc)
   ));
 
-  assign i1_pc_target = pc_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[pc_set(i1_pc, CACHE)],
-    pc_way(i1_pc, CACHE),
+  assign i1_pc_target = word_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
+    bank[bank_set_idx(i1_pc, CACHE)],
+    bank_way_idx(i1_pc, CACHE),
     fallthrough(i1_pc)
   ));
 
@@ -54,11 +54,11 @@ module target_buffer
 
   always_comb begin
     if (i0_valid_wb) begin
-      bank[pc_set(i0_pc_wb, CACHE)][pc_way(i0_pc_wb, CACHE)] =
+      bank[bank_set_idx(i0_pc_wb, CACHE)][bank_way_idx(i0_pc_wb, CACHE)] =
         cache_set_write#(DATA_W)(1'b1, imm_align4(i0_target_wb));
     end
     if (i1_valid_wb) begin
-      bank[pc_set(i1_pc_wb, CACHE)][pc_way(i1_pc_wb, CACHE)] =
+      bank[bank_set_idx(i1_pc_wb, CACHE)][bank_way_idx(i1_pc_wb, CACHE)] =
         cache_set_write#(DATA_W)(1'b1, imm_align4(i1_target_wb));
     end
   end

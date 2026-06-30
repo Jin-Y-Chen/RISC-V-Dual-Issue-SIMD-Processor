@@ -18,37 +18,37 @@ module register_file_tb;
   localparam int CLK_PERIOD = 10;
 
   // Preloaded operand values (ID tests), manual tagged constants
-  localparam reg_t PRE_X1  = 32'h0A01_1100;
-  localparam reg_t PRE_X2  = 32'h0A02_0002;
-  localparam reg_t PRE_X3  = 32'h0A03_0003;
-  localparam reg_t PRE_X5  = 32'h0A05_0005;
-  localparam reg_t PRE_X6  = 32'h0A06_0006;
-  localparam reg_t PRE_X7  = 32'h0A07_0007;
-  localparam reg_t PRE_X9  = 32'h0A09_0009;
+  localparam word_t PRE_X1  = 32'h0A01_1100;
+  localparam word_t PRE_X2  = 32'h0A02_0002;
+  localparam word_t PRE_X3  = 32'h0A03_0003;
+  localparam word_t PRE_X5  = 32'h0A05_0005;
+  localparam word_t PRE_X6  = 32'h0A06_0006;
+  localparam word_t PRE_X7  = 32'h0A07_0007;
+  localparam word_t PRE_X9  = 32'h0A09_0009;
 
   // Manual WB bus and PC reference values, tb.log WB and special imm sections
-  localparam reg_t PC_BASE         = 32'h0000_1000;
-  localparam reg_t EVEN_WPC_0      = 32'd0;
-  localparam reg_t ODD_WPC_4       = 32'd4;
-  localparam reg_t WB_X2_IMM       = 32'hfa0a_505f;
-  localparam reg_t WB_X2_ADDI      = 32'h0000_00aa;
-  localparam reg_t WB_X2_LW        = 32'h0000_00bb;
+  localparam word_t PC_BASE         = 32'h0000_1000;
+  localparam word_t EVEN_WPC_0      = 32'd0;
+  localparam word_t ODD_WPC_4       = 32'd4;
+  localparam word_t WB_X2_IMM       = 32'hfa0a_505f;
+  localparam word_t WB_X2_ADDI      = 32'h0000_00aa;
+  localparam word_t WB_X2_LW        = 32'h0000_00bb;
   // Odd-lane insn PC (I1 = PC_BASE+4); wpc on WB bus is this latched PC
-  localparam reg_t ODD_PC          = PC_BASE + 32'd4;
+  localparam word_t ODD_PC          = PC_BASE + 32'd4;
   // jal/jalr Green Card: R[rd] = PC+4 (link only on i1_wdata; PC jump not on GPR bus)
-  localparam reg_t WB_JAL_LINK     = ODD_PC + 32'd4;
+  localparam word_t WB_JAL_LINK     = ODD_PC + 32'd4;
   // lui x7,0x2a: R[rd] = imm<<12
-  localparam reg_t LUI_IMM_2A      = 32'h0000_002a;
-  localparam reg_t WB_LUI_X7       = LUI_IMM_2A << 12;
+  localparam word_t LUI_IMM_2A      = 32'h0000_002a;
+  localparam word_t WB_LUI_X7       = LUI_IMM_2A << 12;
   // auipc x7,0x2: R[rd] = PC + (imm<<12)
-  localparam reg_t AUIPC_IMM_2     = 32'h0000_0002;
-  localparam reg_t WB_AUIPC_X7     = ODD_PC + (AUIPC_IMM_2 << 12);
+  localparam word_t AUIPC_IMM_2     = 32'h0000_0002;
+  localparam word_t WB_AUIPC_X7     = ODD_PC + (AUIPC_IMM_2 << 12);
 
   // Manual immediates for log mnemonics (jal/jalr/load/store offset fields)
-  localparam reg_t JAL_IMM_0   = 32'h0000_0000;
-  localparam reg_t JALR_IMM_0  = 32'h0000_0000;
-  localparam reg_t LOAD_IMM_0  = 32'h0000_0000;
-  localparam reg_t STORE_IMM_0 = 32'h0000_0000;
+  localparam word_t JAL_IMM_0   = 32'h0000_0000;
+  localparam word_t JALR_IMM_0  = 32'h0000_0000;
+  localparam word_t LOAD_IMM_0  = 32'h0000_0000;
+  localparam word_t STORE_IMM_0 = 32'h0000_0000;
 
   // Manual golden read addresses for check_rf exp, independent of decode helpers
   localparam logic [4:0] ADDR_X0 = 5'd0;
@@ -68,25 +68,25 @@ module register_file_tb;
   logic [4:0]  i0_rs2_addr;
   logic        i0_rs1_use;
   logic        i0_rs2_use;
-  reg_t        i0_rs1_data;
-  reg_t        i0_rs2_data;
+  word_t        i0_rs1_data;
+  word_t        i0_rs2_data;
 
   logic [4:0]  i1_rs1_addr;
   logic [4:0]  i1_rs2_addr;
   logic        i1_rs1_use;
   logic        i1_rs2_use;
-  reg_t        i1_rs1_data;
-  reg_t        i1_rs2_data;
+  word_t        i1_rs1_data;
+  word_t        i1_rs2_data;
 
   logic        i0_wen;
   logic [4:0]  i0_rd;
-  reg_t        i0_wdata;
-  reg_t        i0_wpc;
+  word_t        i0_wdata;
+  word_t        i0_wpc;
 
   logic        i1_wen;
   logic [4:0]  i1_rd;
-  reg_t        i1_wdata;
-  reg_t        i1_wpc;
+  word_t        i1_wdata;
+  word_t        i1_wpc;
 
   int pass_cnt;
   int fail_cnt;
@@ -170,12 +170,12 @@ module register_file_tb;
   task automatic drive_writes(
     input logic        e_wen,
     input logic [4:0]  e_rd,
-    input reg_t        e_wdata,
-    input reg_t        e_wpc,
+    input word_t        e_wdata,
+    input word_t        e_wpc,
     input logic        o_wen,
     input logic [4:0]  o_rd,
-    input reg_t        o_wdata,
-    input reg_t        o_wpc
+    input word_t        o_wdata,
+    input word_t        o_wpc
   );
     i0_wen   = e_wen;
     i0_rd    = e_rd;
@@ -198,7 +198,7 @@ module register_file_tb;
   endtask
 
   // Preload commit at RF negedge write (sets operand regs only, not the check under test)
-  task automatic preload_gpr(input logic [4:0] rd, input reg_t data);
+  task automatic preload_gpr(input logic [4:0] rd, input word_t data);
     if (rd == 5'd0) return;
     drive_writes(1'b1, rd, data, '0, 1'b0, 5'd0, '0, '0);
     @(negedge clk);
@@ -217,18 +217,18 @@ module register_file_tb;
     input logic [4:0] exp_e_rs2_addr,
     input logic [4:0] exp_o_rs1_addr,
     input logic [4:0] exp_o_rs2_addr,
-    input reg_t       exp_e_rs1_data,
-    input reg_t       exp_e_rs2_data,
-    input reg_t       exp_o_rs1_data,
-    input reg_t       exp_o_rs2_data,
+    input word_t       exp_e_rs1_data,
+    input word_t       exp_e_rs2_data,
+    input word_t       exp_o_rs1_data,
+    input word_t       exp_o_rs2_data,
     input logic       exp_i0_wen,
     input logic [4:0] exp_i0_rd,
-    input reg_t       exp_i0_wdata,
-    input reg_t       exp_i0_wpc,
+    input word_t       exp_i0_wdata,
+    input word_t       exp_i0_wpc,
     input logic       exp_i1_wen,
     input logic [4:0] exp_i1_rd,
-    input reg_t       exp_i1_wdata,
-    input reg_t       exp_i1_wpc
+    input word_t       exp_i1_wdata,
+    input word_t       exp_i1_wpc
   );
     bit pass;
     pass = (i0_rs1_addr === exp_e_rs1_addr) && (i0_rs2_addr === exp_e_rs2_addr) &&

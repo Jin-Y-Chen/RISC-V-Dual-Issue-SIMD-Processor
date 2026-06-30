@@ -118,6 +118,8 @@ task automatic tb_report_open(input bit pass, input string name, input string de
 endtask
 
 task automatic tb_report_close(input bit pass);
+  bit _ack;
+  _ack = pass;
   tb_case_sep();
 endtask
 

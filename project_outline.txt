@@ -410,7 +410,7 @@ Dispatch with Reorder Buffer:
             | empty         | out | nothing to issue                                       |
             | count         | out | occupancy (commit..write distance)                     |
             | set_complete  | in  | mark entry executed — capture result, advance to 010/110|
-o
+
         b. Branch Speculation
             - speculative entries use lifecycle codes 100, 101, 110
             - on correct resolve, clear speculation (100 -> 000, 101 -> 001, 110 -> 010)
@@ -443,23 +443,17 @@ o
             - ROB_AW = 4 indexes it exactly and the write/read pointers wrap for free
             (no compare/subtract), which a 12- or 20-entry depth would not
 
-Reservation Station with Renaming 
+    3. Register Rename:
 
-    Register Renaming are performed in the Reservation Station to handle anti-dependency (WAW, WAR). 
-    Instruction can be dispatch out-of-order from the Reservation station to the execution units 
-    in order to reduce RAW dependency stalls. 
-    
-    1. Register Rename:
-        - Renamed is performed as instructions are moved from the instruction queue to the 
-        desired reservation stations (also to the Reorder Buffer)
-        - Instruction's desintation address is renamed to the associated address 
+        Purpose:
+        - Renamed is performed as instructions is moved from the Reorder Buffer to the desired 
+        reservation stations
+        - Instruction's desintation address is renamed or mapped to the associated address 
         of the same instruction that is in the Reorder Buffer.
         - Instruction's operand address is renamed based on matching register address stored 
-        in the Reorder Buffer before or the value is fetch directly if available.
+        in the Reorder Buffer or the value is fetch directly if available.
 
-        a. 
-
-        b. Eliminated WAR cause by false dependency:
+        a. Eliminated WAR cause by false dependency:
 
             Before Rename:
                 pc0         lw  r3, 0x00(r1)        
@@ -474,7 +468,7 @@ Reservation Station with Renaming
             - In the case that instruction at pc1 may finsih execution earlier than pc0, instruction
             result from pc1 will visibily not be forwarded because the renamed value does not match
 
-        c. Eliminated WAW hazards cause by writing to the same desintation:
+        b. Eliminated WAW hazards cause by writing to the same desintation:
 
             Before Rename: 
                 pc0         add  r1, r2, r3       
@@ -495,7 +489,14 @@ Reservation Station with Renaming
             - In the case that instructions at pc0 may finish execution earlier than pc1, instruction 
             result from pc0 will visibily not be forwarded because the renamed value does not match 
 
-    3. Reservation Station:
+Reservation Station with Renaming 
+
+    Instruction with renamed register is move to the Reservation Station to handle anti-dependency 
+    (WAW, WAR). Instruction can be dispatch out-of-order from the Reservation station to the execution units 
+    in order to reduce RAW dependency stalls. 
+    
+    1. Out-of-Order Execution 
+    2. Reservation Station:
         - tagged by renamed desintation address, oprand values or 
 
         a. Reduce stall of RAW dependency by allowing out-of-order execution:
@@ -505,9 +506,6 @@ Reservation Station with Renaming
              to be store/load
 		    - load or store reservation states buffer address computes, awaits values to be 
             stored or loaded
-
-
-
 
     1) Lane map:
     - Even lane: OP, OP-IMM (ALU)

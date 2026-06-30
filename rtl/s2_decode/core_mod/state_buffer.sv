@@ -12,16 +12,16 @@ module state_buffer
   parameter br_state_t DEFAULT_STATE = 2'b01
 ) (
   // input data — decode lookup
-  input  pc_t         i0_pc,
-  input  pc_t         i1_pc,
+  input  word_t         i0_pc,
+  input  word_t         i1_pc,
   input  logic        i0_brch_en,
   input  logic        i1_brch_en,
 
   // input data — decode writeback (resolved next state)
   input  logic        i0_valid_wb,
   input  logic        i1_valid_wb,
-  input  pc_t         i0_pc_wb,
-  input  pc_t         i1_pc_wb,
+  input  word_t         i0_pc_wb,
+  input  word_t         i1_pc_wb,
   input  br_state_t   i0_target_state_wb,
   input  br_state_t   i1_target_state_wb,
 
@@ -38,14 +38,14 @@ module state_buffer
   br_state_t raw_state1;
 
   assign raw_state0 = br_state_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[pc_set(i0_pc, CACHE)],
-    pc_way(i0_pc, CACHE),
+    bank[bank_set_idx(i0_pc, CACHE)],
+    bank_way_idx(i0_pc, CACHE),
     DEFAULT_STATE
   ));
 
   assign raw_state1 = br_state_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[pc_set(i1_pc, CACHE)],
-    pc_way(i1_pc, CACHE),
+    bank[bank_set_idx(i1_pc, CACHE)],
+    bank_way_idx(i1_pc, CACHE),
     DEFAULT_STATE
   ));
 
@@ -62,11 +62,11 @@ module state_buffer
 
   always_comb begin
     if (i0_valid_wb) begin
-      bank[pc_set(i0_pc_wb, CACHE)][pc_way(i0_pc_wb, CACHE)] =
+      bank[bank_set_idx(i0_pc_wb, CACHE)][bank_way_idx(i0_pc_wb, CACHE)] =
         cache_set_write#(DATA_W)(1'b1, i0_target_state_wb);
     end
     if (i1_valid_wb) begin
-      bank[pc_set(i1_pc_wb, CACHE)][pc_way(i1_pc_wb, CACHE)] =
+      bank[bank_set_idx(i1_pc_wb, CACHE)][bank_way_idx(i1_pc_wb, CACHE)] =
         cache_set_write#(DATA_W)(1'b1, i1_target_state_wb);
     end
   end

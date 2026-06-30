@@ -4,7 +4,7 @@
 module risc_dis_unit
   import rv_dis_pkg::*;
 #(
-  parameter pc_t RESET_PC = pc_t'(32'h0000_0000)
+  parameter word_t RESET_PC = word_t'(32'h0000_0000)
 ) (
   // external controls
   input  logic        clk,
@@ -15,8 +15,8 @@ module risc_dis_unit
   input  logic        flush,
 
   // output data
-  output pc_t         pc_fetch,
-  output pc_t         pc_fetch_plus4,
+  output word_t         pc_fetch,
+  output word_t         pc_fetch_plus4,
   output logic        stall_id
 );
 
@@ -133,10 +133,10 @@ module risc_dis_unit
   logic        i1_rs2_use_dec;
   logic        i1_reg_write_dec;
 
-  reg_t i0_rs1_data;
-  reg_t i0_rs2_data;
-  reg_t i1_rs1_data;
-  reg_t i1_rs2_data;
+  word_t i0_rs1_data;
+  word_t i0_rs2_data;
+  word_t i1_rs1_data;
+  word_t i1_rs2_data;
 
   logic        i0_reg_write_wb;
   logic [4:0]  i0_rd_addr_wb;

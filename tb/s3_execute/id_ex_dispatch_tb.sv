@@ -2,12 +2,10 @@
 
 // id_ex_dispatch_tb - Reorder Buffer dispatch (project_outline sec 1/2):
 //   * enqueue decoded pairs at the write pointer
-//   * route the oldest undispatched pair to even/odd lanes by lane_sel
-//   * full ROB (occupancy = write - commit) back-pressures fetch via stall_id
+//   * route the oldest undispatched pair to ev0/ev1/od0/od1 (lane_sel at dispatch)
+//   * full ROB back-pressures fetch via stall_id
 //   * commit_en/commit_count free entries and release the stall
 //   * flush squashes the buffer and resets the pointers
-// Entries are compacted in program order, so the older VALID instruction is the
-// slot-0 (ev0/od0) dispatch, the next is slot-1 (ev1/od1).
 module id_ex_dispatch_tb;
 
   import rv_dis_pkg::*;
@@ -116,13 +114,13 @@ module id_ex_dispatch_tb;
 
   id_ex_dispatch dut (.*);
 
-  initial begin
-    clk = 1'b0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-  end
+  initial clk = 1'b0;
 
   task automatic tick;
-    tb_advance(clk);
+    #(CLK_PERIOD / 2);
+    clk = 1'b1;
+    #(CLK_PERIOD / 2);
+    clk = 1'b0;
   endtask
 
   function automatic string lane_name(input logic lane);
@@ -173,19 +171,29 @@ module id_ex_dispatch_tb;
     input string detail,
     input string outline_ref,
     input logic        exp_stall_id,
-    input logic        exp_ev0,
-    input logic        exp_ev1,
-    input logic        exp_od0,
-    input logic        exp_od1,
+    input logic        exp_i0_valid,
+    input logic        exp_i1_valid,
     input logic        exp_i0_rw,
     input logic        exp_i1_rw,
     input logic [31:0] exp_i0_pc,
-    input logic [31:0] exp_i1_pc
+    input logic [31:0] exp_i1_pc,
+    input logic        exp_i0_lane = 1'b0,
+    input logic        exp_i1_lane = 1'b0
   );
+    logic exp_i0_ev;
+    logic exp_i0_od;
+    logic exp_i1_ev;
+    logic exp_i1_od;
     bit pass;
+
+    exp_i0_ev = exp_i0_valid && !exp_i0_lane;
+    exp_i0_od = exp_i0_valid &&  exp_i0_lane;
+    exp_i1_ev = exp_i1_valid && !exp_i1_lane;
+    exp_i1_od = exp_i1_valid &&  exp_i1_lane;
+
     pass = (stall_id === exp_stall_id) &&
-           (ev0_enable_ex === exp_ev0) && (ev1_enable_ex === exp_ev1) &&
-           (od0_enable_ex === exp_od0) && (od1_enable_ex === exp_od1) &&
+           (ev0_enable_ex === exp_i0_ev) && (od0_enable_ex === exp_i0_od) &&
+           (ev1_enable_ex === exp_i1_ev) && (od1_enable_ex === exp_i1_od) &&
            (i0_reg_write_ex === exp_i0_rw) && (i1_reg_write_ex === exp_i1_rw) &&
            (i0_pc_ex === exp_i0_pc) && (i1_pc_ex === exp_i1_pc);
 
@@ -194,10 +202,10 @@ module id_ex_dispatch_tb;
     log_id_inputs();
     $display("  --- EX outputs ---");
     tb_field_bit("stall_id", stall_id, exp_stall_id);
-    tb_field_bit("ev0_enable_ex", ev0_enable_ex, exp_ev0);
-    tb_field_bit("ev1_enable_ex", ev1_enable_ex, exp_ev1);
-    tb_field_bit("od0_enable_ex", od0_enable_ex, exp_od0);
-    tb_field_bit("od1_enable_ex", od1_enable_ex, exp_od1);
+    tb_field_bit("ev0_enable_ex", ev0_enable_ex, exp_i0_ev);
+    tb_field_bit("od0_enable_ex", od0_enable_ex, exp_i0_od);
+    tb_field_bit("ev1_enable_ex", ev1_enable_ex, exp_i1_ev);
+    tb_field_bit("od1_enable_ex", od1_enable_ex, exp_i1_od);
     tb_field_bit("i0_reg_write_ex", i0_reg_write_ex, exp_i0_rw);
     tb_field_bit("i1_reg_write_ex", i1_reg_write_ex, exp_i1_rw);
     tb_field_u32("i0_pc_ex", i0_pc_ex, exp_i0_pc);
@@ -287,7 +295,6 @@ module id_ex_dispatch_tb;
     i1_pc_id        = pc;
   endtask
 
-  // both slots idle (bubble), no commit
   task automatic set_bubble;
     set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'd0, 32'd0, 32'd0);
@@ -301,7 +308,6 @@ module id_ex_dispatch_tb;
     set_complete_result = 32'd0;
   endtask
 
-  // flush the ROB back to empty
   task automatic clear_rob;
     set_bubble();
     flush = 1'b1;
@@ -318,11 +324,9 @@ module id_ex_dispatch_tb;
     pass_cnt = 0;
     fail_cnt = 0;
 
-    tb_banner("id_ex_dispatch_tb - Reorder Buffer dispatch (enqueue/route/stall/commit/flush)");
+    tb_banner("id_ex_dispatch_tb - Reorder Buffer dispatch (ev/od lane routing)");
 
-    // ------------------------------------------------------------------
     section_banner("Reset / flush");
-    // ------------------------------------------------------------------
 
     rst_n  = 1'b0;
     enable = 1'b1;
@@ -339,8 +343,7 @@ module id_ex_dispatch_tb;
     set_complete_result = 32'd0;
     tick();
     check_case("reset_clear", "active-low reset holds pointers empty, no dispatch",
-               "reset", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
-               1'b0, 1'b0, 32'd0, 32'd0);
+               "reset", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 32'd0, 32'd0);
 
     rst_n = 1'b1;
     clear_rob();
@@ -352,14 +355,11 @@ module id_ex_dispatch_tb;
     flush = 1'b1;
     tick();
     check_case("flush_bubble", "flush squashes the buffer: no dispatch this cycle",
-               "flush", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
-               1'b0, 1'b0, 32'd0, 32'd0);
+               "flush", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 32'd0, 32'd0);
     flush = 1'b0;
     clear_rob();
 
-    // ------------------------------------------------------------------
-    section_banner("sec 2 routing - oldest pair to even/odd lanes by lane_sel");
-    // ------------------------------------------------------------------
+    section_banner("sec 2 dispatch - oldest pair routed to ev/od lanes");
 
     set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd1, 5'd5, 5'd0, 1'b1, 32'h2C, 32'h40, 32'h0, 32'h1100);
@@ -367,10 +367,10 @@ module id_ex_dispatch_tb;
               5'd2, 5'd5, 5'd0, 1'b1, 32'd0, 32'h50, 32'h0, 32'h1104,
               1'b1, 1'b0);
     tick();
-    check_case("route_even_odd",
-               "addi x1,x5,0x2c | lw x2,0(x5): slot0->ev0, slot1->od1",
-               "sec 2 even|odd", 1'b0, 1'b1, 1'b0, 1'b0, 1'b1,
-               1'b1, 1'b1, 32'h1100, 32'h1104);
+    check_case("dispatch_even_odd",
+               "addi x1,x5,0x2c | lw x2,0(x5): ev0 + od1",
+               "sec 2 even|odd", 1'b0, 1'b1, 1'b1, 1'b1, 1'b1,
+               32'h1100, 32'h1104, 1'b0, 1'b1);
     clear_rob();
 
     set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
@@ -378,10 +378,10 @@ module id_ex_dispatch_tb;
     set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, F7_SUB,
               5'd4, 5'd10, 5'd11, 1'b1, 32'd0, 32'hB0, 32'hB1, 32'h1204);
     tick();
-    check_case("route_even_even",
-               "add x1,x2,x3 | sub x4,x5,x6: slot0->ev0, slot1->ev1",
-               "sec 2 even|even", 1'b0, 1'b1, 1'b1, 1'b0, 1'b0,
-               1'b1, 1'b1, 32'h1200, 32'h1204);
+    check_case("dispatch_even_even",
+               "add x1,x2,x3 | sub x4,x5,x6: ev0 + ev1",
+               "sec 2 even|even", 1'b0, 1'b1, 1'b1, 1'b1, 1'b1,
+               32'h1200, 32'h1204, 1'b0, 1'b0);
     clear_rob();
 
     set_slot0(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
@@ -389,26 +389,23 @@ module id_ex_dispatch_tb;
     set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
               5'd3, 5'd4, 5'd0, 1'b1, 32'd0, 32'hD0, 32'h0, 32'h120C);
     tick();
-    check_case("route_odd_odd",
-               "lw x1,0(x2) | lw x3,0(x4): slot0->od0, slot1->od1",
-               "sec 2 odd|odd", 1'b0, 1'b0, 1'b0, 1'b1, 1'b1,
-               1'b1, 1'b1, 32'h1208, 32'h120C);
+    check_case("dispatch_odd_odd",
+               "lw x1,0(x2) | lw x3,0(x4): od0 + od1",
+               "sec 2 odd|odd", 1'b0, 1'b1, 1'b1, 1'b1, 1'b1,
+               32'h1208, 32'h120C, 1'b1, 1'b1);
     clear_rob();
 
-    // ------------------------------------------------------------------
-    section_banner("Validity gating - bubbles are not enqueued (program-order compaction)");
-    // ------------------------------------------------------------------
+    section_banner("Validity gating");
 
-    // I0 bubble: the younger valid insn becomes the slot-0 dispatch
     set_slot0(1'b0, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'h0, 32'h0, 32'h1300);
     set_slot1(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd9, 5'd4, 5'd0, 1'b1, 32'd7, 32'h90, 32'h0, 32'h1304,
               1'b1, 1'b0);
     tick();
-    check_case("i0_bubble", "I0 invalid: only the valid insn dispatches on slot0 (ev0)",
-               "valid gating", 1'b0, 1'b1, 1'b0, 1'b0, 1'b0,
-               1'b1, 1'b0, 32'h1304, 32'd0);
+    check_case("i0_bubble", "I0 invalid: only first ROB entry on ev0",
+               "valid gating", 1'b0, 1'b1, 1'b0, 1'b1, 1'b0,
+               32'h1304, 32'd0, 1'b0, 1'b0);
     clear_rob();
 
     set_slot0(1'b1, 1'b1, OPC_JAL, 3'd0, 7'd0,
@@ -417,23 +414,19 @@ module id_ex_dispatch_tb;
               5'd0, 5'd0, 5'd0, 1'b0, 32'd0, 32'h0, 32'h0, 32'h130C,
               1'b0, 1'b0);
     tick();
-    check_case("i1_bubble", "I1 invalid: only I0 dispatches on slot0 (od0)",
-               "valid gating", 1'b0, 1'b0, 1'b0, 1'b1, 1'b0,
-               1'b1, 1'b0, 32'h1308, 32'd0);
+    check_case("i1_bubble", "I1 invalid: only first ROB entry on od0",
+               "valid gating", 1'b0, 1'b1, 1'b0, 1'b1, 1'b0,
+               32'h1308, 32'd0, 1'b1, 1'b0);
     clear_rob();
 
     set_bubble();
     tick();
-    check_case("both_bubble", "both invalid: nothing enqueued, full bubble",
-               "valid gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0,
-               1'b0, 1'b0, 32'd0, 32'd0);
+    check_case("both_bubble", "both invalid: full bubble",
+               "valid gating", 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 32'd0, 32'd0);
     clear_rob();
 
-    // ------------------------------------------------------------------
-    section_banner("sec 1 Flow control - fill the ROB (no commit) -> stall_id");
-    // ------------------------------------------------------------------
+    section_banner("sec 1 Flow control - ROB full -> stall_id");
 
-    // Push 8 even|even pairs without committing: 16 entries fills the buffer.
     for (int k = 0; k < 8; k++) begin
       set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
                 5'd1, 5'd2, 5'd3, 1'b1, 32'd0, 32'd0, 32'd0, 32'h3000 + k*8);
@@ -442,17 +435,14 @@ module id_ex_dispatch_tb;
       tick();
     end
 
-    // 9th pair cannot fit (occupancy = 16) -> stall fetch
     set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd7, 5'd8, 5'd9, 1'b1, 32'd0, 32'd0, 32'd0, 32'h3100);
     set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd10, 5'd11, 5'd12, 1'b1, 32'd0, 32'd0, 32'd0, 32'h3104);
-    check_stall("rob_full_stall", "ROB full (16 entries): incoming pair stalls fetch",
+    check_stall("rob_full_stall", "ROB full: incoming pair stalls fetch",
                 "sec 1 flow control / full", 1'b1);
 
-    // ------------------------------------------------------------------
-    section_banner("sec 1 Commit (head pointer) frees entries -> stall releases");
-    // ------------------------------------------------------------------
+    section_banner("sec 1 Commit frees entries");
 
     commit_en    = 1'b1;
     commit_count = 2'd2;
@@ -462,15 +452,12 @@ module id_ex_dispatch_tb;
     set_complete_en    = 1'b0;
     set_complete_idx   = 4'd0;
     set_complete_result = 32'd0;
-    check_stall("commit_frees", "commit 2 entries: free slot opens, stall_id clears",
+    check_stall("commit_frees", "commit 2 entries: stall_id clears",
                 "sec 1 commit", 1'b0);
     clear_rob();
 
-    // ------------------------------------------------------------------
-    section_banner("Stream - back-to-back pairs dispatch on consecutive cycles");
-    // ------------------------------------------------------------------
+    section_banner("Stream - back-to-back pairs");
 
-    // pair A enqueues then dispatches next cycle
     set_slot0(1'b1, 1'b0, OPC_OP_IMM, F3_ADD_SUB, 7'd0,
               5'd1, 5'd2, 5'd0, 1'b1, 32'd5, 32'd0, 32'd0, 32'h4000);
     set_slot1(1'b1, 1'b1, OPC_LOAD, F3_LW, 7'd0,
@@ -478,20 +465,19 @@ module id_ex_dispatch_tb;
               1'b1, 1'b0);
     tick();
     check_case("stream_pair_a",
-               "addi(even) | lw(odd): slot0->ev0, slot1->od1",
-               "sec 1 stream", 1'b0, 1'b1, 1'b0, 1'b0, 1'b1,
-               1'b1, 1'b1, 32'h4000, 32'h4004);
+               "addi(even) | lw(odd): ev0 + od1",
+               "sec 1 stream", 1'b0, 1'b1, 1'b1, 1'b1, 1'b1,
+               32'h4000, 32'h4004, 1'b0, 1'b1);
 
-    // pair B enqueues while A's read pointer advances; B dispatches this cycle
     set_slot0(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, 7'd0,
               5'd5, 5'd6, 5'd7, 1'b1, 32'd0, 32'd0, 32'd0, 32'h4010);
     set_slot1(1'b1, 1'b0, OPC_OP, F3_ADD_SUB, F7_SUB,
               5'd8, 5'd9, 5'd10, 1'b1, 32'd0, 32'd0, 32'd0, 32'h4014);
     tick();
     check_case("stream_pair_b",
-               "add | sub: slot0->ev0, slot1->ev1 (A already advanced)",
-               "sec 1 stream", 1'b0, 1'b1, 1'b1, 1'b0, 1'b0,
-               1'b1, 1'b1, 32'h4010, 32'h4014);
+               "add | sub: ev0 + ev1",
+               "sec 1 stream", 1'b0, 1'b1, 1'b1, 1'b1, 1'b1,
+               32'h4010, 32'h4014, 1'b0, 1'b0);
     set_bubble();
     clear_rob();
 

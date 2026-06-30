@@ -8,8 +8,8 @@ module branch_unit
   input  funct3_t     funct3,
   input  logic        rs1_use,    // decode: rs1 is a real GPR read
   input  logic        rs2_use,    // decode: rs2 is a real GPR read
-  input  reg_t        rs1_data,
-  input  reg_t        rs2_data,
+  input  word_t        rs1_data,
+  input  word_t        rs2_data,
 
   // output controls
   output logic        brch_taken
@@ -17,11 +17,11 @@ module branch_unit
 
   // Branches read both GPRs; rs*_use masks any operand the decoder did not mark
   // as a real source so a stale forwarded value cannot affect the comparison.
-  reg_t cmp_a;
-  reg_t cmp_b;
+  word_t cmp_a;
+  word_t cmp_b;
 
-  assign cmp_a = rs1_use ? rs1_data : reg_t'(32'd0);
-  assign cmp_b = rs2_use ? rs2_data : reg_t'(32'd0);
+  assign cmp_a = rs1_use ? rs1_data : word_t'(32'd0);
+  assign cmp_b = rs2_use ? rs2_data : word_t'(32'd0);
 
   always_comb begin
     brch_taken = 1'b0;

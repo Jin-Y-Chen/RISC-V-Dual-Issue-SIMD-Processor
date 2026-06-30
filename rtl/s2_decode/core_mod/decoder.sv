@@ -19,7 +19,7 @@ module decoder
   output gpr_addr_t   rd,
   output gpr_addr_t   rs1,
   output gpr_addr_t   rs2,
-  output imm_t        imm,
+  output word_t        imm,
 
   // output controls
   output logic        valid,     // 1 when insn is legal for RV-DIS scalar decode

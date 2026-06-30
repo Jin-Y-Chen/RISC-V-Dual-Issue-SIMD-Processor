@@ -30,16 +30,16 @@ module memory_cache
   input  logic        i1_act,
 
   // input data
-  input  pc_t         i0_addr,
-  input  reg_t        i0_wdata,
+  input  word_t         i0_addr,
+  input  word_t        i0_wdata,
   input  mem_besel_t  i0_besel,
-  input  pc_t         i1_addr,
-  input  reg_t        i1_wdata,
+  input  word_t         i1_addr,
+  input  word_t        i1_wdata,
   input  mem_besel_t  i1_besel,
 
   // output data
-  output reg_t        i0_mem_data,
-  output reg_t        i1_mem_data,
+  output word_t        i0_mem_data,
+  output word_t        i1_mem_data,
 
   // output controls
   output logic        cache_busy    // miss/fill in progress (not a stall export)
@@ -90,8 +90,8 @@ module memory_cache
   logic                   i0_l1_hit;
   logic                   i1_l1_hit;
 
-  reg_t i0_word_next;
-  reg_t i1_word_next;
+  word_t i0_word_next;
+  word_t i1_word_next;
   logic i0_word_we;
   logic i1_word_we;
 
@@ -118,16 +118,16 @@ module memory_cache
     };
   endfunction
 
-  function automatic logic entry_valid(input pc_t byte_addr);
-    return bank[pc_set(byte_addr, CACHE)][pc_way(byte_addr, CACHE)][DATA_W];
+  function automatic logic entry_valid(input word_t byte_addr);
+    return bank[bank_set_idx(byte_addr, CACHE)][bank_way_idx(byte_addr, CACHE)][DATA_W];
   endfunction
 
-  function automatic reg_t read_cached_word(input pc_t byte_addr);
+  function automatic word_t read_cached_word(input word_t byte_addr);
     logic [BYTE_AW-1:0] base;
     base = byte_word_base(byte_addr);
-    return reg_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-      bank[pc_set(byte_addr, CACHE)],
-      pc_way(byte_addr, CACHE),
+    return word_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
+      bank[bank_set_idx(byte_addr, CACHE)],
+      bank_way_idx(byte_addr, CACHE),
       read_le_word(base)
     ));
   endfunction
@@ -218,7 +218,7 @@ module memory_cache
         for (int w = 0; w < WORDS_PER_LINE; w++) begin
           logic [BYTE_AW-1:0] base;
           base = line_byte_base(fill_line) + logic'(w << 2);
-          bank[pc_set(base, CACHE)][pc_way(base, CACHE)] <=
+          bank[bank_set_idx(base, CACHE)][bank_way_idx(base, CACHE)] <=
             cache_set_write#(DATA_W)(1'b1, read_le_word(base));
         end
       end
@@ -236,7 +236,7 @@ module memory_cache
             if (i0_besel[1]) l2_array[i0_wbase + 1] <= i0_word_next[15:8];
             if (i0_besel[2]) l2_array[i0_wbase + 2] <= i0_word_next[23:16];
             if (i0_besel[3]) l2_array[i0_wbase + 3] <= i0_word_next[31:24];
-            bank[pc_set(i0_addr, CACHE)][pc_way(i0_addr, CACHE)] <=
+            bank[bank_set_idx(i0_addr, CACHE)][bank_way_idx(i0_addr, CACHE)] <=
               cache_set_write#(DATA_W)(1'b1, i0_word_next);
           end
 
@@ -245,7 +245,7 @@ module memory_cache
             if (i1_besel[1]) l2_array[i1_wbase + 1] <= i1_word_next[15:8];
             if (i1_besel[2]) l2_array[i1_wbase + 2] <= i1_word_next[23:16];
             if (i1_besel[3]) l2_array[i1_wbase + 3] <= i1_word_next[31:24];
-            bank[pc_set(i1_addr, CACHE)][pc_way(i1_addr, CACHE)] <=
+            bank[bank_set_idx(i1_addr, CACHE)][bank_way_idx(i1_addr, CACHE)] <=
               cache_set_write#(DATA_W)(1'b1, i1_word_next);
           end
         end

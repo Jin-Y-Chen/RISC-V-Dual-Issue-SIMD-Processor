@@ -23,9 +23,7 @@ package rv_dis_pkg;
   // Port / signal typedefs — use on module boundaries (not bare logic [N:0])
   // =========================================================================
   typedef logic [ILEN-1:0] instr_t;
-  typedef logic [RLEN-1:0] reg_t;
-  typedef logic [RLEN-1:0] pc_t;
-  typedef logic [RLEN-1:0] imm_t;
+  typedef logic [RLEN-1:0] word_t;   // GPR value, PC, immediate, memory word
   typedef logic [6:0]      opcode_t;
   typedef logic [2:0]      funct3_t;
   typedef logic [6:0]      funct7_t;
@@ -74,69 +72,16 @@ package rv_dis_pkg;
   localparam funct7_t F7_SUB = 7'b0100000;
   localparam funct7_t F7_SRA = 7'b0100000;
 
-  // lane_sel — 0 = even (OP / OP-IMM), 1 = odd (load/store/branch/jump/LUI/AUIPC)
-
-  // =========================================================================
-  // Dispatch — Reorder Buffer entry (id_ex_dispatch).
-  // Lifecycle codes and helpers: rtl/s3_execution/funct_pkg/dispatch.sv (dispatch_pkg).
-  // =========================================================================
-  localparam int ROB_DEPTH = 16;
-  localparam int ROB_AW    = 4;
-
-  typedef struct packed {
-    logic        valid;
-    logic        lane_sel;
-    opcode_t     opcode;
-    funct3_t     funct3;
-    funct7_t     funct7;
-    gpr_addr_t   rd;
-    gpr_addr_t   rs1;
-    gpr_addr_t   rs2;
-    logic        rs1_use;
-    logic        rs2_use;
-    logic        reg_write;
-    imm_t        imm;
-    reg_t        rs1_data;
-    reg_t        rs2_data;
-    pc_t         pc;
-  } rob_entry_t;
-
-  // =========================================================================
-  // Dispatch — single I1 replay slot (scoreboard RAW hold)
-  // =========================================================================
-  typedef struct packed {
-    logic        valid;
-    logic        lane_sel;
-    opcode_t     opcode;
-    funct3_t     funct3;
-    funct7_t     funct7;
-    gpr_addr_t   rd;
-    gpr_addr_t   rs1;
-    gpr_addr_t   rs2;
-    logic        rs1_use;
-    logic        rs2_use;
-    logic        reg_write;
-    imm_t        imm;
-    reg_t        rs1_data;
-    reg_t        rs2_data;
-    pc_t         pc;
-    gpr_addr_t   producer_rd;
-    pc_t         bundle_i0_pc;
-    pc_t         bundle_i1_pc;
-    logic [1:0]  wait_total;  // 1 = ALU RAW, 2 = load-use
-    logic [1:0]  wait_cnt;
-  } i1_buffer_node_t;
-
   // =========================================================================
   // Immediate helpers
   // =========================================================================
   // imm_align4 — force imm[1:0]=00 on branch/jump offsets (B, J, JALR)
-  function automatic imm_t imm_align4(input imm_t imm);
+  function automatic word_t imm_align4(input word_t imm);
     imm_align4 = {imm[31:2], 2'b00};
   endfunction
 
   // sign_extend — I-type / OP-IMM 12-bit field to 32-bit byte offset
-  function automatic imm_t sign_extend(input logic [11:0] imm12);
+  function automatic word_t sign_extend(input logic [11:0] imm12);
     sign_extend = {{20{imm12[11]}}, imm12};
   endfunction
 

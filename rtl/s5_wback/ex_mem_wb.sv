@@ -25,19 +25,19 @@ module ex_mem_wb
 
   // input data
   input  gpr_addr_t   ev0_rd_addr_ex,
-  input  reg_t        ev0_wdata_ex,
-  input  pc_t         ev0_pc_ex,
+  input  word_t        ev0_wdata_ex,
+  input  word_t         ev0_pc_ex,
   input  gpr_addr_t   ev1_rd_addr_ex,
-  input  reg_t        ev1_wdata_ex,
-  input  pc_t         ev1_pc_ex,
+  input  word_t        ev1_wdata_ex,
+  input  word_t         ev1_pc_ex,
   input  gpr_addr_t   od0_rd_addr_mem,
-  input  pc_t         od0_pc_mem,
-  input  reg_t        od0_alu_result_mem,
-  input  reg_t        od0_load_mem_data,
+  input  word_t         od0_pc_mem,
+  input  word_t        od0_alu_result_mem,
+  input  word_t        od0_load_mem_data,
   input  gpr_addr_t   od1_rd_addr_mem,
-  input  pc_t         od1_pc_mem,
-  input  reg_t        od1_alu_result_mem,
-  input  reg_t        od1_load_mem_data,
+  input  word_t         od1_pc_mem,
+  input  word_t        od1_alu_result_mem,
+  input  word_t        od1_load_mem_data,
 
   // output controls
   output logic        ev0_reg_write_exwb,
@@ -47,19 +47,19 @@ module ex_mem_wb
 
   // output data
   output gpr_addr_t   ev0_rd_addr_exwb,
-  output reg_t        ev0_wdata_exwb,
-  output pc_t         ev0_pc_exwb,
+  output word_t        ev0_wdata_exwb,
+  output word_t         ev0_pc_exwb,
   output gpr_addr_t   ev1_rd_addr_exwb,
-  output reg_t        ev1_wdata_exwb,
-  output pc_t         ev1_pc_exwb,
-  output reg_t        od0_wdata_mem,
-  output reg_t        od1_wdata_mem,
+  output word_t        ev1_wdata_exwb,
+  output word_t         ev1_pc_exwb,
+  output word_t        od0_wdata_mem,
+  output word_t        od1_wdata_mem,
   output gpr_addr_t   push0_rd,
-  output reg_t        push0_wdata,
-  output pc_t         push0_pc,
+  output word_t        push0_wdata,
+  output word_t         push0_pc,
   output gpr_addr_t   push1_rd,
-  output reg_t        push1_wdata,
-  output pc_t         push1_pc
+  output word_t        push1_wdata,
+  output word_t         push1_pc
 );
 
   logic        od0_odd_load_mem;
@@ -67,13 +67,13 @@ module ex_mem_wb
 
   logic        od0_reg_write_memwb;
   logic [4:0]  od0_rd_addr_memwb;
-  reg_t        od0_wdata_memwb;
-  reg_t        od0_pc_memwb;
+  word_t        od0_wdata_memwb;
+  word_t        od0_pc_memwb;
 
   logic        od1_reg_write_memwb;
   logic [4:0]  od1_rd_addr_memwb;
-  reg_t        od1_wdata_memwb;
-  reg_t        od1_pc_memwb;
+  word_t        od1_wdata_memwb;
+  word_t        od1_pc_memwb;
 
   assign od0_odd_load_mem = od0_reg_write_mem && od0_mem_en_mem && !od0_mem_act_mem;
   assign od1_odd_load_mem = od1_reg_write_mem && od1_mem_en_mem && !od1_mem_act_mem;

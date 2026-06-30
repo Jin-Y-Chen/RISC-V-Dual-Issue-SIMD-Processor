@@ -42,7 +42,7 @@ module instruction_cache_tb;
   );
 
   task automatic preload_word(input logic [31:0] byte_pc, input logic [31:0] word);
-    dut.bank[pc_set(byte_pc, CACHE)][pc_way(byte_pc, CACHE)] =
+    dut.bank[bank_set_idx(byte_pc, CACHE)][bank_way_idx(byte_pc, CACHE)] =
       cache_set_write#(32)(1'b1, word);
   endtask
 
