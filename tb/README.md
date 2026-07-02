@@ -53,7 +53,7 @@ tb/
 |----|-----|--------|
 | `even_lane_tb` | `even_lane.sv` + `scalar_alu.sv` | ADD/SUB/AND/OR/XOR |
 | `odd_lane_tb` | `odd_lane.sv`, branch + LSU | branches, JAL/JALR, LW/SW |
-| `id_ex_dispatch_tb` | `rtl/s3_execution/id_ex_dispatch.sv` | even/odd dispatch |
+| `id_ex_dispatch_tb` | `rtl/s3_dispatch/dispatch_core_struct.sv` | even/odd dispatch |
 | `forward_unit_tb` | `rtl/s3_execution/core/forward_unit.sv` | EX/MEM/WB forward mux |
 | `scoreboard_tb` | `rtl/s3_execution/dispatch_funct/scoreboard.sv` | RAW / stall |
 

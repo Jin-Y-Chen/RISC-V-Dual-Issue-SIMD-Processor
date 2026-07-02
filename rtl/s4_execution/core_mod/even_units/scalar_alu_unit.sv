@@ -1,18 +1,18 @@
 `timescale 1ns / 1ps
 
 // Scalar integer ALU for the even execution lane (RV32I OP / OP-IMM subset).
-module scalar_alu
+module scalar_alu_unit
   import rv_dis_pkg::*;
 (
   // input data
   input  opcode_t     opcode,
   input  funct3_t     funct3,
   input  funct7_t     funct7,
-  input  word_t        operand_a,
-  input  word_t        operand_b,
+  input  reg_t        operand_a,
+  input  reg_t        operand_b,
 
   // output data
-  output word_t        alu_result
+  output reg_t        alu_result
 );
 
   logic [4:0] shamt;

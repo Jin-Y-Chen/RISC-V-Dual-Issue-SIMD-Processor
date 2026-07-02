@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// pc_tb - fetch PC update policy for dual-issue front-end.
+// pc_tb — pc0 from spec_in, pc1 from norm_in; stall/disable hold pair.
 module pc_tb;
 
   `include "../common/tb_console.svh"
@@ -12,8 +12,9 @@ module pc_tb;
   logic        rst_n;
   logic        enable;
   logic        stall;
-  logic        set;
-  logic [31:0] set_pc;
+  logic        spec_en;
+  logic [31:0] spec_in;
+  logic [31:0] norm_in;
   logic [31:0] pc0;
   logic [31:0] pc1;
 
@@ -23,14 +24,15 @@ module pc_tb;
   pc #(
     .RESET_PC(TB_RESET_PC)
   ) dut (
-    .clk           (clk),
-    .rst_n         (rst_n),
-    .enable        (enable),
-    .stall       (stall),
-    .set         (set),
-    .set_pc      (set_pc),
-    .pc0         (pc0),
-    .pc1         (pc1)
+    .clk       (clk),
+    .rst_n     (rst_n),
+    .enable    (enable),
+    .stall     (stall),
+    .spec_en   (spec_en),
+    .spec_in   (spec_in),
+    .norm_in   (norm_in),
+    .pc0_out   (pc0),
+    .pc1_out   (pc1)
   );
 
   initial begin
@@ -39,67 +41,78 @@ module pc_tb;
   end
 
   task automatic tick;
-    tb_advance(clk);
+    @(posedge clk);
+    #1;
   endtask
 
-  task automatic check_pc(
+  task automatic drive(
+    input logic enable_v,
+    input logic stall_v,
+    input logic spec_en_v,
+    input logic [31:0] spec_in_v,
+    input logic [31:0] norm_in_v
+  );
+    enable  = enable_v;
+    stall   = stall_v;
+    spec_en = spec_en_v;
+    spec_in = spec_in_v;
+    norm_in = norm_in_v;
+  endtask
+
+  task automatic check_pair(
     input string       name,
     input string       detail,
-    input logic [31:0] exp_pc
+    input logic [31:0] exp_pc0,
+    input logic [31:0] exp_pc1
   );
     bit pass;
-    pass = (pc0 === exp_pc) && (pc1 === (exp_pc + 32'd4));
+    pass = (pc0 === exp_pc0) && (pc1 === exp_pc1);
     tb_report_open(pass, name, detail);
-    tb_field_u32("pc0", pc0, exp_pc);
-    tb_field_u32("pc1", pc1, (exp_pc + 32'd4));
+    tb_field_u32("pc0", pc0, exp_pc0);
+    tb_field_u32("pc1", pc1, exp_pc1);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic drive_ctrl(
-    input logic stall_v,
-    input logic enable_v,
-    input logic set_v,
-    input logic [31:0] set_pc_v
-  );
-    stall       = stall_v;
-    enable        = enable_v;
-    set         = set_v;
-    set_pc      = set_pc_v;
   endtask
 
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
+    enable = 1'b1;
 
     rst_n = 1'b0;
-    drive_ctrl(1'b0, 1'b0, 1'b0, 32'd0);
+    drive(1'b1, 1'b0, 1'b0, 32'd0, 32'd0);
     tick();
-    check_pc("reset", "RESET_PC is visible after reset", TB_RESET_PC);
+    check_pair("reset", "RESET_PC pair after reset",
+               TB_RESET_PC, TB_RESET_PC + 32'd4);
 
     rst_n = 1'b1;
+    drive(1'b1, 1'b0, 1'b0, TB_RESET_PC, TB_RESET_PC);
     tick();
-    check_pc("idle_hold", "enable=0 holds PC", TB_RESET_PC);
+    check_pair("sequential_add", "spec_en=0 => norm +8/+12",
+               TB_RESET_PC + 32'd8, TB_RESET_PC + 32'd12);
 
-    drive_ctrl(1'b0, 1'b1, 1'b0, 32'd0);
+    drive(1'b1, 1'b0, 1'b1, 32'h1FFC, 32'h1004);
     tick();
-    check_pc("dual_issue_step", "enable=1 => +8 (two insns)", TB_RESET_PC + 32'd8);
+    check_pair("spec_add", "spec_en=1 => +4 per stream",
+               32'h2000, 32'h1008);
 
-    drive_ctrl(1'b1, 1'b1, 1'b0, 32'd0);
+    drive(1'b1, 1'b0, 1'b1, 32'h2000, 32'h1008);
     tick();
-    check_pc("stall_hold", "stall blocks normal PC advance", TB_RESET_PC + 32'd8);
+    check_pair("spec_step", "divergent +4 step",
+               32'h2004, 32'h100C);
 
-    drive_ctrl(1'b0, 1'b0, 1'b1, 32'h0000_1237);
+    drive(1'b1, 1'b0, 1'b0, 32'h2000, 32'h2000);
     tick();
-    check_pc("set_align4", "set target is forced to 4-byte alignment", 32'h0000_1234);
+    check_pair("sequential_resume", "spec_en=0 => norm +8/+12",
+               32'h2008, 32'h2014);
 
-    drive_ctrl(1'b1, 1'b1, 1'b1, 32'h0000_2005);
+    drive(1'b1, 1'b1, 1'b0, 32'h3000, 32'h3000);
     tick();
-    check_pc("set_priority", "set beats stall and enable controls", 32'h0000_2004);
+    check_pair("stall_hold", "stall blocks update", 32'h2008, 32'h2014);
 
-    drive_ctrl(1'b0, 1'b1, 1'b0, 32'd0);
+    drive(1'b0, 1'b0, 1'b0, 32'h4000, 32'h4000);
     tick();
-    check_pc("post_set_step", "normal +8 from set PC", 32'h0000_200C);
+    check_pair("disable_hold", "enable=0 holds pair", 32'h2008, 32'h2014);
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

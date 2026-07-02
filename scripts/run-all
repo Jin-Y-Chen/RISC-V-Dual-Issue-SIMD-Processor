@@ -1,2 +1,11 @@
 #!/usr/bin/env bash
-exec "$(dirname "$0")/run_all.sh" "$@"
+# Run all unit TBs through Yosys (optional -Sim / -Synth via extra args).
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPTS/.." && pwd)"
+# shellcheck source=lib/common.sh
+. "$SCRIPTS/lib/common.sh"
+
+show_help_if_requested show_run_all_help "$@"
+
+run_yosys_invoke -All "$@"

@@ -9,10 +9,13 @@
 module id_ex_dispatch_tb;
 
   import rv_dis_pkg::*;
+  import rob_pkg::*;
+  import rob_queue_pkg::*;
 
   `include "../common/tb_console.svh"
 
   localparam int CLK_PERIOD = 10;
+  localparam string ROB_LOG_FILE = "rob_entries.txt";
 
   logic        clk;
   logic        rst_n;
@@ -111,16 +114,175 @@ module id_ex_dispatch_tb;
 
   int pass_cnt;
   int fail_cnt;
+  int rob_fd;
 
-  id_ex_dispatch dut (.*);
+  dispatch_core_struct dut (
+    .clk                 (clk),
+    .rst_n               (rst_n),
+    .enable              (enable),
+    .flush               (flush),
+    .commit_en           (commit_en),
+    .commit_count        (commit_count),
+    .set_complete_en     (set_complete_en),
+    .set_complete_idx    (set_complete_idx),
+    .set_complete_result (set_complete_result),
+    .i0_valid_dp         (i0_valid_id),
+    .i0_lane_sel_dp      (i0_lane_sel_id),
+    .i0_reg_write_dp     (i0_reg_write_id),
+    .i1_valid_dp         (i1_valid_id),
+    .i1_lane_sel_dp      (i1_lane_sel_id),
+    .i1_rs1_use_dp       (i1_rs1_use_id),
+    .i1_rs2_use_dp       (i1_rs2_use_id),
+    .i1_reg_write_dp     (i1_reg_write_id),
+    .i0_opcode_dp        (i0_opcode_id),
+    .i0_funct3_dp        (i0_funct3_id),
+    .i0_funct7_dp        (i0_funct7_id),
+    .i0_rd_addr_dp       (i0_rd_addr_id),
+    .i0_rs1_addr_dp      (i0_rs1_addr_id),
+    .i0_rs2_addr_dp      (i0_rs2_addr_id),
+    .i0_imm_dp           (i0_imm_id),
+    .i0_rs1_data_dp      (i0_rs1_data_id),
+    .i0_rs2_data_dp      (i0_rs2_data_id),
+    .i0_pc_dp            (i0_pc_id),
+    .i1_opcode_dp        (i1_opcode_id),
+    .i1_funct3_dp        (i1_funct3_id),
+    .i1_funct7_dp        (i1_funct7_id),
+    .i1_rd_addr_dp       (i1_rd_addr_id),
+    .i1_rs1_addr_dp      (i1_rs1_addr_id),
+    .i1_rs2_addr_dp      (i1_rs2_addr_id),
+    .i1_imm_dp           (i1_imm_id),
+    .i1_rs1_data_dp      (i1_rs1_data_id),
+    .i1_rs2_data_dp      (i1_rs2_data_id),
+    .i1_pc_dp            (i1_pc_id),
+    .stall_id            (stall_id),
+    .i0_reg_write_disp   (i0_reg_write_ex),
+    .i1_reg_write_disp   (i1_reg_write_ex),
+    .i0_pc_disp          (i0_pc_ex),
+    .i1_pc_disp          (i1_pc_ex),
+    .ev0_enable_disp     (ev0_enable_ex),
+    .ev0_opcode_disp     (ev0_opcode_ex),
+    .ev0_funct3_disp     (ev0_funct3_ex),
+    .ev0_funct7_disp     (ev0_funct7_ex),
+    .ev0_rd_disp         (ev0_rd_ex),
+    .ev0_rs1_addr_disp   (ev0_rs1_addr_ex),
+    .ev0_rs2_addr_disp   (ev0_rs2_addr_ex),
+    .ev0_imm_disp        (ev0_imm_ex),
+    .ev0_rs1_data_disp   (ev0_rs1_data_ex),
+    .ev0_rs2_data_disp   (ev0_rs2_data_ex),
+    .ev0_pc_disp         (ev0_pc_ex),
+    .ev1_enable_disp     (ev1_enable_ex),
+    .ev1_opcode_disp     (ev1_opcode_ex),
+    .ev1_funct3_disp     (ev1_funct3_ex),
+    .ev1_funct7_disp     (ev1_funct7_ex),
+    .ev1_rd_disp         (ev1_rd_ex),
+    .ev1_rs1_addr_disp   (ev1_rs1_addr_ex),
+    .ev1_rs2_addr_disp   (ev1_rs2_addr_ex),
+    .ev1_imm_disp        (ev1_imm_ex),
+    .ev1_rs1_data_disp   (ev1_rs1_data_ex),
+    .ev1_rs2_data_disp   (ev1_rs2_data_ex),
+    .ev1_pc_disp         (ev1_pc_ex),
+    .od0_enable_disp     (od0_enable_ex),
+    .od0_opcode_disp     (od0_opcode_ex),
+    .od0_funct3_disp     (od0_funct3_ex),
+    .od0_rd_disp         (od0_rd_ex),
+    .od0_rs1_addr_disp   (od0_rs1_addr_ex),
+    .od0_rs2_addr_disp   (od0_rs2_addr_ex),
+    .od0_imm_disp        (od0_imm_ex),
+    .od0_rs1_data_disp   (od0_rs1_data_ex),
+    .od0_rs2_data_disp   (od0_rs2_data_ex),
+    .od0_pc_disp         (od0_pc_ex),
+    .od1_enable_disp     (od1_enable_ex),
+    .od1_opcode_disp     (od1_opcode_ex),
+    .od1_funct3_disp     (od1_funct3_ex),
+    .od1_rd_disp         (od1_rd_ex),
+    .od1_rs1_addr_disp   (od1_rs1_addr_ex),
+    .od1_rs2_addr_disp   (od1_rs2_addr_ex),
+    .od1_imm_disp        (od1_imm_ex),
+    .od1_rs1_data_disp   (od1_rs1_data_ex),
+    .od1_rs2_data_disp   (od1_rs2_data_ex),
+    .od1_pc_disp         (od1_pc_ex)
+  );
 
   initial clk = 1'b0;
 
-  task automatic tick;
+  function automatic string rob_state_str(input rob_state_t state);
+    case (state)
+      ROB_NEW:       return "NEW(000)";
+      ROB_READ:      return "READ(001)";
+      ROB_EXECUTED:  return "EXEC(010)";
+      ROB_SPEC_NEW:  return "SNEW(100)";
+      ROB_SPEC_READ: return "SRD(101)";
+      ROB_SPEC_EXEC: return "SEX(110)";
+      default:       return $sformatf("???(%03b)", state);
+    endcase
+  endfunction
+
+  function automatic string rob_slot_flags(input int idx);
+    logic [ROB_AW-1:0] slot;
+    logic [ROB_AW-1:0] commit_idx;
+    logic [ROB_AW-1:0] read_idx;
+    logic [ROB_AW-1:0] write_idx;
+    string flags;
+    slot       = idx[ROB_AW-1:0];
+    commit_idx = dut.rob_commit_ptr[ROB_AW-1:0];
+    read_idx   = dut.rob_read_ptr[ROB_AW-1:0];
+    write_idx  = dut.rob_write_ptr[ROB_AW-1:0];
+    flags = "";
+    if (slot == commit_idx)
+      flags = {flags, "C"};
+    if (slot == read_idx)
+      flags = {flags, "R"};
+    if (slot == write_idx)
+      flags = {flags, "W"};
+    if (flags == "")
+      rob_slot_flags = "-";
+    else
+      rob_slot_flags = flags;
+  endfunction
+
+  task automatic dump_rob(input string label = "");
+    rob_entry_t entry;
+    rob_ptr_t   occupancy;
+    occupancy = dut.rob_write_ptr - dut.rob_commit_ptr;
+    $fwrite(rob_fd, "\n================================================================================\n");
+    if (label != "")
+      $fdisplay(rob_fd, "ROB snapshot | %s | t=%0t ns", label, $time);
+    else
+      $fdisplay(rob_fd, "ROB snapshot | t=%0t ns", $time);
+    $fdisplay(rob_fd,
+      "pointers: commit=%0d read=%0d write=%0d occupancy=%0d stall=%0d br_inflight=%0d",
+      dut.rob_commit_ptr, dut.rob_read_ptr, dut.rob_write_ptr, occupancy,
+      stall_id, dut.br_inflight);
+    $fdisplay(rob_fd,
+      "flags: C=commit(head) R=read(body) W=write(tail) | state: NEW/READ/EXEC + spec variants");
+    $fdisplay(rob_fd,
+      " idx flg v tag  state       lane    pc       opcode  rd  result");
+    $fdisplay(rob_fd,
+      " --- --- - ---- ----------- ----- -------- ------- --- --------");
+    for (int i = 0; i < ROB_DEPTH; i++) begin
+      entry = rob_cache_read_entry(dut.rob_bank[i], dut.rob_tag[i]);
+      if (!entry.valid) begin
+        $fdisplay(rob_fd, " %2d %3s 0  --   (empty)     -     -        -     -   -",
+                  i, rob_slot_flags(i));
+      end else begin
+        $fdisplay(rob_fd,
+          " %2d %3s 1 x%0d %-11s %5s 0x%08h %07b x%0d 0x%08h",
+          i, rob_slot_flags(i), entry.tag, rob_state_str(entry.data.state),
+          entry.data.packet.lane_sel ? "ODD" : "EVEN",
+          entry.data.packet.pc, entry.data.packet.opcode, entry.tag,
+          entry.data.result);
+      end
+    end
+    $fflush(rob_fd);
+  endtask
+
+  task automatic tick(input string rob_label = "");
     #(CLK_PERIOD / 2);
     clk = 1'b1;
     #(CLK_PERIOD / 2);
     clk = 1'b0;
+    #0;
+    dump_rob(rob_label);
   endtask
 
   function automatic string lane_name(input logic lane);
@@ -198,6 +360,7 @@ module id_ex_dispatch_tb;
            (i0_pc_ex === exp_i0_pc) && (i1_pc_ex === exp_i1_pc);
 
     tb_report_open(pass, name, detail);
+    $fwrite(rob_fd, "\n>>> TEST: %s | %s\n", name, detail);
     $display("  [outline] %s", outline_ref);
     log_id_inputs();
     $display("  --- EX outputs ---");
@@ -223,6 +386,8 @@ module id_ex_dispatch_tb;
     bit pass;
     pass = (stall_id === exp_stall_id);
     tb_report_open(pass, name, detail);
+    $fwrite(rob_fd, "\n>>> TEST: %s | %s\n", name, detail);
+    dump_rob(name);
     $display("  [outline] %s", outline_ref);
     log_id_inputs();
     $display("  --- EX outputs ---");
@@ -323,6 +488,14 @@ module id_ex_dispatch_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
+
+    rob_fd = $fopen(ROB_LOG_FILE, "w");
+    if (rob_fd == 0)
+      $fatal(1, "id_ex_dispatch_tb: cannot open %s for ROB trace", ROB_LOG_FILE);
+    $fdisplay(rob_fd, "id_ex_dispatch_tb — Reorder Buffer entry trace");
+    $fdisplay(rob_fd, "Generated by tb/s3_execute/id_ex_dispatch_tb.sv");
+    $fdisplay(rob_fd, "File: %s (simulator working directory)", ROB_LOG_FILE);
+    $fflush(rob_fd);
 
     tb_banner("id_ex_dispatch_tb - Reorder Buffer dispatch (ev/od lane routing)");
 
@@ -483,6 +656,9 @@ module id_ex_dispatch_tb;
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);
+    $fdisplay(rob_fd, "\n=== SIM END: %0d passed, %0d failed ===", pass_cnt, fail_cnt);
+    $fclose(rob_fd);
+    $display("[INFO] ROB trace written to %s", ROB_LOG_FILE);
     if (fail_cnt != 0)
       $fatal(1, "id_ex_dispatch_tb failed");
     $finish;

@@ -12,10 +12,10 @@ module odd_lane
   input  funct3_t     funct3,
   input  logic        rs1_use,    // decode: rs1 is a real GPR read
   input  logic        rs2_use,    // decode: rs2 is a real GPR read
-  input  word_t        rs1_data,
-  input  word_t        rs2_data,
-  input  word_t        imm,
-  input  word_t         pc,
+  input  reg_t        rs1_data,
+  input  reg_t        rs2_data,
+  input  imm_t        imm,
+  input  pc_t         pc,
 
   // output controls
   output logic        brch_taken,
@@ -23,17 +23,17 @@ module odd_lane
   output logic        mem_act,
 
   // output data
-  output word_t         brch_pc,
-  output word_t         mem_addr,
-  output word_t        mem_wdata,
+  output pc_t         brch_pc,
+  output pc_t         mem_addr,
+  output reg_t        mem_wdata,
   output mem_besel_t  mem_besel,
-  output word_t         link_pc,
-  output word_t        reg_wdata
+  output pc_t         link_pc,
+  output reg_t        reg_wdata
 );
 
   logic brch_cond;
 
-  branch_unit u_branch (
+  branch_target_unit u_branch (
     .funct3     (funct3),
     .rs1_use    (rs1_use),
     .rs2_use    (rs2_use),
@@ -45,7 +45,7 @@ module odd_lane
   assign mem_en  = enable && (opcode == OPC_LOAD || opcode == OPC_STORE);
   assign mem_act = (opcode == OPC_STORE);
 
-  memory_access u_mem (
+  memory_address_unit u_mem (
     .funct3    (funct3),
     .is_store  (mem_en && mem_act),
     .rs1_use   (rs1_use),
@@ -60,9 +60,9 @@ module odd_lane
 
   assign brch_taken = enable && (((opcode == OPC_BRANCH) && brch_cond) ||
                                  (opcode == OPC_JAL) || (opcode == OPC_JALR));
-  assign brch_pc    = (opcode == OPC_JALR) ? word_t'((rs1_data + imm) & word_t'(32'hFFFFFFFE)) : (pc + imm);
+  assign brch_pc    = (opcode == OPC_JALR) ? pc_t'((rs1_data + imm) & pc_t'(32'hFFFFFFFE)) : (pc + imm);
 
-  assign link_pc = pc + word_t'(32'd4);
+  assign link_pc = pc + pc_t'(32'd4);
   assign reg_wdata = (opcode == OPC_AUIPC) ? (pc + imm) : imm;
 
 endmodule

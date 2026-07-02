@@ -1,61 +1,11 @@
 `timescale 1ns / 1ps
 
-// Reorder Buffer — entry storage, read/dispatch, execute-complete, and state updates.
-package rob_pkg;
+// Reorder Buffer — queue operations (allocate, dispatch, complete, search, flow).
+// Types and constants: rob_pkg (rob.sv).
+package rob_queue_pkg;
 
   import rv_dis_pkg::*;
-
-// -------------------------------------------------------------------------
-// Geometry and lifecycle codes
-// -------------------------------------------------------------------------
-localparam int ROB_DEPTH = 16;
-localparam int ROB_AW    = 4;
-localparam int ROB_CAP   = ROB_DEPTH;
-
-typedef logic [ROB_AW:0] rob_ptr_t;
-
-typedef logic [2:0] rob_state_t;
-
-localparam rob_state_t ROB_NEW       = 3'b000;
-localparam rob_state_t ROB_READ      = 3'b001;
-localparam rob_state_t ROB_EXECUTED  = 3'b010;
-localparam rob_state_t ROB_SPEC_NEW  = 3'b100;
-localparam rob_state_t ROB_SPEC_READ = 3'b101;
-localparam rob_state_t ROB_SPEC_EXEC = 3'b110;
-
-// -------------------------------------------------------------------------
-// Entry types — ID snapshot + ROB cache payload (rename view in rename.sv)
-// -------------------------------------------------------------------------
-typedef struct packed {
-  logic      lane_sel;
-  logic      reg_write;
-  logic      rs1_use;
-  logic      rs2_use;
-  opcode_t   opcode;
-  funct3_t   funct3;
-  funct7_t   funct7;
-  gpr_addr_t rs1;
-  gpr_addr_t rs2;
-  word_t     imm;
-  word_t     rs1_data;
-  word_t     rs2_data;
-  word_t     pc;
-} ID_packet_t;
-
-typedef struct packed {
-  ID_packet_t packet;
-  rob_state_t state;
-  word_t      result;
-} rob_data_t;
-
-typedef struct packed {
-  logic      valid;
-  gpr_addr_t tag;
-  rob_data_t data;
-} rob_entry_t;
-
-localparam int ROB_DATA_W    = $bits(rob_data_t);
-localparam int ROB_PAYLOAD_W = ROB_DATA_W;
+  import rob_pkg::*;
 
 // -------------------------------------------------------------------------
 // Entry constructors — allocate at write pointer
@@ -217,6 +167,145 @@ function automatic rob_entry_t rob_cache_read_entry(
 endfunction
 
 // -------------------------------------------------------------------------
+// 16-way parallel tag search — all ways compared in one combinational pass
+// -------------------------------------------------------------------------
+function automatic logic [ROB_WAYS-1:0] rob_window_mask(
+  input rob_ptr_t commit_ptr,
+  input rob_ptr_t write_ptr
+);
+  rob_ptr_t occ;
+  rob_ptr_t slot_ptr;
+  logic [ROB_AW-1:0] slot_idx;
+  occ = write_ptr - commit_ptr;
+  for (int w = 0; w < ROB_WAYS; w++)
+    rob_window_mask[w] = 1'b0;
+  for (int k = 0; k < ROB_WAYS; k++) begin
+    if (k < occ) begin
+      slot_ptr = commit_ptr + rob_ptr_t'(k);
+      slot_idx = slot_ptr[ROB_AW-1:0];
+      rob_window_mask[slot_idx] = 1'b1;
+    end
+  end
+endfunction
+
+function automatic logic [ROB_WAYS-1:0] rob_tag_match_vec(
+  input gpr_addr_t           tags [ROB_WAYS],
+  input logic [ROB_DATA_W:0] bank [ROB_WAYS],
+  input gpr_addr_t           query
+);
+  for (int w = 0; w < ROB_WAYS; w++)
+    rob_tag_match_vec[w] = rob_cache_valid(bank[w]) && (tags[w] == query);
+endfunction
+
+function automatic logic [ROB_WAYS-1:0] rob_search_vec(
+  input gpr_addr_t           tags [ROB_WAYS],
+  input logic [ROB_DATA_W:0] bank [ROB_WAYS],
+  input gpr_addr_t           query,
+  input rob_ptr_t            commit_ptr,
+  input rob_ptr_t            write_ptr
+);
+  return rob_window_mask(commit_ptr, write_ptr) & rob_tag_match_vec(tags, bank, query);
+endfunction
+
+function automatic logic rob_search_hit(input logic [ROB_WAYS-1:0] match_vec);
+  return |match_vec;
+endfunction
+
+function automatic rob_ptr_t rob_slot_ring_dist(
+  input logic [ROB_AW-1:0] idx,
+  input rob_ptr_t          commit_ptr,
+  input rob_ptr_t          write_ptr
+);
+  rob_ptr_t occ;
+  rob_ptr_t slot_ptr;
+  logic [ROB_AW-1:0] slot_idx;
+  occ = write_ptr - commit_ptr;
+  for (int k = 0; k < ROB_WAYS; k++) begin
+    if (k < occ) begin
+      slot_ptr = commit_ptr + rob_ptr_t'(k);
+      slot_idx = slot_ptr[ROB_AW-1:0];
+      if (slot_idx == idx)
+        return rob_ptr_t'(k);
+    end
+  end
+  return rob_ptr_t'(-1);
+endfunction
+
+// Youngest in-window match = largest ring distance from commit (most recently allocated).
+function automatic logic [ROB_AW-1:0] rob_pick_youngest_way(
+  input logic [ROB_WAYS-1:0] match_vec,
+  input rob_ptr_t            commit_ptr,
+  input rob_ptr_t            write_ptr
+);
+  rob_ptr_t best_ring;
+  rob_ptr_t ring_pos;
+  logic [ROB_AW-1:0] best_way;
+  best_ring = rob_ptr_t'(-1);
+  best_way  = '0;
+  for (int w = 0; w < ROB_WAYS; w++) begin
+    if (!match_vec[w])
+      continue;
+    ring_pos = rob_slot_ring_dist(ROB_AW'(w), commit_ptr, write_ptr);
+    if (ring_pos >= best_ring) begin
+      best_ring = ring_pos;
+      best_way  = ROB_AW'(w);
+    end
+  end
+  return best_way;
+endfunction
+
+function automatic logic [ROB_AW-1:0] rob_search_youngest_way(
+  input gpr_addr_t           tags [ROB_WAYS],
+  input logic [ROB_DATA_W:0] bank [ROB_WAYS],
+  input gpr_addr_t           query,
+  input rob_ptr_t            commit_ptr,
+  input rob_ptr_t            write_ptr
+);
+  logic [ROB_WAYS-1:0] match_vec;
+  match_vec = rob_search_vec(tags, bank, query, commit_ptr, write_ptr);
+  if (!rob_search_hit(match_vec))
+    return '0;
+  return rob_pick_youngest_way(match_vec, commit_ptr, write_ptr);
+endfunction
+
+function automatic rob_entry_t rob_search_tag_entry(
+  input gpr_addr_t           tags [ROB_WAYS],
+  input logic [ROB_DATA_W:0] bank [ROB_WAYS],
+  input gpr_addr_t           query,
+  input rob_ptr_t            commit_ptr,
+  input rob_ptr_t            write_ptr
+);
+  logic [ROB_WAYS-1:0] match_vec;
+  logic [ROB_AW-1:0]    way;
+  match_vec = rob_search_vec(tags, bank, query, commit_ptr, write_ptr);
+  if (!rob_search_hit(match_vec))
+    return '0;
+  way = rob_pick_youngest_way(match_vec, commit_ptr, write_ptr);
+  return rob_cache_read_entry(bank[way], tags[way]);
+endfunction
+
+function automatic word_t rob_forward_operand(
+  input gpr_addr_t           tags [ROB_WAYS],
+  input logic [ROB_DATA_W:0] bank [ROB_WAYS],
+  input gpr_addr_t           arch_reg,
+  input word_t               decode_data,
+  input rob_ptr_t            commit_ptr,
+  input rob_ptr_t            write_ptr
+);
+  logic [ROB_WAYS-1:0] match_vec;
+  logic [ROB_AW-1:0]    way;
+  rob_data_t             data;
+  match_vec = rob_search_vec(tags, bank, arch_reg, commit_ptr, write_ptr);
+  if (!rob_search_hit(match_vec))
+    return decode_data;
+  way  = rob_pick_youngest_way(match_vec, commit_ptr, write_ptr);
+  data = rob_cache_data_read(bank[way], '0);
+  if ((data.state == ROB_EXECUTED) || (data.state == ROB_SPEC_EXEC))
+    return data.result;
+  return decode_data;
+endfunction
+
+// -------------------------------------------------------------------------
 // Lifecycle — new -> read -> executed -> commit (freed)
 // -------------------------------------------------------------------------
 function automatic logic rob_undispatched(input rob_state_t state);
@@ -259,8 +348,8 @@ function automatic rob_data_t rob_data_update_complete(
   input word_t      result
 );
   rob_data_update_complete = data;
-  rob_data_update_complete.state  = state;
   rob_data_update_complete.result = result;
+  rob_data_update_complete.state  = state;
 endfunction
 
 // -------------------------------------------------------------------------

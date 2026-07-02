@@ -140,3 +140,11 @@ task automatic tb_fail_detail(input string name, input string detail);
   tb_field_line("note", detail, "-");
   tb_report_close(0);
 endtask
+
+// TRACE_VCD (set by run-sim): writes trace.vcd in the simulator working directory.
+`ifdef TRACE_VCD
+initial begin
+  $dumpfile("trace.vcd");
+  $dumpvars(0);
+end
+`endif

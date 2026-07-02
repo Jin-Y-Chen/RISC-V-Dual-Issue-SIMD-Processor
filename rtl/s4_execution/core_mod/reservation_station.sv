@@ -22,7 +22,7 @@ module reservation_station
   output word_t       i0_pc_ex,
   output word_t       i1_pc_ex,
 
-  // dispatch in — renamed EX packets (from id_ex_dispatch)
+  // dispatch in — renamed EX packets (from dp_ex via execute_core_struct)
   input  logic        ev0_enable_disp,
   input  opcode_t     ev0_opcode_disp,
   input  funct3_t     ev0_funct3_disp,

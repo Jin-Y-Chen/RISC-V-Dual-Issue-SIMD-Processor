@@ -12,8 +12,13 @@ function Get-YosysBuildDir([string]$RepoRoot) {
   return Join-Path $RepoRoot "synth\build\yosys"
 }
 
-function Get-VerilatorBuildDir([string]$RepoRoot, [string]$TbTop) {
+function Get-VerilatorLogDir([string]$RepoRoot, [string]$TbTop) {
   return Join-Path $RepoRoot "sim\verilator\$TbTop"
+}
+
+# WSL-native obj_dir avoids Verilator write failures on /mnt/c Windows mounts.
+function Get-WslVerilatorObjDir([string]$TbTop) {
+  return "`$HOME/.cache/risc-dis-verilator/$TbTop/obj_dir"
 }
 
 function Get-SynthRoot([string]$RepoRoot) {

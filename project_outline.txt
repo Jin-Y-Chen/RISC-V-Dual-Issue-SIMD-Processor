@@ -25,7 +25,7 @@ RV32I Instruction Set Architecture Deisgned:
 
     4) ~40 unique instructions 
 
-Program counter (PC) — 32-bit byte address 
+Program Counter (PC) — 32-bit byte address 
 
     1) PC 32-bit byte address (RV32I)
     
@@ -33,12 +33,12 @@ Program counter (PC) — 32-bit byte address
         - Defined max count by Instruction Cache Entry (Instruction Cache.1)
 
         b) PC address 8-bit data per address 
-        - Increment PC + 4 to address successive 32-bit instruction 
-        - Each instruction must start at an PC address divisible by 4 (IALIGN = 32)
+        - Increment PC + 4 to address successive 32-bit instruction (IALIGN = 32)
+        - Each instruction must start at an PC address divisible by 4 
 
-    2) Relevant PC bits: Define max count & IALIGN32 
+    2) Relevant PC bits by defining max count
 
-        a) Max PC count = 32,767 to address each Instruction Cache Entry (Instruction Cache.1)
+        a) Max PC count = 32,767 to address each Instruction Cache Entry of size 32 KiB (Instruction Cache.1)
 
             32,767 B = 32KiB = 2^15 B => 15-bits address
 
@@ -56,13 +56,13 @@ Program counter (PC) — 32-bit byte address
         - Instruction cache is 4-way set associated, byte per entry with only addressable row 
         - Each row is one instruction, containing 4 bytes for an full 32-bit instruction 
 
-    3) Dual PC address value  
-        a) PC0 and PC1 are directly in order with expection of branch speculation/prediction
+    3) Dual PC address and Speculation Behavior
+        a) PC0 and PC1 are directly in order with exception on branch speculation/prediction
         - Single counter incrementing previouse PC0 and PC1 by 8, where PC1 is initial set to PC0 + 4
 
-        b) independent PC0 and PC1 select to set PC to branch speculative value (dispatch)
+        b) independent PC0 and PC1 select to set PC to branch speculative value (from fetch by pc_selector)
         - Parallel run speclative route and non-speclative route 
-        - Fall-back on wrong prediction or skip-forward on right prediction with flush
+        - Fall-back on wrong prediction or skip-forward on right prediction with flush 
 
             Non-dependent case:
             PC0 : Beq r1, r2, label;    take 
@@ -78,6 +78,108 @@ Program counter (PC) — 32-bit byte address
 
         - PC1 could fall-back to PC0 or PC0 could skip forward to PC1
         - Data Hazard managed at Dispatch with Out of Order Stall mitigation
+
+Program Counter Selector (pc_selector.sv) and PC unit (pc.sv)
+
+    Split responsibility between selection and incrementation:
+
+        pc.sv           — PC unit: pc0 from spec_in (+4), pc1 from norm_in (+4 or +12).
+                          spec_en=0: sequential norm +8/+12; spec_en=1: divergent +4/+4.
+
+        pc_selector.sv  — routes speculative branch values to I0 only (spec_out).
+                          norm_out carries the fall-through / sequential base (pc0 or pc1).
+                          I1 branch predict/recover is not handled here.
+    
+    2. PC selection and feedback
+
+        a) Default (no predict, no recover): pass current PCs
+            - spec_out = align(pc0), norm_out = align(pc0) sequential / align(pc1) in spec
+            - pc.sv adds per spec_en
+
+        c) Selected values feed back into the PC unit
+
+            - spec_out, norm_out  --->  pc.sv spec_in / norm_in
+
+        d) Control sources for selection
+
+            - predict:  i0_pred_taken + i0_pc_predict only -> split I0 target / I1 fall-through
+            - execute:  recover_en + recover_i0 -> merge / fallback (I0 slot only)
+            - spec flag:  spec_next registered as spec_q; enables divergent +4/+4 in pc.sv
+
+        e) On I0 predict-taken: split PC0 (spec_out) and PC1 (norm_out fall-through)
+        - I1 branch in bundle does not enter fetch speculation (dispatch handles dependent case)
+
+        f) On I0 branch resolve: merge streams, redirect, flush pipeline
+        - recover_i1 / i1_pred_taken ignored by pc_selector
+
+    2) Module boundary
+
+        Inputs
+        - enable              : gate predict entry
+        - in_spec             : registered spec_q — already in divergent fetch
+        - pc0, pc1            : live pc0_out / pc1_out from pc.sv
+        - i0_pc_predict       : BTB read for lane 0 (target_buffer)
+        - i0_pred_taken       : decode state predict — I0 branch taken
+        - recover_en          : execute branch resolved (mispredict or confirm)
+        - recover_correct     : 1 = prediction was right (skip-forward); 0 = wrong (fallback)
+        - recover_i0          : branch was in I0 slot (only slot handled here)
+        - recover_pc          : execute-supplied aligned target / fall-through
+        - recover_use_exec_pc : 1 = use recover_pc; 0 = use outline slot fallback
+
+        Outputs (all combinational)
+        - spec                : spec_next — registered as spec_q in fetch_core_struct
+        - spec_out            : pre-add base for I0 speculative stream (pc0 / spec_in)
+        - norm_out            : pre-add base for I1 / sequential stream (norm_in)
+        - flush               : squash speculative insns (asserted on recover_i0 only)
+
+    3) Predict entry (spec_next = 1, no flush) — I0 only
+
+        Guard: predict blocked when in_spec = 1.
+        i1_pred_taken is ignored by pc_selector.
+
+        predict_i0 — I0 branch predicted taken
+
+            PC0 : beq … (take)          PC1 : addi … (fall-through in bundle)
+
+            spec_out = align(i0_pc_predict) - 4   — branch target stream (pc0)
+            norm_out = align(pc1)                 — fall-through stream (pc1)
+            spec_next = 1
+
+    4) Branch resolve (recover_en && recover_i0, flush = 1, spec_next = 0)
+
+        recover_i1 ignored — no fetch redirect or flush from I1 slot.
+
+        a) Right prediction — I0 slot (recover_correct=1)
+        - norm_out = align(pc0);  spec_out = align(pc0) - 4  — PC1 skip-forward to PC0+4
+
+        b) Wrong prediction — I0 slot (recover_correct=0)
+        - spec_out / norm_out from recover_pc or fall-through fallback pair
+        - flush speculative (target) path still in pipeline
+
+    5) Integration (fetch_core_struct.sv)
+
+        Data loop each cycle:
+
+            pc.sv (pc0_out, pc1_out) --> pc_selector (pc0, pc1 observe)
+            pc_selector (spec_out, norm_out) --> pc.sv (spec_in, norm_in)
+
+        u_pc_sel  -> comb outputs
+        spec_q    <- registered spec_next (cleared on reset or external set)
+        u_pc      <- enable, stall, spec_en=(spec_q|spec_next)&~set, spec_in, norm_in
+
+        PC unit (pc.sv):
+        - spec_en=1: pc0 <= spec_in+4, pc1 <= norm_in+4
+        - spec_en=0: pc0 <= norm_in+8, pc1 <= norm_in+12
+        - stall or !enable: hold current pair
+
+        flush_fetch must OR into global pipeline flush (if_id, id_dp, dispatch) — TBD in top.
+
+    6) Signal sources (not yet fully wired in risc_dis_unit.sv)
+
+        i0_pred_taken                  <- decode state_buffer / target_predict (I0 only in pc_selector)
+        i1_pred_taken                  <- decode (ignored by pc_selector; dispatch dependent case)
+        recover_*                      <- branch_unit at execute (recover_i0 only in pc_selector)
+        flush_fetch                    <- OR into core flush
 
 Branch Target Buffer (BTB)
 

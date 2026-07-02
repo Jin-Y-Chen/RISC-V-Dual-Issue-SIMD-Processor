@@ -5,6 +5,7 @@ package rob_rename_pkg;
 
   import rv_dis_pkg::*;
   import rob_pkg::*;
+  import rob_queue_pkg::*;
 
 // -------------------------------------------------------------------------
 // Renamed dispatch / RS types
@@ -52,6 +53,26 @@ function automatic EX_packet_t EX_packet_if(
   input EX_packet_t packet
 );
   return en ? packet : '0;
+endfunction
+
+function automatic EX_packet_t rob_apply_forward(
+  input EX_packet_t          pkt,
+  input gpr_addr_t           tags [ROB_WAYS],
+  input logic [ROB_DATA_W:0] bank [ROB_WAYS],
+  input rob_ptr_t            commit_ptr,
+  input rob_ptr_t            write_ptr
+);
+  rob_apply_forward = pkt;
+  if (!pkt.valid)
+    return pkt;
+  if (pkt.packet.rs1_use)
+    rob_apply_forward.packet.rs1_data = rob_forward_operand(
+      tags, bank, pkt.packet.rs1, pkt.packet.rs1_data, commit_ptr, write_ptr
+    );
+  if (pkt.packet.rs2_use)
+    rob_apply_forward.packet.rs2_data = rob_forward_operand(
+      tags, bank, pkt.packet.rs2, pkt.packet.rs2_data, commit_ptr, write_ptr
+    );
 endfunction
 
 function automatic EX_packet_t ex_packet_route_even(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for run_*.sh wrappers.
+# Shared helpers for run-sim, run-synth, and run-all.
 
 # Windows PowerShell needs C:\... paths; WSL/Git Bash pass /mnt/c/... or /c/...
 to_win_path() {
@@ -14,7 +14,7 @@ to_win_path() {
 }
 
 run_yosys_invoke() {
-  local ps1="$ROOT/scripts/run_yosys.ps1"
+  local ps1="$ROOT/scripts/lib/run_yosys.ps1"
   if command -v powershell.exe >/dev/null 2>&1; then
     powershell.exe -NoProfile -ExecutionPolicy Bypass \
       -File "$(to_win_path "$ps1")" "$@"
@@ -63,7 +63,7 @@ show_help_if_requested() {
 
 show_run_synth_help() {
   cat <<'EOF'
-Usage: ./scripts/run-synth [options]   (or ./scripts/run_synth.sh)
+Usage: ./scripts/run-synth [options]
 
 Yosys elaboration on one testbench (default) or synthesis with extra flags.
 
@@ -71,13 +71,13 @@ Examples:
   ./scripts/run-synth -TOP pc_tb
   ./scripts/run-synth -TOP decoder_tb -Synth
 
-More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
+More: ./scripts/lib/run_yosys.ps1 -Help   scripts/README.md
 EOF
 }
 
 show_run_sim_help() {
   cat <<'EOF'
-Usage: ./scripts/run-sim [options]   (or ./scripts/run_sim.sh)
+Usage: ./scripts/run-sim [options]
 
 Yosys elab + Verilator TB self-test. Requires verilator, make, g++ in WSL.
 
@@ -86,14 +86,15 @@ Examples:
   ./scripts/run-sim --help
 
 Output: synth/reports/runs/latest/<top>/sim.log
+         sim/verilator/<top>/trace.vcd and waveform.svg (auto on pass)
 
-More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
+More: ./scripts/lib/run_yosys.ps1 -Help   scripts/README.md
 EOF
 }
 
 show_run_all_help() {
   cat <<'EOF'
-Usage: ./scripts/run-all [options]   (or ./scripts/run_all.sh)
+Usage: ./scripts/run-all [options]
 
 Run all unit testbenches through Yosys (15 tops).
 
@@ -101,6 +102,6 @@ Examples:
   ./scripts/run-all
   ./scripts/run-all -Synth
 
-More: ./scripts/run_yosys.ps1 -Help   scripts/README.md
+More: ./scripts/lib/run_yosys.ps1 -Help   scripts/README.md
 EOF
 }

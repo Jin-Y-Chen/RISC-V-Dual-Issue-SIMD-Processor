@@ -5,16 +5,16 @@ TOP ?= pc_tb
 .PHONY: synth sim all synth-rtl clean
 
 synth:
-	powershell -NoProfile -ExecutionPolicy Bypass -File run_yosys.ps1 -Top $(TOP)
+	powershell -NoProfile -ExecutionPolicy Bypass -File lib/run_yosys.ps1 -Top $(TOP)
 
 sim:
-	powershell -NoProfile -ExecutionPolicy Bypass -File run_yosys.ps1 -Top $(TOP) -Sim
+	powershell -NoProfile -ExecutionPolicy Bypass -File lib/run_yosys.ps1 -Top $(TOP) -Sim
 
 all:
-	powershell -NoProfile -ExecutionPolicy Bypass -File run_yosys.ps1 -All
+	powershell -NoProfile -ExecutionPolicy Bypass -File lib/run_yosys.ps1 -All
 
 synth-rtl:
-	powershell -NoProfile -ExecutionPolicy Bypass -File run_yosys.ps1 -SynthRtl
+	powershell -NoProfile -ExecutionPolicy Bypass -File lib/run_yosys.ps1 -SynthRtl
 
 clean:
-	powershell -NoProfile -ExecutionPolicy Bypass -File run_yosys.ps1 -Clean
+	powershell -NoProfile -ExecutionPolicy Bypass -File lib/run_yosys.ps1 -Clean

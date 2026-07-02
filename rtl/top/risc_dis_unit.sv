@@ -25,6 +25,15 @@ module risc_dis_unit
   // -------------------------------------------------------------------------
   logic        set;
   logic [31:0] set_pc;
+  logic        i0_pred_taken;
+  logic        i1_pred_taken;
+  logic        recover_en;
+  logic        recover_correct;
+  logic        recover_i0;
+  logic        recover_i1;
+  logic        recover_use_exec_pc;
+  logic [31:0] recover_pc;
+  logic        flush_fetch;
   logic        i0_valid_wb;
   logic        i1_valid_wb;
   logic [31:0] i0_target_wb;
@@ -45,7 +54,15 @@ module risc_dis_unit
   logic [31:0] i1_pc_target_id;
 
   assign set           = 1'b0;
-  assign set_pc         = 32'd0;
+  assign set_pc              = 32'd0;
+  assign i0_pred_taken       = 1'b0;
+  assign i1_pred_taken       = 1'b0;
+  assign recover_en          = 1'b0;
+  assign recover_correct     = 1'b0;
+  assign recover_i0          = 1'b0;
+  assign recover_i1          = 1'b0;
+  assign recover_use_exec_pc = 1'b0;
+  assign recover_pc          = 32'd0;
   assign i0_valid_wb   = 1'b0;  // tie resolved branch/jump retire here
   assign i1_valid_wb   = 1'b0;
   assign i0_target_wb  = 32'd0;
@@ -62,9 +79,16 @@ module risc_dis_unit
     .enable        (enable),
     // internal controls
     .stall_i       (stall_id),
-    .set            (set),
-    // input data
-    .set_pc         (set_pc),
+    .set           (set),
+    .i0_pred_taken (i0_pred_taken),
+    .i1_pred_taken (i1_pred_taken),
+    .recover_en    (recover_en),
+    .recover_correct (recover_correct),
+    .recover_i0    (recover_i0),
+    .recover_i1    (recover_i1),
+    .recover_use_exec_pc (recover_use_exec_pc),
+    .set_pc        (set_pc),
+    .recover_pc    (recover_pc),
     .i0_valid_wb    (i0_valid_wb),
     .i1_valid_wb    (i1_valid_wb),
     .i0_pc_wb       (i0_pc_wb),
@@ -72,6 +96,7 @@ module risc_dis_unit
     .i0_target_wb   (i0_target_wb),
     .i1_target_wb   (i1_target_wb),
     // output data
+    .flush_fetch   (flush_fetch),
     .pc0           (pc_fetch),
     .pc1           (pc_fetch_plus4),
     .i0_pc_target  (i0_pc_target_if),
@@ -197,8 +222,37 @@ module risc_dis_unit
   );
 
   // -------------------------------------------------------------------------
-  // Dispatch — instruction queue + scoreboard + ID/EX (s3_execution)
+  // Dispatch — id_dp + dispatch_core_struct (s3_dispatch)
   // -------------------------------------------------------------------------
+  logic        i0_valid_dp;
+  logic        i0_lane_sel_dp;
+  logic        i0_reg_write_dp;
+  logic        i1_valid_dp;
+  logic        i1_lane_sel_dp;
+  logic        i1_rs1_use_dp;
+  logic        i1_rs2_use_dp;
+  logic        i1_reg_write_dp;
+  logic [6:0]  i0_opcode_dp;
+  logic [2:0]  i0_funct3_dp;
+  logic [6:0]  i0_funct7_dp;
+  logic [4:0]  i0_rd_addr_dp;
+  logic [4:0]  i0_rs1_addr_dp;
+  logic [4:0]  i0_rs2_addr_dp;
+  logic [31:0] i0_imm_dp;
+  logic [31:0] i0_rs1_data_dp;
+  logic [31:0] i0_rs2_data_dp;
+  logic [31:0] i0_pc_dp;
+  logic [6:0]  i1_opcode_dp;
+  logic [2:0]  i1_funct3_dp;
+  logic [6:0]  i1_funct7_dp;
+  logic [4:0]  i1_rd_addr_dp;
+  logic [4:0]  i1_rs1_addr_dp;
+  logic [4:0]  i1_rs2_addr_dp;
+  logic [31:0] i1_imm_dp;
+  logic [31:0] i1_rs1_data_dp;
+  logic [31:0] i1_rs2_data_dp;
+  logic [31:0] i1_pc_dp;
+
   logic        ev0_reg_write_exwb;
   logic [4:0]  ev0_rd_addr_exwb;
   logic [31:0] ev0_wdata_exwb;
@@ -273,19 +327,15 @@ module risc_dis_unit
   logic [31:0] wb_push1_wdata;
   logic [31:0] wb_push1_pc;
 
-  id_ex_dispatch u_dispatch (
+  id_dp u_id_dp (
     .clk             (clk),
     .rst_n           (rst_n),
     .enable          (enable),
     .flush           (flush),
+    .stall           (stall_id),
     .i0_valid_id     (i0_valid_dec),
     .i0_lane_sel_id  (i0_lane_sel_dec),
     .i0_reg_write_id (i0_reg_write_dec),
-    .i1_valid_id     (i1_valid_dec),
-    .i1_lane_sel_id  (i1_lane_sel_dec),
-    .i1_rs1_use_id   (i1_rs1_use_dec),
-    .i1_rs2_use_id   (i1_rs2_use_dec),
-    .i1_reg_write_id (i1_reg_write_dec),
     .i0_opcode_id    (i0_opcode_dec),
     .i0_funct3_id    (i0_funct3_dec),
     .i0_funct7_id    (i0_funct7_dec),
@@ -296,6 +346,11 @@ module risc_dis_unit
     .i0_rs1_data_id  (i0_rs1_data),
     .i0_rs2_data_id  (i0_rs2_data),
     .i0_pc_id        (i0_pc_id),
+    .i1_valid_id     (i1_valid_dec),
+    .i1_lane_sel_id  (i1_lane_sel_dec),
+    .i1_rs1_use_id   (i1_rs1_use_dec),
+    .i1_rs2_use_id   (i1_rs2_use_dec),
+    .i1_reg_write_id (i1_reg_write_dec),
     .i1_opcode_id    (i1_opcode_dec),
     .i1_funct3_id    (i1_funct3_dec),
     .i1_funct7_id    (i1_funct7_dec),
@@ -306,53 +361,121 @@ module risc_dis_unit
     .i1_rs1_data_id  (i1_rs1_data),
     .i1_rs2_data_id  (i1_rs2_data),
     .i1_pc_id        (i1_pc_id),
-    .stall_id        (stall_id),
-    .i0_reg_write_ex (i0_reg_write_ex),
-    .i1_reg_write_ex (i1_reg_write_ex),
-    .i0_pc_ex        (i0_pc_ex),
-    .i1_pc_ex        (i1_pc_ex),
-    .ev0_enable_ex   (ev0_enable_ex),
-    .ev0_opcode_ex   (ev0_opcode_ex),
-    .ev0_funct3_ex   (ev0_funct3_ex),
-    .ev0_funct7_ex   (ev0_funct7_ex),
-    .ev0_rd_ex       (ev0_rd_ex),
-    .ev0_rs1_addr_ex (ev0_rs1_addr_ex),
-    .ev0_rs2_addr_ex (ev0_rs2_addr_ex),
-    .ev0_imm_ex      (ev0_imm_ex),
-    .ev0_rs1_data_ex (ev0_rs1_data_ex),
-    .ev0_rs2_data_ex (ev0_rs2_data_ex),
-    .ev0_pc_ex       (ev0_pc_ex),
-    .ev1_enable_ex   (ev1_enable_ex),
-    .ev1_opcode_ex   (ev1_opcode_ex),
-    .ev1_funct3_ex   (ev1_funct3_ex),
-    .ev1_funct7_ex   (ev1_funct7_ex),
-    .ev1_rd_ex       (ev1_rd_ex),
-    .ev1_rs1_addr_ex (ev1_rs1_addr_ex),
-    .ev1_rs2_addr_ex (ev1_rs2_addr_ex),
-    .ev1_imm_ex      (ev1_imm_ex),
-    .ev1_rs1_data_ex (ev1_rs1_data_ex),
-    .ev1_rs2_data_ex (ev1_rs2_data_ex),
-    .ev1_pc_ex       (ev1_pc_ex),
-    .od0_enable_ex   (od0_enable_ex),
-    .od0_opcode_ex   (od0_opcode_ex),
-    .od0_funct3_ex   (od0_funct3_ex),
-    .od0_rd_ex       (od0_rd_ex),
-    .od0_rs1_addr_ex (od0_rs1_addr_ex),
-    .od0_rs2_addr_ex (od0_rs2_addr_ex),
-    .od0_imm_ex      (od0_imm_ex),
-    .od0_rs1_data_ex (od0_rs1_data_ex),
-    .od0_rs2_data_ex (od0_rs2_data_ex),
-    .od0_pc_ex       (od0_pc_ex),
-    .od1_enable_ex   (od1_enable_ex),
-    .od1_opcode_ex   (od1_opcode_ex),
-    .od1_funct3_ex   (od1_funct3_ex),
-    .od1_rd_ex       (od1_rd_ex),
-    .od1_rs1_addr_ex (od1_rs1_addr_ex),
-    .od1_rs2_addr_ex (od1_rs2_addr_ex),
-    .od1_imm_ex      (od1_imm_ex),
-    .od1_rs1_data_ex (od1_rs1_data_ex),
-    .od1_rs2_data_ex (od1_rs2_data_ex),
-    .od1_pc_ex       (od1_pc_ex)
+    .i0_valid_dp     (i0_valid_dp),
+    .i0_lane_sel_dp  (i0_lane_sel_dp),
+    .i0_reg_write_dp (i0_reg_write_dp),
+    .i0_opcode_dp    (i0_opcode_dp),
+    .i0_funct3_dp    (i0_funct3_dp),
+    .i0_funct7_dp    (i0_funct7_dp),
+    .i0_rd_addr_dp   (i0_rd_addr_dp),
+    .i0_rs1_addr_dp  (i0_rs1_addr_dp),
+    .i0_rs2_addr_dp  (i0_rs2_addr_dp),
+    .i0_imm_dp       (i0_imm_dp),
+    .i0_rs1_data_dp  (i0_rs1_data_dp),
+    .i0_rs2_data_dp  (i0_rs2_data_dp),
+    .i0_pc_dp        (i0_pc_dp),
+    .i1_valid_dp     (i1_valid_dp),
+    .i1_lane_sel_dp  (i1_lane_sel_dp),
+    .i1_rs1_use_dp   (i1_rs1_use_dp),
+    .i1_rs2_use_dp   (i1_rs2_use_dp),
+    .i1_reg_write_dp (i1_reg_write_dp),
+    .i1_opcode_dp    (i1_opcode_dp),
+    .i1_funct3_dp    (i1_funct3_dp),
+    .i1_funct7_dp    (i1_funct7_dp),
+    .i1_rd_addr_dp   (i1_rd_addr_dp),
+    .i1_rs1_addr_dp  (i1_rs1_addr_dp),
+    .i1_rs2_addr_dp  (i1_rs2_addr_dp),
+    .i1_imm_dp       (i1_imm_dp),
+    .i1_rs1_data_dp  (i1_rs1_data_dp),
+    .i1_rs2_data_dp  (i1_rs2_data_dp),
+    .i1_pc_dp        (i1_pc_dp)
+  );
+
+  dispatch_core_struct u_dispatch (
+    .clk                 (clk),
+    .rst_n               (rst_n),
+    .enable              (enable),
+    .flush               (flush),
+    .commit_en           (1'b0),
+    .commit_count        (2'd0),
+    .set_complete_en     (1'b0),
+    .set_complete_idx    (4'd0),
+    .set_complete_result (32'd0),
+    .i0_valid_dp         (i0_valid_dp),
+    .i0_lane_sel_dp      (i0_lane_sel_dp),
+    .i0_reg_write_dp     (i0_reg_write_dp),
+    .i1_valid_dp         (i1_valid_dp),
+    .i1_lane_sel_dp      (i1_lane_sel_dp),
+    .i1_rs1_use_dp       (i1_rs1_use_dp),
+    .i1_rs2_use_dp       (i1_rs2_use_dp),
+    .i1_reg_write_dp     (i1_reg_write_dp),
+    .i0_opcode_dp        (i0_opcode_dp),
+    .i0_funct3_dp        (i0_funct3_dp),
+    .i0_funct7_dp        (i0_funct7_dp),
+    .i0_rd_addr_dp       (i0_rd_addr_dp),
+    .i0_rs1_addr_dp      (i0_rs1_addr_dp),
+    .i0_rs2_addr_dp      (i0_rs2_addr_dp),
+    .i0_imm_dp           (i0_imm_dp),
+    .i0_rs1_data_dp      (i0_rs1_data_dp),
+    .i0_rs2_data_dp      (i0_rs2_data_dp),
+    .i0_pc_dp            (i0_pc_dp),
+    .i1_opcode_dp        (i1_opcode_dp),
+    .i1_funct3_dp        (i1_funct3_dp),
+    .i1_funct7_dp        (i1_funct7_dp),
+    .i1_rd_addr_dp       (i1_rd_addr_dp),
+    .i1_rs1_addr_dp      (i1_rs1_addr_dp),
+    .i1_rs2_addr_dp      (i1_rs2_addr_dp),
+    .i1_imm_dp           (i1_imm_dp),
+    .i1_rs1_data_dp      (i1_rs1_data_dp),
+    .i1_rs2_data_dp      (i1_rs2_data_dp),
+    .i1_pc_dp            (i1_pc_dp),
+    .stall_id            (stall_id),
+    .i0_reg_write_disp   (i0_reg_write_ex),
+    .i1_reg_write_disp   (i1_reg_write_ex),
+    .i0_pc_disp          (i0_pc_ex),
+    .i1_pc_disp          (i1_pc_ex),
+    .ev0_enable_disp     (ev0_enable_ex),
+    .ev0_opcode_disp     (ev0_opcode_ex),
+    .ev0_funct3_disp     (ev0_funct3_ex),
+    .ev0_funct7_disp     (ev0_funct7_ex),
+    .ev0_rd_disp         (ev0_rd_ex),
+    .ev0_rs1_addr_disp   (ev0_rs1_addr_ex),
+    .ev0_rs2_addr_disp   (ev0_rs2_addr_ex),
+    .ev0_imm_disp        (ev0_imm_ex),
+    .ev0_rs1_data_disp   (ev0_rs1_data_ex),
+    .ev0_rs2_data_disp   (ev0_rs2_data_ex),
+    .ev0_pc_disp         (ev0_pc_ex),
+    .ev1_enable_disp     (ev1_enable_ex),
+    .ev1_opcode_disp     (ev1_opcode_ex),
+    .ev1_funct3_disp     (ev1_funct3_ex),
+    .ev1_funct7_disp     (ev1_funct7_ex),
+    .ev1_rd_disp         (ev1_rd_ex),
+    .ev1_rs1_addr_disp   (ev1_rs1_addr_ex),
+    .ev1_rs2_addr_disp   (ev1_rs2_addr_ex),
+    .ev1_imm_disp        (ev1_imm_ex),
+    .ev1_rs1_data_disp   (ev1_rs1_data_ex),
+    .ev1_rs2_data_disp   (ev1_rs2_data_ex),
+    .ev1_pc_disp         (ev1_pc_ex),
+    .od0_enable_disp     (od0_enable_ex),
+    .od0_opcode_disp     (od0_opcode_ex),
+    .od0_funct3_disp     (od0_funct3_ex),
+    .od0_rd_disp         (od0_rd_ex),
+    .od0_rs1_addr_disp   (od0_rs1_addr_ex),
+    .od0_rs2_addr_disp   (od0_rs2_addr_ex),
+    .od0_imm_disp        (od0_imm_ex),
+    .od0_rs1_data_disp   (od0_rs1_data_ex),
+    .od0_rs2_data_disp   (od0_rs2_data_ex),
+    .od0_pc_disp         (od0_pc_ex),
+    .od1_enable_disp     (od1_enable_ex),
+    .od1_opcode_disp     (od1_opcode_ex),
+    .od1_funct3_disp     (od1_funct3_ex),
+    .od1_rd_disp         (od1_rd_ex),
+    .od1_rs1_addr_disp   (od1_rs1_addr_ex),
+    .od1_rs2_addr_disp   (od1_rs2_addr_ex),
+    .od1_imm_disp        (od1_imm_ex),
+    .od1_rs1_data_disp   (od1_rs1_data_ex),
+    .od1_rs2_data_disp   (od1_rs2_data_ex),
+    .od1_pc_disp         (od1_pc_ex)
   );
 
   // -------------------------------------------------------------------------

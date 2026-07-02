@@ -1,2 +1,12 @@
 #!/usr/bin/env bash
-exec "$(dirname "$0")/run_synth.sh" "$@"
+# Yosys elaboration (default) or per-top synthesis (-Synth). Run from repo root.
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPTS/.." && pwd)"
+# shellcheck source=lib/common.sh
+. "$SCRIPTS/lib/common.sh"
+
+show_help_if_requested show_run_synth_help "$@"
+
+parse_top_from_args "${TOP:-pc_tb}" "$@"
+run_yosys_invoke -Top "$TOP_RESOLVED" "${FILTERED_ARGS[@]}"

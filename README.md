@@ -4,7 +4,7 @@ RV32I scalar (active) + 128-bit SIMD (planned). Static even/odd dual-issue lanes
 
 Design notes: [project_outline.txt](project_outline.txt). Spec: [arm_spu_spulite_project_spec.txt](arm_spu_spulite_project_spec.txt).
 
-HDL is SystemVerilog under `rtl/`. Verification uses Yosys (WSL) and Verilator (optional `-Sim`) via `scripts/run_yosys.ps1`.
+HDL is SystemVerilog under `rtl/`. Verification uses Yosys (WSL) and Verilator (optional `-Sim`) via `scripts/lib/run_yosys.ps1`.
 
 ## Layout
 
@@ -14,7 +14,7 @@ project/
 ├── tb/               testbenches (Verilator input)
 ├── sim/              Verilator build outputs (verilator/, waves/, obj_dir/)
 ├── synth/            netlists, reports, Yosys run logs
-├── scripts/          run_yosys.ps1, Makefile, run-sim/synth/all, run_*.sh
+├── scripts/          lib/, sim/, maint/ — see scripts/README.md
 ├── tests/            ASM programs + assembler
 ├── docs/             ISA and architecture notes
 └── Makefile          forwards to scripts/Makefile

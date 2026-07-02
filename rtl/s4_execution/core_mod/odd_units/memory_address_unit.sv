@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// Scalar memory access: effective address, store data, byte enables (LW/SW only).
-module memory_access
+// Scalar memory address unit: effective address, store data, byte enables (LW/SW only).
+module memory_address_unit
   import rv_dis_pkg::*;
 (
   // internal controls
@@ -11,13 +11,13 @@ module memory_access
   input  funct3_t     funct3,
   input  logic        rs1_use,    // decode: rs1 is a real GPR read (address base)
   input  logic        rs2_use,    // decode: rs2 is a real GPR read (store data)
-  input  word_t        rs1_data,
-  input  word_t        rs2_data,
-  input  word_t        imm,
+  input  reg_t        rs1_data,
+  input  reg_t        rs2_data,
+  input  imm_t        imm,
 
   // output data
-  output word_t         mem_addr,
-  output word_t        mem_wdata,
+  output pc_t         mem_addr,
+  output reg_t        mem_wdata,
   output mem_besel_t  mem_besel
 );
 
@@ -26,7 +26,7 @@ module memory_access
   // Base address is rs1 when it is a real source; with no base register the
   // effective address is the immediate alone (base 0 + imm). Store data is rs2
   // when used, otherwise the immediate stands in.
-  assign mem_addr  = (rs1_use ? rs1_data : word_t'(32'd0)) + imm;
+  assign mem_addr  = (rs1_use ? rs1_data : reg_t'(32'd0)) + imm;
   assign addr_lsb  = mem_addr[1:0];
   assign mem_wdata = rs2_use ? rs2_data : imm;
 

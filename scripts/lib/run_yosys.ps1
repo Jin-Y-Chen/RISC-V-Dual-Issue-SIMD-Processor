@@ -1,10 +1,10 @@
 # Yosys elaboration / synthesis runner (WSL2 Ubuntu) for this repo.
 #
-#   .\scripts\run_yosys.ps1 -Top pc_tb
-#   .\scripts\run_yosys.ps1 -All
-#   .\scripts\run_yosys.ps1 -Top pc_tb -Synth
-#   .\scripts\run_yosys.ps1 -SynthRtl
-#   .\scripts\run_yosys.ps1 -Clean
+#   .\scripts\lib\run_yosys.ps1 -Top pc_tb
+#   .\scripts\lib\run_yosys.ps1 -All
+#   .\scripts\lib\run_yosys.ps1 -Top pc_tb -Synth
+#   .\scripts\lib\run_yosys.ps1 -SynthRtl
+#   .\scripts\lib\run_yosys.ps1 -Clean
 #
 # Logs: synth/reports/runs/latest/<top>/  |  build scratch: synth/build/yosys/
 
@@ -14,13 +14,13 @@ param(
 
     [ValidateSet(
       "pc_tb",
+      "pc_selector_tb",
       "instruction_cache_tb",
       "target_buffer_tb",
       "if_id_tb",
       "decoder_tb",
       "state_buffer_tb",
       "register_file_tb",
-      "dispatch_hazard_tb",
       "even_lane_tb",
       "odd_lane_tb",
       "id_ex_dispatch_tb",
@@ -46,7 +46,7 @@ $ErrorActionPreference = "Stop"
 
 function Show-RunYosysHelp {
   @"
-Usage: .\scripts\run_yosys.ps1 [flags]
+Usage: .\scripts\lib\run_yosys.ps1 [flags]
 
 Yosys RTL elaboration / synthesis (WSL). Optional Verilator TB self-test with -Sim.
 
@@ -62,12 +62,12 @@ Flags:
   -Help            Show this message
 
 Examples:
-  .\scripts\run_yosys.ps1 -Top pc_tb
-  .\scripts\run_yosys.ps1 -Top pc_tb -Sim
-  .\scripts\run_yosys.ps1 -All -Synth
+  .\scripts\lib\run_yosys.ps1 -Top pc_tb
+  .\scripts\lib\run_yosys.ps1 -Top pc_tb -Sim
+  .\scripts\lib\run_yosys.ps1 -All -Synth
 
 Logs:  synth/reports/runs/latest/<top>/
-Build: synth/build/yosys/  |  Verilator: sim/verilator/<top>/
+Build: synth/build/yosys/  |  Verilator logs: sim/verilator/<top>/  (obj_dir in WSL $HOME)
 
 -Sim requires Verilator + make + g++ in WSL. See scripts/README.md.
 
@@ -83,6 +83,7 @@ if ($Help) {
 
 $AllTops = @(
   "pc_tb",
+  "pc_selector_tb",
   "instruction_cache_tb",
   "target_buffer_tb",
   "if_id_tb",
@@ -239,6 +240,29 @@ function Get-SimResultFromLog([string]$LogText) {
   return "failed"
 }
 
+function Invoke-WaveformSvg(
+  [string]$TbTop,
+  [string]$RepoRoot,
+  [string]$VerLogDir
+) {
+  $vcdPath = Join-Path $VerLogDir "trace.vcd"
+  $svgPath = Join-Path $VerLogDir "waveform.svg"
+  if (-not (Test-Path $vcdPath)) {
+    Write-Host 'WARN  trace.vcd missing - skip waveform.svg'
+    return
+  }
+
+  $wslRepo = ConvertTo-WslPath $RepoRoot
+  $wslVcd = ConvertTo-WslPath $vcdPath
+  $wslSvg = ConvertTo-WslPath $svgPath
+  $py = "$wslRepo/scripts/sim/vcd_to_svg.py"
+  $cmd = "python3 '$py' '$wslVcd' '$wslSvg' '$TbTop'"
+  Invoke-WslBash $cmd | Out-Null
+  if (Test-Path $svgPath) {
+    Write-Host "OK  waveform:  $svgPath"
+  }
+}
+
 function Invoke-VerilatorSim(
   [string]$TbTop,
   [string]$RepoRoot,
@@ -248,7 +272,9 @@ function Invoke-VerilatorSim(
 
   $wslRepo = ConvertTo-WslPath $RepoRoot
   $verRel = "sim/verilator/$TbTop"
-  $verBuild = Get-VerilatorBuildDir $RepoRoot $TbTop
+  $verLogDir = Get-VerilatorLogDir $RepoRoot $TbTop
+  $wslObjDir = Get-WslVerilatorObjDir $TbTop
+  $wslCacheRoot = "`$HOME/.cache/risc-dis-verilator/$TbTop"
   $srcs = Get-TbSources $TbTop
 
   foreach ($src in $srcs) {
@@ -258,27 +284,28 @@ function Invoke-VerilatorSim(
     }
   }
 
-  if (Test-Path $verBuild) {
-    Remove-Item $verBuild -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Force -Path $verLogDir | Out-Null
+  foreach ($name in @("compile.log", "sim.log", "trace.vcd", "waveform.svg")) {
+    $path = Join-Path $verLogDir $name
+    if (Test-Path $path) { Remove-Item $path -Force -ErrorAction SilentlyContinue }
   }
-  New-Item -ItemType Directory -Force -Path $verBuild | Out-Null
 
   $quotedSrcs = ($srcs | ForEach-Object {
     $norm = $_ -replace '\\', '/'
     "'$wslRepo/$norm'"
   }) -join " "
 
-  $compileCmd = @(
-    "cd '$wslRepo' &&"
-    "verilator --binary --timing --relative-includes -Wall -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM"
-    "--top-module $TbTop"
-    "-Mdir '$verRel/obj_dir'"
-    $quotedSrcs
+  $compileCmd = (
+    "cd '$wslRepo' " +
+    "&& rm -rf $wslCacheRoot " +
+    "&& mkdir -p $wslObjDir " +
+    "&& verilator --binary --timing --relative-includes -Wall -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM --trace +define+TRACE_VCD " +
+    "--top-module $TbTop -Mdir $wslObjDir $quotedSrcs " +
     "> '$verRel/compile.log' 2>&1"
-  ) -join " "
+  )
   Invoke-WslBash $compileCmd | Out-Null
 
-  $compileLogPath = Join-Path $verBuild "compile.log"
+  $compileLogPath = Join-Path $verLogDir "compile.log"
   if (-not (Test-Path $compileLogPath)) {
     throw "Verilator compile log not found: $compileLogPath"
   }
@@ -293,10 +320,13 @@ function Invoke-VerilatorSim(
     }
   }
 
-  $simCmd = "cd '$wslRepo' && $verRel/obj_dir/V$TbTop > $verRel/sim.log 2>&1"
+  $simCmd = 'cd $HOME/.cache/risc-dis-verilator/' + $TbTop + '/obj_dir && ./V' + $TbTop + ' > ''' + $wslRepo + '/' + $verRel + '/sim.log'' 2>&1'
   Invoke-WslBash $simCmd | Out-Null
 
-  $simLogPath = Join-Path $verBuild "sim.log"
+  $copyVcdCmd = 'test -f $HOME/.cache/risc-dis-verilator/' + $TbTop + '/obj_dir/trace.vcd && cp $HOME/.cache/risc-dis-verilator/' + $TbTop + '/obj_dir/trace.vcd ''' + $wslRepo + '/' + $verRel + '/trace.vcd'' || true'
+  Invoke-WslBash $copyVcdCmd | Out-Null
+
+  $simLogPath = Join-Path $verLogDir "sim.log"
   if (-not (Test-Path $simLogPath)) {
     throw "Verilator sim log not found: $simLogPath"
   }
@@ -307,6 +337,10 @@ function Invoke-VerilatorSim(
   $simText = Get-Content -Raw $simLogPath
   $simResult = Get-SimResultFromLog $simText
   $failed = ($simResult -ne "passed")
+
+  if (-not $failed) {
+    Invoke-WaveformSvg -TbTop $TbTop -RepoRoot $RepoRoot -VerLogDir $verLogDir
+  }
 
   return [pscustomobject]@{
     Result = $simResult
@@ -326,8 +360,15 @@ function Get-TbSources([string]$TbTop) {
         "pc_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/s1_fetch/core/pc.sv",
+                "rtl/s1_fetch/pc.sv",
                 "tb/s1_fetch/pc_tb.sv"
+            )
+        }
+        "pc_selector_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s1_fetch/core/pc_selector.sv",
+                "tb/s1_fetch/pc_selector_tb.sv"
             )
         }
         "instruction_cache_tb" {
@@ -410,10 +451,14 @@ function Get-TbSources([string]$TbTop) {
         "id_ex_dispatch_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/s3_execution/funct_pkg/rob.sv",
-                "rtl/s3_execution/funct_pkg/rob_branch.sv",
-                "rtl/s3_execution/funct_pkg/rob_rename.sv",
-                "rtl/s3_execution/id_ex_dispatch.sv",
+                "rtl/s3_dispatch/funct_pkg/rob.sv",
+                "rtl/s3_dispatch/funct_pkg/rob_queue.sv",
+                "rtl/s3_dispatch/funct_pkg/rob_speculate.sv",
+                "rtl/s3_dispatch/funct_pkg/rob_rename.sv",
+                "rtl/s3_dispatch/core/reorder_buffer.sv",
+                "rtl/s3_dispatch/core/branch_speculate.sv",
+                "rtl/s3_dispatch/core/rename_dispatch.sv",
+                "rtl/s3_dispatch/dispatch_core_struct.sv",
                 "tb/s3_execute/id_ex_dispatch_tb.sv"
             )
         }
@@ -611,7 +656,7 @@ function Invoke-SynthRtl(
   }
 }
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $yosysBuildDir = Get-YosysBuildDir $repoRoot
 
 if ($Clean) {
