@@ -23,21 +23,16 @@ module risc_dis_unit
   // -------------------------------------------------------------------------
   // Fetch — PC + instruction cache (dual-issue pair)
   // -------------------------------------------------------------------------
-  logic        set;
-  logic [31:0] set_pc;
   logic        i0_pred_taken;
   logic        i1_pred_taken;
-  logic        recover_en;
-  logic        recover_correct;
-  logic        recover_i0;
-  logic        recover_i1;
-  logic        recover_use_exec_pc;
-  logic [31:0] recover_pc;
-  logic        flush_fetch;
+  logic        i0_brch_recover;
+  logic        i1_brch_recover;
+  logic [31:0] i0_pc_execute;
+  logic [31:0] i1_pc_execute;
   logic        i0_valid_wb;
   logic        i1_valid_wb;
-  logic [31:0] i0_target_wb;
-  logic [31:0] i1_target_wb;
+  logic [31:0] i0_pc_target_wb;
+  logic [31:0] i1_pc_target_wb;
 
   logic [31:0] i0_instr_if;
   logic [31:0] i1_instr_if;
@@ -53,56 +48,48 @@ module risc_dis_unit
   logic [31:0] i0_pc_target_id;
   logic [31:0] i1_pc_target_id;
 
-  assign set           = 1'b0;
-  assign set_pc              = 32'd0;
-  assign i0_pred_taken       = 1'b0;
-  assign i1_pred_taken       = 1'b0;
-  assign recover_en          = 1'b0;
-  assign recover_correct     = 1'b0;
-  assign recover_i0          = 1'b0;
-  assign recover_i1          = 1'b0;
-  assign recover_use_exec_pc = 1'b0;
-  assign recover_pc          = 32'd0;
-  assign i0_valid_wb   = 1'b0;  // tie resolved branch/jump retire here
-  assign i1_valid_wb   = 1'b0;
-  assign i0_target_wb  = 32'd0;
-  assign i1_target_wb  = 32'd0;
-  assign i0_pc_if      = pc_fetch;
-  assign i1_pc_if      = pc_fetch_plus4;
+  assign i0_pred_taken    = 1'b0;
+  assign i1_pred_taken    = 1'b0;
+  assign i0_brch_recover  = 1'b0;
+  assign i1_brch_recover  = 1'b0;
+  assign i0_pc_execute    = 32'd0;
+  assign i1_pc_execute    = 32'd0;
+  assign i0_valid_wb      = 1'b0;  // tie resolved branch/jump retire here
+  assign i1_valid_wb      = 1'b0;
+  assign i0_pc_target_wb  = 32'd0;
+  assign i1_pc_target_wb  = 32'd0;
+  assign i0_pc_if         = pc_fetch;
+  assign i1_pc_if         = pc_fetch_plus4;
 
   s1_fetch_struct #(
     .RESET_PC(RESET_PC)
   ) u_fetch (
     // external controls
-    .clk           (clk),
-    .rst_n         (rst_n),
-    .enable        (enable),
+    .clk              (clk),
+    .rst_n            (rst_n),
+    .enable           (enable),
     // internal controls
-    .stall_i       (stall_id),
-    .set           (set),
-    .i0_pred_taken (i0_pred_taken),
-    .i1_pred_taken (i1_pred_taken),
-    .recover_en    (recover_en),
-    .recover_correct (recover_correct),
-    .recover_i0    (recover_i0),
-    .recover_i1    (recover_i1),
-    .recover_use_exec_pc (recover_use_exec_pc),
-    .set_pc        (set_pc),
-    .recover_pc    (recover_pc),
-    .i0_valid_wb    (i0_valid_wb),
-    .i1_valid_wb    (i1_valid_wb),
-    .i0_pc_wb       (i0_pc_wb),
-    .i1_pc_wb       (i1_pc_wb),
-    .i0_target_wb   (i0_target_wb),
-    .i1_target_wb   (i1_target_wb),
+    .dispatch_stall   (stall_id),
+    .i0_pred_taken    (i0_pred_taken),
+    .i1_pred_taken    (i1_pred_taken),
+    .i0_brch_recover  (i0_brch_recover),
+    .i1_brch_recover  (i1_brch_recover),
+    // input data
+    .i0_pc_execute    (i0_pc_execute),
+    .i1_pc_execute    (i1_pc_execute),
+    .i0_valid_wb      (i0_valid_wb),
+    .i1_valid_wb      (i1_valid_wb),
+    .i0_pc_wb         (i0_pc_wb),
+    .i1_pc_wb         (i1_pc_wb),
+    .i0_pc_target_wb  (i0_pc_target_wb),
+    .i1_pc_target_wb  (i1_pc_target_wb),
     // output data
-    .flush_fetch   (flush_fetch),
-    .pc0           (pc_fetch),
-    .pc1           (pc_fetch_plus4),
-    .i0_pc_target  (i0_pc_target_if),
-    .i1_pc_target  (i1_pc_target_if),
-    .instr0        (i0_instr_if),
-    .instr1        (i1_instr_if)
+    .pc0              (pc_fetch),
+    .pc1              (pc_fetch_plus4),
+    .i0_pc_target     (i0_pc_target_if),
+    .i1_pc_target     (i1_pc_target_if),
+    .instr0           (i0_instr_if),
+    .instr1           (i1_instr_if)
   );
 
   if_id u_if_id (

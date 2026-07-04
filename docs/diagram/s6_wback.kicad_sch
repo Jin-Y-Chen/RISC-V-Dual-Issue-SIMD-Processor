@@ -1,0 +1,702 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "f8bb78f3-53b1-48bb-976c-7ca56381b79f")
+	(paper "A4")
+	(title_block
+		(title "RISC-V Dual-Issue SIMD Processor")
+		(date "2026-06-12")
+		(rev "v1.0")
+		(comment 1 "clk_n : 50MHz")
+		(comment 2 "rest_n : ")
+	)
+	(lib_symbols
+		(symbol "RV-DIS:EX_MEM_WB"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "EX_MEM_WB"
+				(at 0 8.89 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "EX_MEM_WB_0_1"
+				(rectangle
+					(start -13.97 6.35)
+					(end 13.97 -87.63)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type color)
+						(color 194 194 194 1)
+					)
+				)
+			)
+			(symbol "EX_MEM_WB_1_1"
+				(pin input line
+					(at -16.51 5.08 0)
+					(length 2.54)
+					(name "od0_pc_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 3.81 0)
+					(length 2.54)
+					(name "od0_reg_write_mem"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 2.54 0)
+					(length 2.54)
+					(name "od0_mem_data_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 1.27 0)
+					(length 2.54)
+					(name "od0_rd_addr_mem[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 0 0)
+					(length 2.54)
+					(name "od0_wdata_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -7.62 0)
+					(length 2.54)
+					(name "od1_pc_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -8.89 0)
+					(length 2.54)
+					(name "od1_reg_write_mem"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -10.16 0)
+					(length 2.54)
+					(name "od1_mem_data_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -11.43 0)
+					(length 2.54)
+					(name "od1_rd_addr_mem[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -12.7 0)
+					(length 2.54)
+					(name "od1_wdata_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -22.86 0)
+					(length 2.54)
+					(name "ev0_pc_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -24.13 0)
+					(length 2.54)
+					(name "ev0_reg_write_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -25.4 0)
+					(length 2.54)
+					(name "ev0_rd_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -26.67 0)
+					(length 2.54)
+					(name "ev0_wdata_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -33.02 0)
+					(length 2.54)
+					(name "ev1_pc_mem[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -34.29 0)
+					(length 2.54)
+					(name "ev1_reg_write_ex"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -35.56 0)
+					(length 2.54)
+					(name "ev1_rd_addr_ex[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -16.51 -36.83 0)
+					(length 2.54)
+					(name "ev1_wdata_ex[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input inverted
+					(at -16.51 -83.82 0)
+					(length 2.54)
+					(name "rst_n"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin input clock
+					(at -16.51 -85.09 0)
+					(length 2.54)
+					(name "clk"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 16.51 -8.89 180)
+					(length 2.54)
+					(name "i0_reg_write_wb"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 16.51 -10.16 180)
+					(length 2.54)
+					(name "i0_rd_addr_wb[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 16.51 -11.43 180)
+					(length 2.54)
+					(name "i0_wdata_wb[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 16.51 -22.86 180)
+					(length 2.54)
+					(name "i0_reg_write_wb"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 16.51 -24.13 180)
+					(length 2.54)
+					(name "i0_rd_addr_wb[4:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 16.51 -25.4 180)
+					(length 2.54)
+					(name "i0_wdata_wb[31:0]"
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+					(number ""
+						(effects
+							(font
+								(size 0.635 0.635)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(bus_entry
+		(at 205.74 2.54)
+		(size 2.54 2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7bfd728c-508a-429e-b0fb-0a85157a16ab")
+	)
+	(symbol
+		(lib_id "RV-DIS:EX_MEM_WB")
+		(at 132.08 64.77 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "04c635b3-6d36-4148-be32-13bd2c487d4b")
+		(property "Reference" "EX_MEM_WB1"
+			(at 132.08 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "~"
+			(at 132.08 55.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 132.08 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 132.08 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 132.08 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin ""
+			(uuid "75911906-8968-4fd6-b6d0-2288e3c971f9")
+		)
+		(pin ""
+			(uuid "47814800-89f8-4b7e-a45c-4aa04d1f112b")
+		)
+		(pin ""
+			(uuid "4c0960c5-ff64-49cc-a072-b2f5c06012c0")
+		)
+		(pin ""
+			(uuid "7da2f391-1678-47ea-be67-abad2960e865")
+		)
+		(pin ""
+			(uuid "d43b10c2-e010-47c3-ac83-259d9b37d089")
+		)
+		(pin ""
+			(uuid "4033705d-e49f-4e49-b007-5333fbf6d61f")
+		)
+		(pin ""
+			(uuid "43cbbab5-ed9b-4bb1-bd54-fdf5968eda55")
+		)
+		(pin ""
+			(uuid "fc1065ee-b333-4240-9a9d-ef0b255a251a")
+		)
+		(pin ""
+			(uuid "a51cf3fd-3daa-400c-b96b-f27b660cebad")
+		)
+		(pin ""
+			(uuid "a13bfdb5-b370-4a3a-98cd-f878844d32cb")
+		)
+		(pin ""
+			(uuid "12a19662-3745-4c9d-955b-2fad6154e5c4")
+		)
+		(pin ""
+			(uuid "7a647174-b76d-469f-a0e5-20c4f89584f7")
+		)
+		(pin ""
+			(uuid "f6d83e4a-0d6c-44cb-9e6c-8069f4dafd9f")
+		)
+		(pin ""
+			(uuid "f5a398ba-2d5a-4d4b-afbf-f0d9c4471211")
+		)
+		(pin ""
+			(uuid "15fa2288-2c75-43bc-acd6-3f5bb60b4897")
+		)
+		(pin ""
+			(uuid "7a6283a5-8064-40cb-9d54-c5c9f0580a7c")
+		)
+		(pin ""
+			(uuid "8fef6ea6-bab8-4359-81f5-bf1147112419")
+		)
+		(pin ""
+			(uuid "50fe3ce9-dbc4-4b88-b0f6-84c63591ddd8")
+		)
+		(pin ""
+			(uuid "9074f826-d3fa-469e-86bf-a59c167c6eab")
+		)
+		(pin ""
+			(uuid "762f3501-6e24-484f-882a-2e6d68ccafd9")
+		)
+		(pin ""
+			(uuid "7574b47b-ae03-4bcd-bb57-417b9a96e7c4")
+		)
+		(pin ""
+			(uuid "ee812b9e-e1e3-4b25-8504-d5bdca820a39")
+		)
+		(pin ""
+			(uuid "3708d756-8396-478f-a3d8-362e00ae5a3b")
+		)
+		(pin ""
+			(uuid "6ceed275-e6ed-4566-a46d-621205add229")
+		)
+		(pin ""
+			(uuid "824831ad-cf08-46ee-b2ec-42952b14ca21")
+		)
+		(pin ""
+			(uuid "82686d7f-b1c2-4c5e-8b8c-e84331fd5913")
+		)
+		(instances
+			(project ""
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f"
+					(reference "EX_MEM_WB1")
+					(unit 1)
+				)
+				(path "/f8bb78f3-53b1-48bb-976c-7ca56381b79f/bb8ce4f3-67f0-46dd-9569-376bf54e6a04"
+					(reference "EX_MEM_WB1")
+					(unit 1)
+				)
+			)
+		)
+	)
+)

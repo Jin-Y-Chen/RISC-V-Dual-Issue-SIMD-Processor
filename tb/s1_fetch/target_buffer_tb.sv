@@ -22,8 +22,8 @@ module target_buffer_tb;
   logic        i1_valid_wb;
   logic [31:0] i0_pc_wb;
   logic [31:0] i1_pc_wb;
-  logic [31:0] i0_target_wb;
-  logic [31:0] i1_target_wb;
+  logic [31:0] i0_pc_target_wb;
+  logic [31:0] i1_pc_target_wb;
   logic [31:0] i0_pc_target;
   logic [31:0] i1_pc_target;
 
@@ -64,8 +64,8 @@ module target_buffer_tb;
     i1_valid_wb  = 1'b0;
     i0_pc_wb     = '0;
     i1_pc_wb     = '0;
-    i0_target_wb = '0;
-    i1_target_wb = '0;
+    i0_pc_target_wb = '0;
+    i1_pc_target_wb = '0;
 
     tb_banner("target_buffer_tb - miss fall-through and WB update");
 
@@ -80,7 +80,7 @@ module target_buffer_tb;
                   PC0 + 32'd4, PC1 + 32'd4);
 
     i0_pc_wb     = BR_PC;
-    i0_target_wb = BR_TARGET;
+    i0_pc_target_wb = BR_TARGET;
     i0_valid_wb  = 1'b1;
     tick();
     i0_valid_wb  = 1'b0;

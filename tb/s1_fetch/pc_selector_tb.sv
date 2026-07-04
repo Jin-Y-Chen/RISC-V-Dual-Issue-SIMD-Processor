@@ -1,98 +1,64 @@
 `timescale 1ns / 1ps
 
-// pc_selector_tb — I0-only speculation; spec state modeled in TB register.
+// pc_selector_tb — predict/recover routing for pc0_out/pc1_out.
 module pc_selector_tb;
 
   `include "../common/tb_console.svh"
 
-  localparam int CLK_PERIOD = 10;
-
-  logic        clk;
-  logic        rst_n;
-  logic        enable;
-  logic [31:0] pc0;
-  logic [31:0] pc1;
-  logic [31:0] i0_pc_predict;
+  logic        is_spec;
   logic        i0_pred_taken;
   logic        i1_pred_taken;
-  logic        recover_en;
-  logic        recover_correct;
-  logic        recover_i0;
-  logic        recover_i1;
-  logic        recover_use_exec_pc;
-  logic [31:0] recover_pc;
-  logic        in_spec_q;
-  logic        spec;
-  logic [31:0] spec_out;
-  logic [31:0] norm_out;
-  logic        flush;
+  logic        i0_brch_recover;
+  logic        i1_brch_recover;
+  logic [31:0] pc0_in;
+  logic [31:0] pc1_in;
+  logic [31:0] i0_pc_target;
+  logic [31:0] i1_pc_target;
+  logic [31:0] i0_pc_execute;
+  logic [31:0] i1_pc_execute;
+  logic        stall;
+  logic        mode;
+  logic        spec0_en;
+  logic [31:0] pc0_out;
+  logic [31:0] pc1_out;
 
   int pass_cnt;
   int fail_cnt;
 
   pc_selector dut (
-    .enable              (enable),
-    .in_spec             (in_spec_q),
-    .pc0                 (pc0),
-    .pc1                 (pc1),
-    .i0_pc_predict       (i0_pc_predict),
-    .i0_pred_taken      (i0_pred_taken),
-    .recover_en          (recover_en),
-    .recover_correct     (recover_correct),
-    .recover_i0          (recover_i0),
-    .recover_pc          (recover_pc),
-    .recover_use_exec_pc (recover_use_exec_pc),
-    .spec                (spec),
-    .spec_out            (spec_out),
-    .norm_out            (norm_out),
-    .flush               (flush)
+    .is_spec         (is_spec),
+    .i0_pred_taken   (i0_pred_taken),
+    .i1_pred_taken   (i1_pred_taken),
+    .i0_brch_recover (i0_brch_recover),
+    .i1_brch_recover (i1_brch_recover),
+    .pc0_in          (pc0_in),
+    .pc1_in          (pc1_in),
+    .i0_pc_target    (i0_pc_target),
+    .i1_pc_target    (i1_pc_target),
+    .i0_pc_execute   (i0_pc_execute),
+    .i1_pc_execute   (i1_pc_execute),
+    .stall           (stall),
+    .mode            (mode),
+    .spec0_en        (spec0_en),
+    .pc0_out         (pc0_out),
+    .pc1_out         (pc1_out)
   );
-
-  initial clk = 1'b0;
-  always #(CLK_PERIOD/2) clk = ~clk;
-
-  always_ff @(posedge clk) begin
-    if (!rst_n)
-      in_spec_q <= 1'b0;
-    else
-      in_spec_q <= spec;
-  end
-
-  task automatic tick;
-    @(posedge clk);
-    #1;
-  endtask
 
   task automatic check_comb(
     input string       name,
-    input logic [31:0] exp_spec_out,
-    input logic [31:0] exp_norm_out,
-    input logic        exp_flush
+    input logic [31:0] exp_pc0,
+    input logic [31:0] exp_pc1,
+    input logic        exp_mode,
+    input logic        exp_stall
   );
     bit pass;
-    pass = (spec_out === exp_spec_out) && (norm_out === exp_norm_out) && (flush === exp_flush);
+    pass = (pc0_out === exp_pc0) && (pc1_out === exp_pc1)
+        && (mode === exp_mode) && (stall === exp_stall);
     tb_report_open(pass, name, "");
-    tb_field_u32("spec_out", spec_out, exp_spec_out);
-    tb_field_u32("norm_out", norm_out, exp_norm_out);
-    tb_field_bit("flush", flush, exp_flush);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_spec_next(input string name, input logic exp_spec);
-    bit pass;
-    pass = (spec === exp_spec);
-    tb_report_open(pass, name, "");
-    tb_field_bit("spec", spec, exp_spec);
-    tb_report_close(pass);
-    if (pass) pass_cnt++; else fail_cnt++;
-  endtask
-
-  task automatic check_spec_q(input string name, input logic exp_spec);
-    bit pass;
-    pass = (in_spec_q === exp_spec);
-    tb_report_open(pass, name, "");
-    tb_field_bit("in_spec_q", in_spec_q, exp_spec);
+    tb_field_u32("pc0_out", pc0_out, exp_pc0);
+    tb_field_u32("pc1_out", pc1_out, exp_pc1);
+    tb_field_bit("mode", mode, exp_mode);
+    tb_field_bit("stall", stall, exp_stall);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -100,91 +66,56 @@ module pc_selector_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
-    rst_n = 1'b0;
-    enable = 1'b0;
-    in_spec_q = 1'b0;
-    pc0 = 32'h1000;
-    pc1 = 32'h1004;
-    i0_pc_predict = 32'h2000;
+    is_spec = 1'b0;
     i0_pred_taken = 1'b0;
     i1_pred_taken = 1'b0;
-    recover_en = 1'b0;
-    recover_correct = 1'b0;
-    recover_i0 = 1'b0;
-    recover_i1 = 1'b0;
-    recover_use_exec_pc = 1'b0;
-    recover_pc = 32'd0;
-    tick();
-    rst_n = 1'b1;
-    enable = 1'b1;
-    tick();
+    i0_brch_recover = 1'b0;
+    i1_brch_recover = 1'b0;
+    pc0_in = 32'h1000;
+    pc1_in = 32'h1004;
+    i0_pc_target = 32'h2000;
+    i1_pc_target = 32'h3000;
+    i0_pc_execute = 32'h4000;
+    i1_pc_execute = 32'h5000;
 
     tb_banner("pc_selector_tb");
-    check_comb("default_pass", 32'h1000, 32'h1000, 1'b0);
-    check_spec_next("idle_spec_next", 1'b0);
+    #1;
+    check_comb("default_pass", 32'h1000, 32'h1004, 1'b0, 1'b0);
 
     i0_pred_taken = 1'b1;
     #1;
-    check_comb("i0 predict comb", 32'h1FFC, 32'h1004, 1'b0);
-    check_spec_next("i0 predict spec next", 1'b1);
-    tick();
+    check_comb("i0_predict", 32'h2000, 32'h1004, 1'b1, 1'b0);
+
     i0_pred_taken = 1'b0;
-    pc0 = 32'h2000;
-    pc1 = 32'h1008;
-    check_spec_q("i0 predict spec q", 1'b1);
-
-    check_comb("in_spec_default", 32'h2000, 32'h1008, 1'b0);
-
     i1_pred_taken = 1'b1;
     #1;
-    check_comb("i1 predict ignored", 32'h2000, 32'h1008, 1'b0);
-    check_spec_next("i1 predict ignored spec", 1'b1);
+    check_comb("i1_predict", 32'h3000, 32'h1000, 1'b1, 1'b0);
+
     i1_pred_taken = 1'b0;
-
-    recover_en = 1'b1;
-    recover_correct = 1'b1;
-    recover_i0 = 1'b1;
+    i0_pred_taken = 1'b1;
+    i1_pred_taken = 1'b1;
     #1;
-    check_comb("recover correct i0", 32'h1FFC, 32'h2000, 1'b1);
-    check_spec_next("recover clears spec next", 1'b0);
-    tick();
-    recover_en = 1'b0;
-    recover_i0 = 1'b0;
-    pc0 = 32'h2000;
-    pc1 = 32'h2004;
-    check_spec_q("recover clears spec q", 1'b0);
+    check_comb("double_predict", 32'h2000, 32'h2004, 1'b0, 1'b0);
 
-    pc0 = 32'h1000;
-    pc1 = 32'h1004;
-    recover_en = 1'b1;
-    recover_correct = 1'b0;
-    recover_i0 = 1'b1;
-    recover_use_exec_pc = 1'b1;
-    recover_pc = 32'h4004;
+    i0_pred_taken = 1'b0;
+    i1_pred_taken = 1'b0;
+    is_spec = 1'b1;
     #1;
-    check_comb("recover wrong i0 exec", 32'h4000, 32'h4004, 1'b1);
-    tick();
-    recover_en = 1'b0;
-    recover_use_exec_pc = 1'b0;
-    recover_i0 = 1'b0;
+    check_comb("in_spec_hold", 32'h1000, 32'h1004, 1'b0, 1'b0);
 
-    recover_en = 1'b1;
-    recover_i0 = 1'b1;
-    pc0 = 32'h1000;
-    pc1 = 32'h1004;
+    i0_pred_taken = 1'b1;
     #1;
-    check_comb("recover wrong i0 fallback", 32'h1004, 32'h1008, 1'b1);
-    tick();
-    recover_en = 1'b0;
-    recover_i0 = 1'b0;
+    check_comb("stall_while_spec", 32'h2000, 32'h1004, 1'b1, 1'b1);
 
-    recover_en = 1'b1;
-    recover_i1 = 1'b1;
+    i0_pred_taken = 1'b0;
+    i0_brch_recover = 1'b1;
     #1;
-    check_comb("recover i1 ignored", 32'h1000, 32'h1000, 1'b0);
-    tick();
-    recover_en = 1'b0;
-    recover_i1 = 1'b0;
+    check_comb("i0_recover", 32'h4000, 32'h4004, 1'b0, 1'b0);
+
+    i0_brch_recover = 1'b0;
+    i1_brch_recover = 1'b1;
+    #1;
+    check_comb("i1_recover", 32'h5000, 32'h5004, 1'b0, 1'b0);
 
     tb_summary(pass_cnt, fail_cnt);
     if (fail_cnt != 0)

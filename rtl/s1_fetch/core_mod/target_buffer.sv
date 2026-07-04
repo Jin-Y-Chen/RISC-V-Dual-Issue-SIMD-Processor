@@ -17,8 +17,8 @@ module target_buffer
   input  logic   i1_valid_wb,
   input  word_t    i0_pc_wb,
   input  word_t    i1_pc_wb,
-  input  word_t    i0_target_wb,
-  input  word_t    i1_target_wb,
+  input  word_t    i0_pc_target_wb,
+  input  word_t    i1_pc_target_wb,
 
   output word_t    i0_pc_target,
   output word_t    i1_pc_target
@@ -55,11 +55,11 @@ module target_buffer
   always_comb begin
     if (i0_valid_wb) begin
       bank[bank_set_idx(i0_pc_wb, CACHE)][bank_way_idx(i0_pc_wb, CACHE)] =
-        cache_set_write#(DATA_W)(1'b1, imm_align4(i0_target_wb));
+        cache_set_write#(DATA_W)(1'b1, imm_align4(i0_pc_target_wb));
     end
     if (i1_valid_wb) begin
       bank[bank_set_idx(i1_pc_wb, CACHE)][bank_way_idx(i1_pc_wb, CACHE)] =
-        cache_set_write#(DATA_W)(1'b1, imm_align4(i1_target_wb));
+        cache_set_write#(DATA_W)(1'b1, imm_align4(i1_pc_target_wb));
     end
   end
 
