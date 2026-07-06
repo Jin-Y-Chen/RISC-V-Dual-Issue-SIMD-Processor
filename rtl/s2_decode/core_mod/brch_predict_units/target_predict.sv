@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
-module target_predict
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module target_predict (
   input  word_t         pc,
   input  logic        brch_en,
   input  br_state_t   target_state,

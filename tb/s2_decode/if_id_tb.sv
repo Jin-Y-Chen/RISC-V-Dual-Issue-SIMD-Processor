@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // if_id_tb - dual IF/ID pipeline register behavior (reset / stall / flush).
-module if_id_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module if_id_tb;
 
   `include "../common/tb_console.svh"
 

@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
 // RV-DIS scalar core: fetch → decode → dispatch → execute → memory → writeback.
-module risc_dis_unit
-  import rv_dis_pkg::*;
-#(
+import rv_dis_pkg::*;
+
+module risc_dis_unit #(
   parameter word_t RESET_PC = RESET_PC_INIT
 ) (
   // external controls

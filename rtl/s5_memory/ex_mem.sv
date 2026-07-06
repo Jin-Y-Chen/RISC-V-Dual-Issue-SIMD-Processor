@@ -2,9 +2,9 @@
 
 // EX/MEM pipeline register — odd-lane copies only (od0, od1).
 // Even-lane ALU skips this register; uses ex_mem_wb EX bank instead.
-module ex_mem
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module ex_mem (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

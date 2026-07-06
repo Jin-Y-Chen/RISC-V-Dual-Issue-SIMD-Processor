@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // scoreboard_tb — issue gate (GPR RAW, I1 buffer stall).
-module scoreboard_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module scoreboard_tb;
 
   `include "../common/tb_console.svh"
 

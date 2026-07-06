@@ -6,11 +6,12 @@
 //   * full ROB back-pressures fetch via stall_id
 //   * commit_en/commit_count free entries and release the stall
 //   * flush squashes the buffer and resets the pointers
-module id_ex_dispatch_tb;
 
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
-  import rob_queue_pkg::*;
+import rv_dis_pkg::*;
+import rob_pkg::*;
+import rob_queue_pkg::*;
+
+module id_ex_dispatch_tb;
 
   `include "../common/tb_console.svh"
 

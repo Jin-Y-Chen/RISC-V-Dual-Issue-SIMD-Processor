@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 // state_buffer_tb — combinational storage lookup and WB update; FSM via state_LUT.
 module state_buffer_tb;
-
-  import rv_dis_pkg::*;
 
   `include "../common/tb_console.svh"
 

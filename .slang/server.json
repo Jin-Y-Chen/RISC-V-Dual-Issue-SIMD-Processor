@@ -9,6 +9,7 @@
       "excludeDirs": [
         "build",
         "sim",
+        "synth",
         "node_modules"
       ]
     }

@@ -9,10 +9,10 @@
 //     WAR — combinational read (I0 load) sees pre-write array; I1 store commits at posedge
 //
 // Port map: i0 (older), i1 (younger) — dual-issue memory slots.
-module memory_cache
-  import rv_dis_pkg::*;
-  import cache_pkg::*;
-#(
+import rv_dis_pkg::*;
+import cache_pkg::*;
+
+module memory_cache #(
   parameter int BYTE_COUNT     = M_SIZE / 8,
   parameter int LINE_BYTES     = 32,
   parameter int INDEX_W        = PC_INDEX_AW,
@@ -53,12 +53,12 @@ module memory_cache
   localparam int WORDS_PER_LINE = LINE_BYTES / 4;
   localparam logic [FILL_CNT_W-1:0] FILL_LAST = 1'b1;
 
-  localparam cache_struct_t CACHE = cache_struct_build#(.DATA_W(DATA_W), .INDEX_W(INDEX_W))();
+  localparam cache_struct_t CACHE = cache_struct_build(DATA_W, INDEX_W, 16);
 
   typedef enum logic {ST_IDLE, ST_FILL} fill_state_e;
 
   logic [7:0]              l2_array [0:BYTE_COUNT-1];
-  logic [DATA_W:0]         bank [CACHE.sets][CACHE.ways];
+  logic [32:0]             bank [CACHE.sets][CACHE_WAYS_MAX];
   logic [LINE_COUNT-1:0]   l1_warm;
 
   logic [BYTE_AW-1:0] i0_rbase;
@@ -125,10 +125,12 @@ module memory_cache
   function automatic word_t read_cached_word(input word_t byte_addr);
     logic [BYTE_AW-1:0] base;
     base = byte_word_base(byte_addr);
-    return word_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
+    return word_t'(cache_set_read(
       bank[bank_set_idx(byte_addr, CACHE)],
       bank_way_idx(byte_addr, CACHE),
-      read_le_word(base)
+      read_le_word(base),
+      CACHE.ways,
+      DATA_W
     ));
   endfunction
 
@@ -219,7 +221,7 @@ module memory_cache
           logic [BYTE_AW-1:0] base;
           base = line_byte_base(fill_line) + logic'(w << 2);
           bank[bank_set_idx(base, CACHE)][bank_way_idx(base, CACHE)] <=
-            cache_set_write#(DATA_W)(1'b1, read_le_word(base));
+            cache_set_write(1'b1, read_le_word(base), DATA_W);
         end
       end
 
@@ -237,7 +239,7 @@ module memory_cache
             if (i0_besel[2]) l2_array[i0_wbase + 2] <= i0_word_next[23:16];
             if (i0_besel[3]) l2_array[i0_wbase + 3] <= i0_word_next[31:24];
             bank[bank_set_idx(i0_addr, CACHE)][bank_way_idx(i0_addr, CACHE)] <=
-              cache_set_write#(DATA_W)(1'b1, i0_word_next);
+              cache_set_write(1'b1, i0_word_next, DATA_W);
           end
 
           if (i1_word_we) begin
@@ -246,7 +248,7 @@ module memory_cache
             if (i1_besel[2]) l2_array[i1_wbase + 2] <= i1_word_next[23:16];
             if (i1_besel[3]) l2_array[i1_wbase + 3] <= i1_word_next[31:24];
             bank[bank_set_idx(i1_addr, CACHE)][bank_way_idx(i1_addr, CACHE)] <=
-              cache_set_write#(DATA_W)(1'b1, i1_word_next);
+              cache_set_write(1'b1, i1_word_next, DATA_W);
           end
         end
 

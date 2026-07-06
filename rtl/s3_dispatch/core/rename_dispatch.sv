@@ -1,13 +1,12 @@
 `timescale 1ns / 1ps
 
-// Register rename + dispatch routing — ROB read -> renamed EX packets -> ev/od lanes.
-module rename_dispatch
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
-  import rob_queue_pkg::*;
-  import rob_rename_pkg::*;
+import rv_dis_pkg::*;
+import rob_pkg::*;
+import rob_queue_pkg::*;
+import rob_rename_pkg::*;
 
-(
+// Register rename + dispatch routing — ROB read -> renamed EX packets -> ev/od lanes.
+module rename_dispatch (
   input  logic [ROB_DATA_W:0] bank [ROB_WAYS],
   input  gpr_addr_t           tag  [ROB_WAYS],
   input  rob_ptr_t            commit_ptr,

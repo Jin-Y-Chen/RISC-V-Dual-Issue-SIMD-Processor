@@ -3,10 +3,10 @@
 // Reservation stations — four renamed lane queues (ev0, ev1, od0, od1).
 // Dispatch routes by lane_sel; each enable allocates an rs_entry_t tagged by renamed_tag.
 // Issue oldest ready entry per queue to the matching execute lane copy.
-module reservation_station
-  import rv_dis_pkg::*;
-  import rob_rename_pkg::*;
-(
+import rv_dis_pkg::*;
+import rob_rename_pkg::*;
+
+module reservation_station (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,

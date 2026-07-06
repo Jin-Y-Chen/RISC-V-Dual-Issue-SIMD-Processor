@@ -1,4 +1,6 @@
 `timescale 1ns / 1ps
+`ifndef RV_DIS_PKG_SV
+`define RV_DIS_PKG_SV
 
 // RV-DIS shared package — RV32I scalar core (dual-issue). Types, geometry, ISA constants.
 // Instruction decode helpers: rtl/s2_decode/core/decode_funct/decode.sv (decode_pkg).
@@ -17,7 +19,8 @@ package rv_dis_pkg;
   localparam int ADDR_UNIT_BITS = 8;
   localparam int I_SIZE         = 8 * (1 << 15);  // 32 KiB instruction space
   localparam int M_SIZE         = 8 * (1 << 15);  // 32 KiB data space
-  localparam int PC_INDEX_AW    = 13;             // insn index PC[14:2] over I$
+  // 32-bit insn slots over byte-addressed storage => index width over PC[14:2].
+  localparam int PC_INDEX_AW    = $clog2(I_SIZE / (4 * ADDR_UNIT_BITS));
 
   // =========================================================================
   // Port / signal typedefs — use on module boundaries (not bare logic [N:0])
@@ -92,3 +95,4 @@ package rv_dis_pkg;
   endfunction
 
 endpackage
+`endif

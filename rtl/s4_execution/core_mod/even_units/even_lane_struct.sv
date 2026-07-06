@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
 // Even execution lane: scalar ALU (RV32I OP / OP-IMM). Instantiates per slot (I0/I1).
-module even_lane
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module even_lane (
   // internal controls
   input  logic        enable,
 

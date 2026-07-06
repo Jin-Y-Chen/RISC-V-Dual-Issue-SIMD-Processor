@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // instruction_cache_tb — dual fetch; hex image preload; line-by-line read checks.
-module instruction_cache_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module instruction_cache_tb;
 
   `include "../common/tb_console.svh"
   `include "../common/imem_hex_loader.svh"

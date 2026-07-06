@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // memory_cache_tb — L1 miss busy, hit path, WAW suppress, WAR read-then-write.
-module memory_cache_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module memory_cache_tb;
 
   `include "../common/tb_console.svh"
 

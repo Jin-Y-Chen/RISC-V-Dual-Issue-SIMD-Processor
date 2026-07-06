@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 // ID/DP pipeline register — decode bundle latched on posedge before dispatch core.
 // stall_id from dispatch holds this register; flush clears it.
-module id_dp
-  import rv_dis_pkg::*;
-(
+module id_dp (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,

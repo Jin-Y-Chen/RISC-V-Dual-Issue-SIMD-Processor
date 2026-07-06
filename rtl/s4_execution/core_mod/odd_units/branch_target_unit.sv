@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
 // Branch condition evaluation for the odd execution lane.
-module branch_unit
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module branch_unit (
   // input data
   input  funct3_t     funct3,
   input  logic        rs1_use,    // decode: rs1 is a real GPR read

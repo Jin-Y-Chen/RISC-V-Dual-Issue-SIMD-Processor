@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-
 import rv_dis_pkg::*;
 import cache_pkg::*;
 
@@ -12,37 +11,42 @@ module instruction_cache #(
   parameter int WAYS    = 4             // 4-way set-associative
 ) (
   // input data
-  input  word_t         pc0,
-  input  word_t         pc1,
+  input  word_t   pc0,
+  input  word_t   pc1,
 
   // output data
-  output instr_t      instr0,
-  output instr_t      instr1
+  output instr_t  instr0,
+  output instr_t  instr1
 );
 
-  localparam cache_struct_t CACHE =
-    cache_struct_build#(.DATA_W(DATA_W), .INDEX_W(INDEX_W), .WAYS(WAYS))();
+  localparam cache_struct_t CACHE = cache_struct_build(DATA_W, INDEX_W, WAYS);
+  localparam int ENTRY_COUNT = (1 << INDEX_W);
+  localparam int SETS        = ENTRY_COUNT / WAYS;
 
-  logic [DATA_W:0] bank [CACHE.sets][CACHE.ways];
+  logic [32:0] bank [SETS][CACHE_WAYS_MAX];
 
-  function automatic logic [DATA_W-1:0] insn_default(input word_t pc);
-    return {DATA_W{1'b0}};
+  function automatic logic [31:0] insn_default(input word_t pc);
+    return 32'h0000_0000;
   endfunction
 
-  assign instr0 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
+  assign instr0 = instr_t'(cache_set_read(
     bank[pc_set(pc0, CACHE)],
     pc_way(pc0, CACHE),
-    insn_default(pc0)
+    insn_default(pc0),
+    CACHE.ways,
+    DATA_W
   ));
 
-  assign instr1 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
+  assign instr1 = instr_t'(cache_set_read(
     bank[pc_set(pc1, CACHE)],
     pc_way(pc1, CACHE),
-    insn_default(pc1)
+    insn_default(pc1),
+    CACHE.ways,
+    DATA_W
   ));
 
   initial begin
-    for (int s = 0; s < CACHE.sets; s++) begin
+    for (int s = 0; s < SETS; s++) begin
       for (int w = 0; w < CACHE.ways; w++) begin
         bank[s][w] = '0;
       end

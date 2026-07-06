@@ -3,9 +3,9 @@
 // IF/ID pipeline register — dual-issue insn pair per cycle (project_outline decode stage).
 // An insn is in IF or ID, not both; this register is the boundary between those stages.
 // pc_target_* carries the fetch-stage predicted branch target for mispredict recovery in ID/EX.
-module if_id
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module if_id (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

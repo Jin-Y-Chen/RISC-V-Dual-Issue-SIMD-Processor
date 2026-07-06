@@ -2,9 +2,10 @@
 
 // ex_mem_tb — odd-lane EX/MEM copies (od0, od1). Even-lane ALU skips ex_mem
 // and routes to ex_mem_wb EX bank.
-module ex_mem_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module ex_mem_tb;
 
   `include "../common/tb_console.svh"
 

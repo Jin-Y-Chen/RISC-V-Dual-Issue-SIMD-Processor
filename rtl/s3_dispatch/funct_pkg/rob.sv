@@ -4,7 +4,7 @@
 // Queue operations live in rob_queue_pkg (rob_queue.sv).
 package rob_pkg;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
 
 // -------------------------------------------------------------------------
 // Geometry and lifecycle codes

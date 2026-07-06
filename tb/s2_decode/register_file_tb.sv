@@ -8,10 +8,11 @@
 //   An insn is in WB or ID, never both. ID reads may bypass WB rd (same or cross lane).
 // check_rf exp args are literal golden values only, never DUT outputs or rf_rs1_addr helpers.
 // set_reads_dec uses decode_pkg for stimulus addr mux policy only.
-module register_file_tb;
 
-  import rv_dis_pkg::*;
-  import decode_pkg::*;
+import rv_dis_pkg::*;
+import decode_pkg::*;
+
+module register_file_tb;
 
   `include "../common/tb_console.svh"
 

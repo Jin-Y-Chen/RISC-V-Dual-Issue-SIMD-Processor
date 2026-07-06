@@ -1,10 +1,11 @@
 `timescale 1ns / 1ps
 
 // odd_lane_tb — DUT vs hand-written expected (decoder_tb-style run_insn + check_expect).
-module odd_lane_tb;
 
-  import rv_dis_pkg::*;
-  import decode_pkg::*;
+import rv_dis_pkg::*;
+import decode_pkg::*;
+
+module odd_lane_tb;
 
   `include "../common/tb_console.svh"
 

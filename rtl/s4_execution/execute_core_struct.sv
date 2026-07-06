@@ -1,12 +1,12 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+import decode_pkg::*;   // decode_rs1_use / decode_rs2_use (immediate-vs-register select)
+import rob_rename_pkg::*;
+
 // S4 execute structure — reservation stations + forward unit + four lane copies.
 // dp_ex feeds the RS enqueue ports; RS issue drives combinational EX.
-module s4_execute_struct
-  import rv_dis_pkg::*;
-  import decode_pkg::*;   // decode_rs1_use / decode_rs2_use (immediate-vs-register select)
-  import rob_rename_pkg::*;
-(
+module s4_execute_struct (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

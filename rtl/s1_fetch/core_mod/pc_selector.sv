@@ -27,7 +27,7 @@ module pc_selector (
   output logic [31:0]   pc1_out
 );
 
-  // Keep this module package-independent for easier standalone Vivado parsing.
+  // Keep this module package-independent for easier standalone tool parsing.
   function automatic logic [31:0] imm_align4(input logic [31:0] imm);
     return {imm[31:2], 2'b00};
   endfunction

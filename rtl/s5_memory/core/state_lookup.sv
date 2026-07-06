@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 // 2-bit branch direction FSM — next state from current state + resolved outcome.
 // pc_sctrl: 1 = branch/jump taken, 0 = not taken (from MEM stage).
-module state_LUT
-  import rv_dis_pkg::*;
-(
+module state_LUT (
   input  br_state_t state,
   input  logic      pc_sctrl,
   output br_state_t next_state

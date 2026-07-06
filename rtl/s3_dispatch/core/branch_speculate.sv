@@ -1,12 +1,11 @@
 `timescale 1ns / 1ps
 
-// Branch speculation — tracks unresolved branches and selects NEW vs SPEC_NEW on allocate.
-module branch_speculate
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
-  import rob_branch_pkg::*;
+import rv_dis_pkg::*;
+import rob_pkg::*;
+import rob_branch_pkg::*;
 
-(
+// Branch speculation — tracks unresolved branches and selects NEW vs SPEC_NEW on allocate.
+module branch_speculate (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,

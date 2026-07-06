@@ -9,13 +9,12 @@
 //
 // Entry lifecycle (rob_state_t):
 //   NEW(000)/SPEC_NEW(100) -> READ(001)/SPEC_READ(101) -> EXEC(010)/SPEC_EXEC(110) -> clear
-module dispatch_core_struct
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
-  import rob_queue_pkg::*;
-  import rob_rename_pkg::*;
+import rv_dis_pkg::*;
+import rob_pkg::*;
+import rob_queue_pkg::*;
+import rob_rename_pkg::*;
 
-(
+module dispatch_core_struct (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,

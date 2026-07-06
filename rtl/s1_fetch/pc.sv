@@ -1,9 +1,8 @@
 `timescale 1ns / 1ps
 
-import rv_dis_pkg::*;
 // PC unit — pc0/pc1 from pc0_in/pc1_in; mode=1 => +4/+4, mode=0 => +8/+8.
 module pc #(
-  parameter word_t RESET_PC = RESET_PC_INIT
+  parameter logic [31:0] RESET_PC = rv_dis_pkg::RESET_PC
 ) (
   // external controls
   input  logic          clk,
@@ -17,18 +16,22 @@ module pc #(
   input  logic          spec0_en,
 
   // input data
-  input  word_t         pc0_in,
-  input  word_t         pc1_in,
+  input  logic [31:0]   pc0_in,
+  input  logic [31:0]   pc1_in,
 
   // output data
   output logic          is_spec,
-  output word_t         pc0_out,
-  output word_t         pc1_out
+  output logic [31:0]   pc0_out,
+  output logic [31:0]   pc1_out
 );
 
-  word_t pc0_next, pc1_next;
-  word_t pc0_a, pc1_a;
+  logic [31:0] pc0_next, pc1_next;
+  logic [31:0] pc0_a, pc1_a;
   logic stall;
+
+  function automatic logic [31:0] imm_align4(input logic [31:0] imm);
+    return {imm[31:2], 2'b00};
+  endfunction
 
   assign stall = fetch_stall | dispatch_stall;
   assign pc0_a = imm_align4(pc0_in);
@@ -40,11 +43,11 @@ module pc #(
 
     if (!stall && enable) begin
       if (mode) begin
-        pc0_next = pc0_a + word_t'(32'd4);
-        pc1_next = pc1_a + word_t'(32'd4);
+        pc0_next = pc0_a + 32'd4;
+        pc1_next = pc1_a + 32'd4;
       end else begin
-        pc0_next = pc0_a + word_t'(32'd8);
-        pc1_next = pc1_a + word_t'(32'd8);
+        pc0_next = pc0_a + 32'd8;
+        pc1_next = pc1_a + 32'd8;
       end
     end
   end
@@ -52,7 +55,7 @@ module pc #(
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       pc0_out <= RESET_PC;
-      pc1_out <= RESET_PC + word_t'(32'd4);
+      pc1_out <= RESET_PC + 32'd4;
       is_spec <= 1'b0;
     end else if (enable && !stall) begin
       pc0_out <= pc0_next;

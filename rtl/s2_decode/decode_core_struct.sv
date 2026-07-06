@@ -2,9 +2,9 @@
 
 // S2 decode structure — dual decoder + GPR (no IF/ID register).
 // state_buffer lives in branch_mod/ and is not included here.
-module s2_decode_struct
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module s2_decode_struct (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

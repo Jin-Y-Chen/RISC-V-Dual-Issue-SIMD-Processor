@@ -3,8 +3,8 @@
 // Branch speculation bookkeeping for the ROB.
 package rob_branch_pkg;
 
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
+import rv_dis_pkg::*;
+import rob_pkg::*;
 
 function automatic logic rob_is_branch(input opcode_t opcode);
   return (opcode == OPC_BRANCH);

@@ -1,16 +1,15 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+import rob_pkg::*;
+import rob_queue_pkg::*;
+
 // Reorder Buffer storage — structural queue with four explicit operations:
 //   add    — allocate NEW / SPEC_NEW at write pointer (tail)
 //   read   — combinational peek + dispatch state advance at read pointer (body)
 //   update — capture EX result (READ/SPEC_READ -> EXECUTED/SPEC_EXEC)
 //   clear  — retire slots at commit pointer (head); flush clears all pointers
-module reorder_buffer
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
-  import rob_queue_pkg::*;
-
-(
+module reorder_buffer (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,

@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // forward_unit_tb — WB wb0/wb1 -> EX combinational bypass.
-module forward_unit_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module forward_unit_tb;
 
   `include "../common/tb_console.svh"
 

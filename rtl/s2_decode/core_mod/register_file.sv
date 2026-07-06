@@ -5,9 +5,9 @@
 //
 // Timing: regs[] commits on negedge; read ports are combinational with WB bypass so
 // ID/EX operands still see WB data in the same cycle before the falling-edge commit.
-module register_file
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module register_file (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

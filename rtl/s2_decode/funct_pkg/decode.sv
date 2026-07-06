@@ -4,7 +4,7 @@
 // Pure functions consumed by the decoder module (core/decoder.sv).
 package decode_pkg;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
 
   // -------------------------------------------------------------------------
   // Immediate decode

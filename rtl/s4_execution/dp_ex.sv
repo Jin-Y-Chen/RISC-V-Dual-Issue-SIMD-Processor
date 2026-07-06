@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 // DP/EX pipeline register — dispatch dual-issue bundle latched before reservation stations.
-module dp_ex
-  import rv_dis_pkg::*;
-(
+module dp_ex (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,

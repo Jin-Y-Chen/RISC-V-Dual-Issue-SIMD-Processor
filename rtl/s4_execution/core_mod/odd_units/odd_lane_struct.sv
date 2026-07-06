@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
 // Odd execution lane: LW/SW, branches, jumps, LUI/AUIPC. Instantiates per slot (I0/I1).
-module odd_lane
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module odd_lane (
   // internal controls
   input  logic        enable,
 

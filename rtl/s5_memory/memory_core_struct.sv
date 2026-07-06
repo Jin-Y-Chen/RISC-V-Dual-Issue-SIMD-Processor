@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
 // S5 memory structure — L1 data cache only (ex_mem is instantiated in risc_dis_unit).
-module s5_memory_struct
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module s5_memory_struct (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

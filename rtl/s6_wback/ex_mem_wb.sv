@@ -2,9 +2,9 @@
 
 // EX/MEM-WB pipeline registers — 4 lane copies (ev0/ev1 EX bank, od0/od1 MEM bank).
 // Odd lane WB mux + forward tap. Retire candidates (push0/push1) connect directly to GPR ports in top.
-module ex_mem_wb
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module ex_mem_wb (
   // external controls
   input  logic        clk,
   input  logic        rst_n,

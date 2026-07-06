@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // target_buffer_tb — BTB lookup (miss => pc+4), WB update, and final bank dump.
-module target_buffer_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module target_buffer_tb;
 
   `include "../common/tb_console.svh"
 

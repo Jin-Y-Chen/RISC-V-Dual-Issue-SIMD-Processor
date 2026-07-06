@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // decoder_tb — DUT vs hand-written expected decode (no decode_pkg; independent of RTL decode helpers).
-module decoder_tb;
 
-  import rv_dis_pkg::*;
+import rv_dis_pkg::*;
+
+module decoder_tb;
 
   `include "../common/tb_console.svh"
 

@@ -1,10 +1,11 @@
 `timescale 1ns / 1ps
 
 // even_lane_tb — DUT vs hand-written expected ALU results (decoder_tb-style stimulus).
-module even_lane_tb;
 
-  import rv_dis_pkg::*;
-  import decode_pkg::*;
+import rv_dis_pkg::*;
+import decode_pkg::*;
+
+module even_lane_tb;
 
   `include "../common/tb_console.svh"
 

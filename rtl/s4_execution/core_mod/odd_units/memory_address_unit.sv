@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
 // Scalar memory address unit: effective address, store data, byte enables (LW/SW only).
-module memory_address_unit
-  import rv_dis_pkg::*;
-(
+import rv_dis_pkg::*;
+
+module memory_address_unit (
   // internal controls
   input  logic        is_store,
 

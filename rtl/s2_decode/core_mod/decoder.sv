@@ -3,10 +3,10 @@
 // ID-stage instruction decoder: fields, immediate, lane_sel, GPR uses, legality.
 // Decode helper functions live in decode_pkg (core/decode_funct/decode.sv).
 // One instance per insn slot (I0 / I1); issue/dispatch sits downstream.
-module decoder
-  import rv_dis_pkg::*;
-  import decode_pkg::*;
-(
+import rv_dis_pkg::*;
+import decode_pkg::*;
+
+module decoder (
   // input data
   input  instr_t      instr,
 

@@ -4,8 +4,8 @@
 // Types and constants: rob_pkg (rob.sv).
 package rob_queue_pkg;
 
-  import rv_dis_pkg::*;
-  import rob_pkg::*;
+import rv_dis_pkg::*;
+import rob_pkg::*;
 
 // -------------------------------------------------------------------------
 // Entry constructors — allocate at write pointer
