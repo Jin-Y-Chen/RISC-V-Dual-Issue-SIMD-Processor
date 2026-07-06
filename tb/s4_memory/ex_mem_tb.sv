@@ -84,10 +84,8 @@ module ex_mem_tb;
 
   ex_mem dut (.*);
 
-  initial begin
-    clk = 1'b0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-  end
+  initial clk = 1'b0;
+  always #(CLK_PERIOD/2) clk <= ~clk;
 
   task automatic tick;
     tb_advance(clk);

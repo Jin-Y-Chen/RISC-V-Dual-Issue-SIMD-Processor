@@ -70,10 +70,8 @@ module ex_mem_wb_tb;
 
   ex_mem_wb dut (.*);
 
-  initial begin
-    clk = 1'b0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-  end
+  initial clk = 1'b0;
+  always #(CLK_PERIOD/2) clk <= ~clk;
 
   task automatic tick;
     tb_advance(clk);
@@ -226,7 +224,6 @@ module ex_mem_wb_tb;
     od0_pc_mem         = 32'h0000_3000;
     od0_use_link_mem   = 1'b1;
     od0_alu_result_mem = 32'h1111_1111;
-    #1;
     check_od0_wdata("od0_link_mux", "JAL link = pc+4",
                     32'h0000_3004);
 
@@ -235,7 +232,6 @@ module ex_mem_wb_tb;
     od0_rd_addr_mem    = 5'd3;
     od0_pc_mem         = 32'h0000_4000;
     od0_alu_result_mem = 32'h0004_5000;
-    #1;
     check_od0_wdata("od0_lui_mux", "LUI/AUIPC uses reg_wdata path",
                     32'h0004_5000);
 
@@ -267,7 +263,6 @@ module ex_mem_wb_tb;
     od1_pc_mem        = 32'h6008;
     od1_alu_result_mem = 32'h3;
     tick();
-    #1;
     check_push0("dual_slot_push", "I0 ev0 push", 1'b1, 5'd10, 32'h2, 32'h6004);
     check_push1("dual_slot_push1", "I1 od1 push", 1'b1, 5'd11, 32'h3);
 

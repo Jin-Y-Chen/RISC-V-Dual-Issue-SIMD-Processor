@@ -46,7 +46,6 @@ module even_lane_tb;
     rs1_data = rs1_i;
     rs2_data = rs2_i;
     imm      = imm_i;
-    #1;
   endtask
 
   task automatic check_expect(
@@ -71,7 +70,6 @@ module even_lane_tb;
 
   task automatic run_idle;
     enable = 1'b0;
-    #1;
   endtask
 
   initial begin

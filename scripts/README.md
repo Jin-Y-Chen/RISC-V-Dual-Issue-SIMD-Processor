@@ -13,8 +13,11 @@ scripts/
     log_layout.ps1              # log paths and archive helpers
     common.sh                   # bash → PowerShell bridge
   sim/
-    gen_waveform.sh               # re-render SVG from existing trace.vcd
-    vcd_to_svg.py                 # VCD → SVG (also called by run-sim)
+    run_functional_sim.sh       # Verilator sim on raw rtl/ + tb/
+    open_waveform.sh            # GTKWave viewer for trace.vcd
+    gen_waveform.sh             # re-render waveform.svg from VCD
+    tb_sources.sh               # per-top source file lists
+    vcd_to_svg.py               # VCD → SVG renderer
   maint/
     fix-sh-lf.ps1               # normalize LF after Windows clone
 ```
@@ -33,10 +36,12 @@ sudo apt install -y yosys build-essential verilator
 command -v yosys verilator make g++
 ```
 
-From repo root:
+From repo root (WSL or Git Bash — delegates to WSL):
 
 ```bash
-./scripts/run-sim -TOP pc_tb       # Yosys elab + Verilator self-test
+sudo apt install -y build-essential verilator gtkwave python3
+./scripts/run-sim -TOP pc_tb       # Verilator sim + trace.vcd + waveform.svg
+./scripts/run-sim -TOP pc_tb --no-trace   # logs only
 ./scripts/run-synth -TOP pc_tb     # Yosys elab only
 ./scripts/run-all                  # all 15 unit TBs
 make sim TOP=pc_tb                 # same as run-sim
@@ -49,8 +54,11 @@ PowerShell:
 .\scripts\lib\run_yosys.ps1 -Help
 ```
 
-With `-Sim`, Verilator also writes `sim/verilator/<top>/trace.vcd` and `waveform.svg` on pass.
-Re-render only: `./scripts/sim/gen_waveform.sh <top>`
+With `-Sim`, Verilator logs go to `sim/verilator/<top>/` (logs only; no VCD).
+
+`./scripts/run-sim -TOP <tb>` runs Verilator on raw sources and writes `sim/verilator/<top>/{compile.log,sim.log}` plus `sim/GTKWave/<top>/{trace.vcd,waveform.svg}` by default. Use `--no-trace` for logs only.
+
+GTKWave: `./scripts/sim/open_waveform.sh <top>` or `gen_waveform.sh` to re-render SVG.
 
 ---
 
@@ -64,7 +72,7 @@ Re-render only: `./scripts/sim/gen_waveform.sh <top>`
 
 Without `-Sim`, only Yosys runs — no TB self-checks, no `[PASS]` / `SUMMARY` in logs.
 
-Verilator object files go to **WSL** `$HOME/.cache/risc-dis-verilator/<top>/obj_dir`. Logs stay in repo: `sim/verilator/<top>/`.
+Verilator object files go to **WSL** `$HOME/.cache/risc-dis-verilator/<top>/obj_dir`. Logs: `sim/verilator/<top>/`. Waves: `sim/GTKWave/<top>/`.
 
 ---
 
@@ -75,7 +83,7 @@ Verilator object files go to **WSL** `$HOME/.cache/risc-dis-verilator/<top>/obj_
 | `-Top <name>` | One TB |
 | `-All` | All 15 unit TBs |
 | `-Synth` | Add synthesis step |
-| `-Sim` | Verilator TB self-test → `sim.log` + `waveform.svg` |
+| `-Sim` | Verilator TB self-test → `sim.log` |
 | `-SynthRtl` | Full-chip synthesis |
 | `-Clean` | Clear Yosys scratch |
 | `-DeleteOddLogs` | Drop archived `odd_lane_tb*` logs |

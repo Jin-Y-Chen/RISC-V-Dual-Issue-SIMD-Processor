@@ -7,14 +7,14 @@ Run from repo root:
 ```
 
 ```powershell
-.\scripts\run_yosys.ps1 -Top <name> -Sim
+.\scripts\lib\run_yosys.ps1 -Top <name> -Sim
 ```
 
 Shared logging: `common/tb_console.svh` (`tb_report_open`, `tb_field_*`, `tb_summary`).
 
 ## Conventions (Verilator / WSL)
 
-- **`tb_advance(clk)`** — `tick` tasks call this: `@(posedge clk)` then `@(negedge clk)` so NBA updates are visible under Verilator (plain `#0` samples too early).
+- **`tb_advance(clk)`** — `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang Verilator `--timing`).
 - **Includes** — `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
 - **`tb_summary`** — end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
 
@@ -22,7 +22,7 @@ Shared logging: `common/tb_console.svh` (`tb_report_open`, `tb_field_*`, `tb_sum
 tb/
   common/tb_console.svh
   models/         (future BFMs / memory models)
-  s1_fetch/       pc_tb, instruction_cache_tb, target_buffer_tb
+  s1_fetch/       pc_tb, pc_selector_tb, instruction_cache_tb, target_buffer_tb, fetch_core_struct_tb
   s2_decode/      if_id_tb, decoder_tb, state_buffer_tb, register_file_tb
   s3_execute/     even_lane_tb, odd_lane_tb, id_ex_dispatch_tb,
                   forward_unit_tb, scoreboard_tb
@@ -34,9 +34,13 @@ tb/
 
 | TB | DUT | Checks |
 |----|-----|--------|
-| `pc_tb` | `rtl/s1_fetch/core/pc.sv` | PC update, reset |
-| `instruction_cache_tb` | `rtl/s1_fetch/core/instruction_cache.sv` | I-cache hit/miss, fill |
-| `target_buffer_tb` | `rtl/s1_fetch/branch/target_buffer.sv` | BTB read/write |
+| `pc_tb` | `rtl/s1_fetch/pc.sv` | Reset, +8/+8, +4/+4, stall, enable hold |
+| `pc_selector_tb` | `rtl/s1_fetch/core_mod/pc_selector.sv` | Predict / recover / stall-in-spec |
+| `instruction_cache_tb` | `tb/s1_fetch/models/instruction_cache.sv` | Dual read, miss → 0 |
+| `target_buffer_tb` | `tb/s1_fetch/models/target_buffer.sv` | Miss → pc+4, WB install hit |
+| `fetch_core_struct_tb` | `rtl/s1_fetch/fetch_core_struct.sv` (+ real `pc` / `pc_selector`, sim I$/BTB models) | Sequential, BTB, predict, stall, recover |
+
+I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by Verilator 5.032. Real RTL remains under `rtl/s1_fetch/core_mod/`.
 
 ## s2_decode
 

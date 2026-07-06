@@ -16,6 +16,10 @@ function Get-VerilatorLogDir([string]$RepoRoot, [string]$TbTop) {
   return Join-Path $RepoRoot "sim\verilator\$TbTop"
 }
 
+function Get-GtkWaveDir([string]$RepoRoot, [string]$TbTop) {
+  return Join-Path $RepoRoot "sim\GTKWave\$TbTop"
+}
+
 # WSL-native obj_dir avoids Verilator write failures on /mnt/c Windows mounts.
 function Get-WslVerilatorObjDir([string]$TbTop) {
   return "`$HOME/.cache/risc-dis-verilator/$TbTop/obj_dir"
@@ -171,7 +175,9 @@ function Remove-LegacyLogTrees([string]$RepoRoot) {
     "sim\logs\current",
     "sim\logs",
     "sim\build",
-    "sim\scripts"
+    "sim\scripts",
+    "sim\obj_dir",
+    "sim\waves"
   )) {
     $path = Join-Path $RepoRoot $legacy
     if (Test-Path $path) {

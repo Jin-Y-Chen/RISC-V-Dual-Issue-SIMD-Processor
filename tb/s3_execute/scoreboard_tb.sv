@@ -55,7 +55,6 @@ module scoreboard_tb;
     input logic [1:0] exp_stall_cycles
   );
     bit pass;
-    #1;
     pass = (issue_i0 === exp_i0) && (issue_i1 === exp_i1) &&
            (stall_id === exp_stall) && (set_i1_hold === exp_hold) &&
            (i1_stall_cycles === exp_stall_cycles);

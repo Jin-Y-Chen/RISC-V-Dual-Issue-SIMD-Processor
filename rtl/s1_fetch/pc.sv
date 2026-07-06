@@ -55,7 +55,7 @@ module pc #(
       pc0_out <= RESET_PC;
       pc1_out <= RESET_PC + word_t'(32'd4);
       is_spec <= 1'b0;
-    end else begin
+    end else if (enable && !stall) begin
       pc0_out <= pc0_next;
       pc1_out <= pc1_next;
       is_spec <= spec0_en;

@@ -93,10 +93,8 @@ module register_file_tb;
 
   register_file dut (.*);
 
-  initial begin
-    clk = 0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-  end
+  initial clk = 0;
+  always #(CLK_PERIOD/2) clk <= ~clk;
 
   task automatic tick;
     tb_advance(clk);
@@ -131,7 +129,6 @@ module register_file_tb;
     i1_rs2_use  = o_rs2_use;
     i1_rs1_addr  = o_rs1;
     i1_rs2_addr  = o_rs2;
-    #1;
   endtask
 
   function automatic logic [4:0] rf_rs1_addr(
@@ -202,7 +199,7 @@ module register_file_tb;
     if (rd == 5'd0) return;
     drive_writes(1'b1, rd, data, '0, 1'b0, 5'd0, '0, '0);
     @(negedge clk);
-    #0;  // let regs[] NBA commit before wen deassert (same negedge race)
+    @(posedge clk);
     clear_writes();
   endtask
 

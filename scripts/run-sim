@@ -1,12 +1,65 @@
 #!/usr/bin/env bash
-# Yosys elab + Verilator TB self-test (-Sim). Requires verilator in WSL.
+# Verilator testbench sim on raw rtl/ + tb/ (logs + GTKWave trace by default).
+# Usage: ./scripts/run-sim -TOP <tb> [--rebuild] [--no-trace]
 set -euo pipefail
+
 SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPTS/.." && pwd)"
 # shellcheck source=lib/common.sh
 . "$SCRIPTS/lib/common.sh"
 
-show_help_if_requested show_run_sim_help "$@"
+EXTRA_ARGS=()
+DO_TRACE=1
+DO_SVG=1
 
-parse_top_from_args "${TOP:-pc_tb}" "$@"
-run_yosys_invoke -Top "$TOP_RESOLVED" -Sim "${FILTERED_ARGS[@]}"
+parse_run_sim_args() {
+  TOP_RESOLVED="${TOP:-pc_tb}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help|help) show_run_sim_help; exit 0 ;;
+      -Top|-TOP|-top)
+        [[ $# -ge 2 ]] || { echo "error: $1 requires a testbench name" >&2; exit 1; }
+        TOP_RESOLVED="$2"; shift 2 ;;
+      --no-trace|--no-wave)
+        DO_TRACE=0; DO_SVG=0; shift ;;
+      --no-svg)
+        DO_SVG=0; shift ;;
+      *) EXTRA_ARGS+=("$1"); shift ;;
+    esac
+  done
+}
+
+run_in_wsl() {
+  local cmd="$1"
+  if in_wsl; then
+    bash -lc "cd '$ROOT' && $cmd"
+  elif command -v wsl >/dev/null 2>&1; then
+    local wroot
+    wroot="$(to_wsl_path "$ROOT")"
+    wsl bash -lc "cd '$wroot' && $cmd"
+  elif command -v verilator >/dev/null 2>&1; then
+    bash -lc "cd '$ROOT' && $cmd"
+  else
+    echo "error: need WSL (verilator) or verilator in PATH" >&2
+    exit 1
+  fi
+}
+
+parse_run_sim_args "$@"
+
+SIM_ARGS=()
+if [[ "$DO_TRACE" -eq 1 ]]; then
+  SIM_ARGS+=(--trace)
+  [[ "$DO_SVG" -eq 1 ]] && SIM_ARGS+=(--svg)
+fi
+
+SIM_CMD="./scripts/sim/run_functional_sim.sh '$TOP_RESOLVED'"
+for arg in "${SIM_ARGS[@]}" "${EXTRA_ARGS[@]}"; do
+  SIM_CMD+=" $(printf '%q' "$arg")"
+done
+
+echo "=== VERILATOR $TOP_RESOLVED ==="
+if ! in_wsl && command -v wsl >/dev/null 2>&1; then
+  echo "note: first compile via WSL on /mnt/c takes ~30–45s; cached reruns are ~1–2s"
+fi
+run_in_wsl "$SIM_CMD"

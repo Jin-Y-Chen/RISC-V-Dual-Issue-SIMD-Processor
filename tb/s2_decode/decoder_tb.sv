@@ -48,7 +48,6 @@ module decoder_tb;
     input logic [31:0] pc_i;
     instr    = insn_i;
     // pc_i kept in callsites for mnemonic readability; decoder no longer consumes pc.
-    #1;
   endtask
 
   // Compare DUT outputs to caller-supplied expected values (independent golden).
@@ -107,7 +106,6 @@ module decoder_tb;
     bit pass;
     instr = insn_i;
     // pc_i kept for callsite consistency; unused by decoder.
-    #1;
     pass = (valid === 1'b0);
     tb_report_open(pass, name, "flush bubble illegal insn");
     tb_field_bit("valid", valid, 1'b0);
@@ -270,13 +268,11 @@ module decoder_tb;
     // --- Illegal in RV-DIS subset ---
     run_insn(32'h0086_2583, 32'h0000_7000);  // lw → patch funct3 to LB (000)
     instr[14:12] = 3'b000;
-    #1;
     check_reject("lb", "LB funct3");
 
     run_insn(32'h0000_0023, 32'h0000_7004);
     instr[6:0]   = 7'b0100011;  // STORE
     instr[14:12] = 3'b001;      // SH
-    #1;
     check_reject("sh", "SH funct3");
 
     run_insn(32'hFFFF_FFFF, 32'h0000_8000);

@@ -111,7 +111,6 @@ module forward_unit_tb;
     ev0_enable   = 1'b1;
     ev0_rs1_addr  = 5'd2;  ev0_rs1_data = 32'h0000_00AA;
     ev0_rs2_addr  = 5'd3;  ev0_rs2_data = 32'h0000_00BB;
-    #1;
     check_u32_pair("passthrough", "no hazard: operands unchanged",
                    "ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h0000_00AA,
                    "ev0_rs2_data_fwd", ev0_rs2_data_fwd, 32'h0000_00BB);
@@ -122,7 +121,6 @@ module forward_unit_tb;
     ev0_rs2_addr  = 5'd3;  ev0_rs2_data = 32'h0000_00BB;
     wb0_reg_write = 1'b1; wb0_rd_addr = 5'd2;
     wb0_data = 32'h1234_5678; wb0_pc = 32'h0000_0100;
-    #1;
     check_u32_pair("wb0_hit", "WB0 x2 hit on rs1 only",
                    "ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h1234_5678,
                    "ev0_rs2_data_fwd", ev0_rs2_data_fwd, 32'h0000_00BB);
@@ -132,7 +130,6 @@ module forward_unit_tb;
     od1_rs2_addr  = 5'd9;  od1_rs2_data = 32'hDEAD_DEAD;
     wb1_reg_write = 1'b1; wb1_rd_addr = 5'd9;
     wb1_data = 32'hCAFE_F00D; wb1_pc = 32'h0000_0104;
-    #1;
     check_u32("wb1_hit_od1_rs2", "WB1 x9 hit on od1 rs2",
               "od1_rs2_data_fwd", od1_rs2_data_fwd, 32'hCAFE_F00D);
 
@@ -143,7 +140,6 @@ module forward_unit_tb;
     wb0_data = 32'h0000_00C0; wb0_pc = 32'h0000_0100;
     wb1_reg_write = 1'b1; wb1_rd_addr = 5'd7;
     wb1_data = 32'h0000_00C1; wb1_pc = 32'h0000_0104;
-    #1;
     check_u32("wb_double_younger", "wb0/wb1 same rd: younger (wb1) wins",
               "od0_rs1_data_fwd", od0_rs1_data_fwd, 32'h0000_00C1);
 
@@ -152,7 +148,6 @@ module forward_unit_tb;
     ev0_rs1_addr  = 5'd2;  ev0_rs1_data = 32'h0000_00AA;
     wb0_reg_write = 1'b1; wb0_rd_addr = 5'd2;
     wb0_data = 32'h1234_5678; wb0_pc = 32'h0000_0100;
-    #1;
     check_u32("disabled_no_fwd", "ev0 disabled: WB hit ignored",
               "ev0_rs1_data_fwd", ev0_rs1_data_fwd, 32'h0000_00AA);
 
@@ -163,7 +158,6 @@ module forward_unit_tb;
     wb0_data = 32'h0000_0BAD; wb0_pc = 32'h0000_0100;
     wb1_reg_write  = 1'b1; wb1_rd_addr = 5'd5;
     wb1_data = 32'h0000_600D; wb1_pc = 32'h0000_0104;
-    #1;
     check_u32("wb1_over_wb0", "wb1 younger wpc wins on same rd",
               "ev1_rs1_data_fwd", ev1_rs1_data_fwd, 32'h0000_600D);
 
@@ -174,7 +168,6 @@ module forward_unit_tb;
     wb0_data = 32'h0000_00C0; wb0_pc = 32'h0000_0100;
     wb1_reg_write  = 1'b1; wb1_rd_addr = 5'd7;
     wb1_data = 32'h0000_00C1; wb1_pc = 32'h0000_0100;
-    #1;
     check_u32("wb_pc_tie", "equal WB pc: tie goes to wb1",
               "od0_rs1_data_fwd", od0_rs1_data_fwd, 32'h0000_00C1);
 

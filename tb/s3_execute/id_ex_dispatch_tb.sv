@@ -281,7 +281,6 @@ module id_ex_dispatch_tb;
     clk = 1'b1;
     #(CLK_PERIOD / 2);
     clk = 1'b0;
-    #0;
     dump_rob(rob_label);
   endtask
 

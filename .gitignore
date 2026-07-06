@@ -1,10 +1,8 @@
 # Tool / simulator generated
 sim/verilator/**/*
 !sim/verilator/.gitkeep
-sim/waves/**/*
-!sim/waves/.gitkeep
-sim/obj_dir/**/*
-!sim/obj_dir/.gitkeep
+sim/GTKWave/**/*
+!sim/GTKWave/.gitkeep
 
 # Yosys scratch + run logs (tracked: .gitkeep only)
 synth/build/**/*

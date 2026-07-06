@@ -17,6 +17,7 @@ param(
       "pc_selector_tb",
       "instruction_cache_tb",
       "target_buffer_tb",
+      "fetch_core_struct_tb",
       "if_id_tb",
       "decoder_tb",
       "state_buffer_tb",
@@ -86,6 +87,7 @@ $AllTops = @(
   "pc_selector_tb",
   "instruction_cache_tb",
   "target_buffer_tb",
+  "fetch_core_struct_tb",
   "if_id_tb",
   "decoder_tb",
   "state_buffer_tb",
@@ -193,7 +195,7 @@ function Get-DutTopFromTb([string]$TbTop) {
 }
 
 function Get-RtlSourcesForTb([string]$TbTop) {
-  return @(Get-TbSources $TbTop | Where-Object { $_ -notmatch '^tb/' })
+  return @(Get-TbSources $TbTop | Where-Object { $_ -notmatch '_tb\.sv$' })
 }
 
 function New-YosysScriptLines(
@@ -243,21 +245,21 @@ function Get-SimResultFromLog([string]$LogText) {
 function Invoke-WaveformSvg(
   [string]$TbTop,
   [string]$RepoRoot,
-  [string]$VerLogDir
+  [string]$WaveDir
 ) {
-  $vcdPath = Join-Path $VerLogDir "trace.vcd"
-  $svgPath = Join-Path $VerLogDir "waveform.svg"
+  $vcdPath = Join-Path $WaveDir "trace.vcd"
   if (-not (Test-Path $vcdPath)) {
-    Write-Host 'WARN  trace.vcd missing - skip waveform.svg'
+    Write-Host 'WARN  trace.vcd missing - skip waveform SVGs'
     return
   }
 
   $wslRepo = ConvertTo-WslPath $RepoRoot
   $wslVcd = ConvertTo-WslPath $vcdPath
-  $wslSvg = ConvertTo-WslPath $svgPath
+  $wslWaveDir = ConvertTo-WslPath $WaveDir
   $py = "$wslRepo/scripts/sim/vcd_to_svg.py"
-  $cmd = "python3 '$py' '$wslVcd' '$wslSvg' '$TbTop'"
+  $cmd = "python3 '$py' '$wslVcd' '$wslWaveDir' '$TbTop'"
   Invoke-WslBash $cmd | Out-Null
+  $svgPath = Join-Path $WaveDir "waveform.svg"
   if (Test-Path $svgPath) {
     Write-Host "OK  waveform:  $svgPath"
   }
@@ -271,48 +273,19 @@ function Invoke-VerilatorSim(
   New-Item -ItemType Directory -Force -Path $RunOutDir | Out-Null
 
   $wslRepo = ConvertTo-WslPath $RepoRoot
-  $verRel = "sim/verilator/$TbTop"
   $verLogDir = Get-VerilatorLogDir $RepoRoot $TbTop
-  $wslObjDir = Get-WslVerilatorObjDir $TbTop
-  $wslCacheRoot = "`$HOME/.cache/risc-dis-verilator/$TbTop"
-  $srcs = Get-TbSources $TbTop
+  $waveDir = Get-GtkWaveDir $RepoRoot $TbTop
 
-  foreach ($src in $srcs) {
-    $fullPath = Join-Path $RepoRoot $src
-    if (-not (Test-Path $fullPath)) {
-      throw "Missing source file for ${TbTop} sim: $src"
+  $cmd = "cd '$wslRepo' && bash ./scripts/sim/run_functional_sim.sh '$TbTop'"
+  Invoke-WslBash $cmd | Out-Null
+  $exitCode = $LASTEXITCODE
+
+  $simLogPath = Join-Path $verLogDir "sim.log"
+  if (-not (Test-Path $simLogPath)) {
+    $compileLogPath = Join-Path $verLogDir "compile.log"
+    if (Test-Path $compileLogPath) {
+      Copy-Item $compileLogPath (Join-Path $RunOutDir "sim.log") -Force
     }
-  }
-
-  New-Item -ItemType Directory -Force -Path $verLogDir | Out-Null
-  foreach ($name in @("compile.log", "sim.log", "trace.vcd", "waveform.svg")) {
-    $path = Join-Path $verLogDir $name
-    if (Test-Path $path) { Remove-Item $path -Force -ErrorAction SilentlyContinue }
-  }
-
-  $quotedSrcs = ($srcs | ForEach-Object {
-    $norm = $_ -replace '\\', '/'
-    "'$wslRepo/$norm'"
-  }) -join " "
-
-  $compileCmd = (
-    "cd '$wslRepo' " +
-    "&& rm -rf $wslCacheRoot " +
-    "&& mkdir -p $wslObjDir " +
-    "&& verilator --binary --timing --relative-includes -Wall -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM --trace +define+TRACE_VCD " +
-    "--top-module $TbTop -Mdir $wslObjDir $quotedSrcs " +
-    "> '$verRel/compile.log' 2>&1"
-  )
-  Invoke-WslBash $compileCmd | Out-Null
-
-  $compileLogPath = Join-Path $verLogDir "compile.log"
-  if (-not (Test-Path $compileLogPath)) {
-    throw "Verilator compile log not found: $compileLogPath"
-  }
-
-  $compileText = Get-Content -Raw $compileLogPath
-  if ($compileText -match '(?m)%Error:|^ERROR:') {
-    Copy-Item $compileLogPath (Join-Path $RunOutDir "sim.log") -Force
     return [pscustomobject]@{
       Result = "failed"
       Failed = $true
@@ -320,26 +293,18 @@ function Invoke-VerilatorSim(
     }
   }
 
-  $simCmd = 'cd $HOME/.cache/risc-dis-verilator/' + $TbTop + '/obj_dir && ./V' + $TbTop + ' > ''' + $wslRepo + '/' + $verRel + '/sim.log'' 2>&1'
-  Invoke-WslBash $simCmd | Out-Null
-
-  $copyVcdCmd = 'test -f $HOME/.cache/risc-dis-verilator/' + $TbTop + '/obj_dir/trace.vcd && cp $HOME/.cache/risc-dis-verilator/' + $TbTop + '/obj_dir/trace.vcd ''' + $wslRepo + '/' + $verRel + '/trace.vcd'' || true'
-  Invoke-WslBash $copyVcdCmd | Out-Null
-
-  $simLogPath = Join-Path $verLogDir "sim.log"
-  if (-not (Test-Path $simLogPath)) {
-    throw "Verilator sim log not found: $simLogPath"
-  }
-
   $simOutPath = Join-Path $RunOutDir "sim.log"
   Copy-Item $simLogPath $simOutPath -Force
 
   $simText = Get-Content -Raw $simLogPath
-  $simResult = Get-SimResultFromLog $simText
+  $simResult = if ($exitCode -ne 0) { "failed" } else { (Get-SimResultFromLog $simText) }
   $failed = ($simResult -ne "passed")
 
-  if (-not $failed) {
-    Invoke-WaveformSvg -TbTop $TbTop -RepoRoot $RepoRoot -VerLogDir $verLogDir
+  if (Test-Path (Join-Path $waveDir "waveform.svg")) {
+    Write-Host "OK  waveform:  $(Join-Path $waveDir 'waveform.svg')"
+  }
+  if (Test-Path (Join-Path $waveDir "trace.vcd")) {
+    Write-Host "OK  trace.vcd: $(Join-Path $waveDir 'trace.vcd')"
   }
 
   return [pscustomobject]@{
@@ -367,24 +332,34 @@ function Get-TbSources([string]$TbTop) {
         "pc_selector_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/s1_fetch/core/pc_selector.sv",
+                "rtl/s1_fetch/core_mod/pc_selector.sv",
                 "tb/s1_fetch/pc_selector_tb.sv"
             )
         }
         "instruction_cache_tb" {
+            # Behavioral model: cache_pkg parameterized functions unsupported by Verilator 5.032
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/common/cache_pkg.sv",
-                "rtl/s1_fetch/core/instruction_cache.sv",
+                "tb/s1_fetch/models/instruction_cache.sv",
                 "tb/s1_fetch/instruction_cache_tb.sv"
             )
         }
         "target_buffer_tb" {
             return @(
                 "rtl/common/rv_dis_pkg.sv",
-                "rtl/common/cache_pkg.sv",
-                "rtl/s1_fetch/branch/target_buffer.sv",
+                "tb/s1_fetch/models/target_buffer.sv",
                 "tb/s1_fetch/target_buffer_tb.sv"
+            )
+        }
+        "fetch_core_struct_tb" {
+            return @(
+                "rtl/common/rv_dis_pkg.sv",
+                "rtl/s1_fetch/pc.sv",
+                "rtl/s1_fetch/core_mod/pc_selector.sv",
+                "tb/s1_fetch/models/instruction_cache.sv",
+                "tb/s1_fetch/models/target_buffer.sv",
+                "rtl/s1_fetch/fetch_core_struct.sv",
+                "tb/s1_fetch/fetch_core_struct_tb.sv"
             )
         }
         "if_id_tb" {

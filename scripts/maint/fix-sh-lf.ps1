@@ -2,7 +2,7 @@
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $files = @(
   "scripts\run-sim", "scripts\run-synth", "scripts\run-all",
-  "scripts\lib\common.sh", "scripts\sim\gen_waveform.sh"
+  "scripts\lib\common.sh", "scripts\sim\run_functional_sim.sh", "scripts\sim\open_waveform.sh", "scripts\sim\gen_waveform.sh", "scripts\sim\tb_sources.sh"
 )
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 foreach ($rel in $files) {

@@ -47,7 +47,6 @@ module state_buffer_tb;
     input logic [1:0]  exp_state
   );
     bit pass;
-    #0;
     pass = (i0_target_state === exp_state);
     tb_report_open(pass, name, detail);
     tb_field_u32("i0_target_state", {30'd0, i0_target_state}, {30'd0, exp_state});
@@ -62,20 +61,17 @@ module state_buffer_tb;
     i0_pc_wb           = pc;
     i0_target_state_wb = state;
     i0_valid_wb        = 1'b1;
-    #0;
-    i0_valid_wb        = 1'b0;
   endtask
 
   task automatic fsm_step(
     input logic [31:0] pc,
     input logic        taken
   );
+    i0_valid_wb  = 1'b0;
     i0_pc        = pc;
     i0_brch_en   = 1'b1;
-    #0;
     cur_state    = i0_target_state;
     pc_sctrl_lut = taken;
-    #0;
     write_state(pc, next_state);
   endtask
 
@@ -90,8 +86,6 @@ module state_buffer_tb;
     i1_pc       = PC1;
 
     tb_banner("state_buffer_tb - combinational storage lookup and WB update");
-
-    #0;
 
     check_slot0("cold_miss",
                 "no valid entry => default 01",

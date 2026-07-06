@@ -53,7 +53,6 @@ module odd_lane_tb;
     rs2_data = rs2_i;
     imm      = imm_i;
     pc       = pc_i;
-    #1;
   endtask
 
   task automatic check_expect(
@@ -96,7 +95,6 @@ module odd_lane_tb;
 
   task automatic run_idle;
     enable = 1'b0;
-    #1;
   endtask
 
   task automatic check_expect_quiet(input string name, input string detail);

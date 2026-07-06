@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 # Shared helpers for run-sim, run-synth, and run-all.
 
+# Sets PYTHON_CMD to a working Python 3 (avoids Windows Store python3 stub).
+pick_python() {
+  PYTHON_CMD=()
+  if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys' >/dev/null 2>&1; then
+    PYTHON_CMD=(python3)
+    return 0
+  fi
+  if command -v py >/dev/null 2>&1 && py -3 -c 'import sys' >/dev/null 2>&1; then
+    PYTHON_CMD=(py -3)
+    return 0
+  fi
+  return 1
+}
+
 # Windows PowerShell needs C:\... paths; WSL/Git Bash pass /mnt/c/... or /c/...
 to_win_path() {
   local p="$1"
@@ -11,6 +25,30 @@ to_win_path() {
   else
     printf '%s' "$p"
   fi
+}
+
+# Git Bash /c/... or WSL wslpath -> /mnt/c/... for `wsl bash -lc`.
+to_wsl_path() {
+  local p="$1"
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -a "$p"
+    return
+  fi
+  if [[ "$p" =~ ^/[a-zA-Z]/ ]]; then
+    printf '/mnt/%s%s' "$(printf '%s' "${p:1:1}" | tr '[:upper:]' '[:lower:]')" "${p:2}"
+    return
+  fi
+  if command -v wsl >/dev/null 2>&1; then
+    local win
+    win="$(to_win_path "$p")"
+    wsl wslpath -a "$win" 2>/dev/null && return
+  fi
+  printf '%s' "$p"
+}
+
+# True when already inside WSL (not Git Bash on Windows).
+in_wsl() {
+  grep -qi microsoft /proc/version 2>/dev/null
 }
 
 run_yosys_invoke() {
@@ -79,16 +117,29 @@ show_run_sim_help() {
   cat <<'EOF'
 Usage: ./scripts/run-sim [options]
 
-Yosys elab + Verilator TB self-test. Requires verilator, make, g++ in WSL.
+Verilator functional sim on raw rtl/ + tb/ (logs + GTKWave trace by default).
 
 Examples:
   ./scripts/run-sim -TOP pc_tb
+  ./scripts/run-sim -TOP pc_tb --rebuild
+  ./scripts/run-sim -TOP pc_tb --no-trace
   ./scripts/run-sim --help
 
-Output: synth/reports/runs/latest/<top>/sim.log
-         sim/verilator/<top>/trace.vcd and waveform.svg (auto on pass)
+Options:
+  --rebuild    force full Verilator recompile (ignore cache)
+  --no-trace   logs only (skip trace.vcd / waveform.svg)
+  --no-wave    alias for --no-trace
+  --no-svg     keep trace.vcd, skip waveform.svg
 
-More: ./scripts/lib/run_yosys.ps1 -Help   scripts/README.md
+Output:
+  sim/verilator/<top>/{compile.log,sim.log}
+  sim/GTKWave/<top>/{trace.vcd,waveform.svg}   (unless --no-trace)
+
+GTKWave: ./scripts/sim/open_waveform.sh <top>
+
+Timing: first compile ~30–45s from Git Bash/WSL on /mnt/c; cached reruns ~1–2s.
+
+More: sim/README.md
 EOF
 }
 

@@ -33,14 +33,14 @@ module target_buffer
   endfunction
 
   assign i0_pc_target = word_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[bank_set_idx(i0_pc, CACHE)],
-    bank_way_idx(i0_pc, CACHE),
+    bank[pc_set(i0_pc, CACHE)],
+    pc_way(i0_pc, CACHE),
     fallthrough(i0_pc)
   ));
 
   assign i1_pc_target = word_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[bank_set_idx(i1_pc, CACHE)],
-    bank_way_idx(i1_pc, CACHE),
+    bank[pc_set(i1_pc, CACHE)],
+    pc_way(i1_pc, CACHE),
     fallthrough(i1_pc)
   ));
 
@@ -54,11 +54,11 @@ module target_buffer
 
   always_comb begin
     if (i0_valid_wb) begin
-      bank[bank_set_idx(i0_pc_wb, CACHE)][bank_way_idx(i0_pc_wb, CACHE)] =
+      bank[pc_set(i0_pc_wb, CACHE)][pc_way(i0_pc_wb, CACHE)] =
         cache_set_write#(DATA_W)(1'b1, imm_align4(i0_pc_target_wb));
     end
     if (i1_valid_wb) begin
-      bank[bank_set_idx(i1_pc_wb, CACHE)][bank_way_idx(i1_pc_wb, CACHE)] =
+      bank[pc_set(i1_pc_wb, CACHE)][pc_way(i1_pc_wb, CACHE)] =
         cache_set_write#(DATA_W)(1'b1, imm_align4(i1_pc_target_wb));
     end
   end

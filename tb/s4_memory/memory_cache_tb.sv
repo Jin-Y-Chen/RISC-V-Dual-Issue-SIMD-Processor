@@ -39,10 +39,8 @@ module memory_cache_tb;
     .COLD_L1_RESET  (1'b1)
   ) dut (.*);
 
-  initial begin
-    clk = 1'b0;
-    forever #(CLK_PERIOD/2) clk = ~clk;
-  end
+  initial clk = 1'b0;
+  always #(CLK_PERIOD/2) clk <= ~clk;
 
   task automatic tick;
     tb_advance(clk);
@@ -197,7 +195,6 @@ module memory_cache_tb;
     i1_addr  = TEST_ADDR;
     i1_wdata = 32'h5555_6666;
     i1_besel = 4'b1111;
-    #1;
     check_mem_data("war_read_before_write", "I0 load sees old word before I1 store",
                    32'h3333_4444, 32'd0);
     tick();

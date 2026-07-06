@@ -51,9 +51,8 @@ task automatic tb_summary(input int passed, input int failed);
     $display("*** SUMMARY: %0d passed, %0d FAILED ***", passed, failed);
 endtask
 
-// Posedge then negedge: NBA updates are visible (Verilator #0 / #1step timing).
+// Sample on negedge (clock # delays live in the TB clock generator only).
 task automatic tb_advance(input logic clk);
-  @(posedge clk);
   @(negedge clk);
 endtask
 
@@ -63,12 +62,21 @@ task automatic tb_case_sep();
   $display("---------------------------------------");
 endtask
 
-localparam int TB_FIELD_VAL_W = 18;
-
 task automatic tb_field_line(input string label, input string got_s, input string exp_s);
-  string fmt;
-  fmt = $sformatf("  %%-16s = %%%0ds (exp: %%s)", TB_FIELD_VAL_W);
-  $display(fmt, label, got_s, exp_s);
+  // Literal format only — Verilator does not support $display(fmt, ...) with runtime fmt.
+  $display("  %-16s = %18s (exp: %s)", label, got_s, exp_s);
+endtask
+
+task automatic tb_log_section(input string title);
+  $display("  --- %s ---", title);
+endtask
+
+task automatic tb_field_in_bit(input string label, input logic val);
+  $display("  %-16s = %18s", label, $sformatf("%0d", val));
+endtask
+
+task automatic tb_field_in_u32(input string label, input logic [31:0] val);
+  $display("  %-16s = %18s", label, $sformatf("0x%08h", val));
 endtask
 
 task automatic tb_field_bit(input string label, input logic got, input logic exp);
@@ -81,6 +89,10 @@ endtask
 
 task automatic tb_field_u32(input string label, input logic [31:0] got, input logic [31:0] exp);
   tb_field_line(label, $sformatf("0x%08h", got), $sformatf("0x%08h", exp));
+endtask
+
+task automatic tb_field_u32_note(input string label, input logic [31:0] val, input string note);
+  tb_field_line(label, $sformatf("0x%08h", val), note);
 endtask
 
 task automatic tb_field_be(input string label, input logic [3:0] got, input logic [3:0] exp);

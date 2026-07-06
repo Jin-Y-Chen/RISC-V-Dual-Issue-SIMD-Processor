@@ -30,14 +30,14 @@ module instruction_cache
   endfunction
 
   assign instr0 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[bank_set_idx(pc0, CACHE)],
-    bank_way_idx(pc0, CACHE),
+    bank[pc_set(pc0, CACHE)],
+    pc_way(pc0, CACHE),
     insn_default(pc0)
   ));
 
   assign instr1 = instr_t'(cache_set_read#(.DATA_W(DATA_W), .WAYS(CACHE.ways))(
-    bank[bank_set_idx(pc1, CACHE)],
-    bank_way_idx(pc1, CACHE),
+    bank[pc_set(pc1, CACHE)],
+    pc_way(pc1, CACHE),
     insn_default(pc1)
   ));
 
