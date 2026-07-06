@@ -4,15 +4,15 @@ RV32I scalar (active) + 128-bit SIMD (planned). Static even/odd dual-issue lanes
 
 Design notes: [project_outline.txt](project_outline.txt). Spec: [arm_spu_spulite_project_spec.txt](arm_spu_spulite_project_spec.txt).
 
-HDL is SystemVerilog under `rtl/`. Verification uses Yosys (WSL) and Verilator (optional `-Sim`) via `scripts/lib/run_yosys.ps1`.
+HDL is SystemVerilog under `rtl/`. Verification uses Yosys (WSL) via `scripts/lib/run_yosys.ps1`.
 
 ## Layout
 
 ```
 project/
 ├── rtl/              synthesizable design (Yosys input)
-├── tb/               testbenches (Verilator input)
-├── sim/              Verilator build outputs (verilator/, waves/, obj_dir/)
+├── tb/               testbenches
+├── sim/              simulation build outputs (logs/, waves/)
 ├── synth/            netlists, reports, Yosys run logs
 ├── scripts/          lib/, sim/, maint/ — see scripts/README.md
 ├── tests/            ASM programs + assembler
@@ -24,7 +24,7 @@ project/
 |------|----------|
 | `rtl/` | Pipeline RTL — [rtl/README.md](rtl/README.md) |
 | `tb/` | Unit testbenches — [tb/README.md](tb/README.md) |
-| `sim/verilator/` | Verilator compile scratch per top |
+| `sim/` | Simulation logs and waveform artifacts per top |
 | `synth/latest/` | Published netlists per top |
 | `synth/reports/runs/` | Yosys run logs (`latest/`, `temp/`) |
 | `scripts/` | Drivers — [scripts/README.md](scripts/README.md) (`run-sim`, `run-synth`, `run-all`, `make`) |
@@ -34,14 +34,14 @@ project/
 **One-time (WSL):**
 
 ```bash
-sudo apt update && sudo apt install -y yosys build-essential verilator
+sudo apt update && sudo apt install -y yosys build-essential
 ```
 
 **Run (repo root):**
 
 ```bash
 ./scripts/run-synth -TOP pc_tb    # Yosys check
-./scripts/run-sim -TOP pc_tb      # + Verilator TB test
+./scripts/run-sim -TOP pc_tb      # functional TB test
 make sim TOP=pc_tb                # same as run-sim
 ```
 

@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-// Behavioral BTB for simulation (cache_pkg parameterized calls not supported by Verilator).
+import rv_dis_pkg::*;
+
+// Behavioral BTB for simulation (cache_pkg parameterized calls not supported by all simulators).
 // Mirrors rtl/s1_fetch/core_mod/target_buffer.sv: 512 sets x 16 ways, INDEX_W=13.
 // Miss (valid=0) => fallthrough(pc+4). WB via i0_valid_wb / i1_valid_wb.
-module target_buffer
-  import rv_dis_pkg::*;
-#(
+module target_buffer #(
   parameter int INDEX_W = 13,
   parameter int DATA_W  = 32,
   parameter int WAYS    = 16
@@ -48,15 +48,6 @@ module target_buffer
     return way_entry[DATA_W] ? word_t'(way_entry[DATA_W-1:0]) : default_data;
   endfunction
 
-  function automatic word_t set_read(
-    input logic [DATA_W:0] set_row [WAYS],
-    input logic [WAY_AW-1:0] way_idx,
-    input word_t default_data
-  );
-    if (WAYS == 1) return way_read(set_row[0], default_data);
-    return way_read(set_row[way_idx], default_data);
-  endfunction
-
   function automatic logic [DATA_W:0] way_pack(input logic valid, input word_t data);
     return {valid, data[DATA_W-1:0]};
   endfunction
@@ -71,8 +62,13 @@ module target_buffer
   assign i1_set = pc_set(i1_pc);
   assign i1_way = pc_way(i1_pc);
 
-  assign i0_pc_target = set_read(bank[i0_set], i0_way, fallthrough(i0_pc));
-  assign i1_pc_target = set_read(bank[i1_set], i1_way, fallthrough(i1_pc));
+  // Avoid unpacked-array function args for broader simulator compatibility.
+  assign i0_pc_target = (WAYS == 1)
+    ? way_read(bank[i0_set][0], fallthrough(i0_pc))
+    : way_read(bank[i0_set][i0_way], fallthrough(i0_pc));
+  assign i1_pc_target = (WAYS == 1)
+    ? way_read(bank[i1_set][0], fallthrough(i1_pc))
+    : way_read(bank[i1_set][i1_way], fallthrough(i1_pc));
 
   initial begin
     for (int s = 0; s < SETS; s++) begin

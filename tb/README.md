@@ -12,9 +12,9 @@ Run from repo root:
 
 Shared logging: `common/tb_console.svh` (`tb_report_open`, `tb_field_*`, `tb_summary`).
 
-## Conventions (Verilator / WSL)
+## Conventions (WSL)
 
-- **`tb_advance(clk)`** — `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang Verilator `--timing`).
+- **`tb_advance(clk)`** — `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang some simulators with timing enabled).
 - **Includes** — `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
 - **`tb_summary`** — end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
 
@@ -40,7 +40,7 @@ tb/
 | `target_buffer_tb` | `tb/s1_fetch/models/target_buffer.sv` | Miss → pc+4, WB install hit |
 | `fetch_core_struct_tb` | `rtl/s1_fetch/fetch_core_struct.sv` (+ real `pc` / `pc_selector`, sim I$/BTB models) | Sequential, BTB, predict, stall, recover |
 
-I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by Verilator 5.032. Real RTL remains under `rtl/s1_fetch/core_mod/`.
+I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by all simulators. Real RTL remains under `rtl/s1_fetch/core_mod/`.
 
 ## s2_decode
 

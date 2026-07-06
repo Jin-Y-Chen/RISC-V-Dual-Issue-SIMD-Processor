@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-// Behavioral I$ for simulation (cache_pkg parameterized calls not supported by Verilator).
+import rv_dis_pkg::*;
+
+// Behavioral I$ for simulation (cache_pkg parameterized calls not supported by all simulators).
 // Mirrors rtl/s1_fetch/core_mod/instruction_cache.sv: 2048 sets x 4 ways, INDEX_W=13.
 // Miss (valid=0) => 32'h0. Preload via preload() / hex image load from TB.
-module instruction_cache
-  import rv_dis_pkg::*;
-#(
+module instruction_cache #(
   parameter int INDEX_W = PC_INDEX_AW,
   parameter int DATA_W  = ILEN,
   parameter int WAYS    = 4
@@ -42,15 +42,6 @@ module instruction_cache
     return way_entry[DATA_W] ? instr_t'(way_entry[DATA_W-1:0]) : default_data;
   endfunction
 
-  function automatic instr_t set_read(
-    input logic [DATA_W:0] set_row [WAYS],
-    input logic [WAY_AW-1:0] way_idx,
-    input instr_t default_data
-  );
-    if (WAYS == 1) return way_read(set_row[0], default_data);
-    return way_read(set_row[way_idx], default_data);
-  endfunction
-
   function automatic logic [DATA_W:0] way_pack(input logic valid, input instr_t data);
     return {valid, data[DATA_W-1:0]};
   endfunction
@@ -65,8 +56,13 @@ module instruction_cache
   assign i1_set = pc_set(pc1);
   assign i1_way = pc_way(pc1);
 
-  assign instr0 = set_read(bank[i0_set], i0_way, insn_default(pc0));
-  assign instr1 = set_read(bank[i1_set], i1_way, insn_default(pc1));
+  // Avoid unpacked-array function args for broader simulator compatibility.
+  assign instr0 = (WAYS == 1)
+    ? way_read(bank[i0_set][0], insn_default(pc0))
+    : way_read(bank[i0_set][i0_way], insn_default(pc0));
+  assign instr1 = (WAYS == 1)
+    ? way_read(bank[i1_set][0], insn_default(pc1))
+    : way_read(bank[i1_set][i1_way], insn_default(pc1));
 
   initial begin
     for (int s = 0; s < SETS; s++) begin

@@ -1,12 +1,12 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+import cache_pkg::*;
+
 // Branch target buffer — combinational storage (mirrors state_buffer style).
 // 8192 entries over 32 KiB I$ (PC[14:2]); 512 sets × 16 ways via cache_pkg.
 // Lookup and WB update in the same cycle; miss (valid=0) => fallthrough(pc) = pc+4.
-module target_buffer
-  import rv_dis_pkg::*;
-  import cache_pkg::*;
-#(
+module target_buffer #(
   parameter int INDEX_W = 13,
   parameter int DATA_W  = 32
 ) (

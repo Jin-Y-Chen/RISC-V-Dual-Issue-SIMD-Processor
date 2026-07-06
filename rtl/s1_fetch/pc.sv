@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
-typedef rv_dis_pkg::word_t word_t;
+import rv_dis_pkg::*;
 
 // PC unit — pc0/pc1 from pc0_in/pc1_in; mode=1 => +4/+4, mode=0 => +8/+8.
 module pc #(
-  parameter word_t RESET_PC = word_t'(32'h0000_0000)
+  parameter word_t RESET_PC = RESET_PC_INIT
 ) (
   // external controls
   input  logic          clk,
@@ -32,8 +32,8 @@ module pc #(
   logic stall;
 
   assign stall = fetch_stall | dispatch_stall;
-  assign pc0_a = rv_dis_pkg::imm_align4(pc0_in);
-  assign pc1_a = rv_dis_pkg::imm_align4(pc1_in);
+  assign pc0_a = imm_align4(pc0_in);
+  assign pc1_a = imm_align4(pc1_in);
 
   always_comb begin
     pc0_next = pc0_out;

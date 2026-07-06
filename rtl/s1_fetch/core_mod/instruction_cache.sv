@@ -1,12 +1,12 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+import cache_pkg::*;
+
 // Instruction memory — dual combinational fetch (RV32I, ILEN=32 per slot).
 // 32 KiB I$: 8192 entries (PC[14:2]), 2048 sets × 4 ways; byte-addressed map (8 B/addr).
 // Miss (valid=0) => 32'h0; each slot holds one little-endian instruction word.
-module instruction_cache
-  import rv_dis_pkg::*;
-  import cache_pkg::*;
-#(
+module instruction_cache #(
   parameter int INDEX_W = PC_INDEX_AW,  // 13 => 2^13 insn slots × 4 B = 32 KiB
   parameter int DATA_W  = ILEN,         // 32-bit instruction per entry
   parameter int WAYS    = 4             // 4-way set-associative

@@ -2,7 +2,7 @@
 //
 // From tb/<unit>/*_tb.sv:
 //   `include "../common/tb_console.svh"
-// Include path for Verilator: -I <repo>/tb
+// Include path for sim drivers: -I <repo>/tb
 //
 // Multi-line result format (tb_report_open + tb_field_* + tb_report_close):
 //   [PASS] beq_taken | BEQ x1,x2,+8
@@ -63,7 +63,7 @@ task automatic tb_case_sep();
 endtask
 
 task automatic tb_field_line(input string label, input string got_s, input string exp_s);
-  // Literal format only — Verilator does not support $display(fmt, ...) with runtime fmt.
+  // Literal format only — some simulators do not support $display(fmt, ...) with runtime fmt.
   $display("  %-16s = %18s (exp: %s)", label, got_s, exp_s);
 endtask
 

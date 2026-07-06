@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 // S1 fetch structure — PC + instruction cache + branch target buffer (dual-issue pair).
-module s1_fetch_struct
-  import rv_dis_pkg::*;
-#(
-  parameter word_t RESET_PC = word_t'(32'h0000_0000)
+module s1_fetch_struct #(
+  parameter word_t RESET_PC = RESET_PC_INIT
 ) (
   // external controls
   input  logic        clk,

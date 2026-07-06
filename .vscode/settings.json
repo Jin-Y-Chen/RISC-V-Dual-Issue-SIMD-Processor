@@ -1,0 +1,30 @@
+{
+  "verilog.project.enabled": true,
+  "verilog.project.filelists": [
+    "${workspaceFolder}/rtl/project.f"
+  ],
+  "verilog.project.includeDirs": [
+    "${workspaceFolder}/rtl/common",
+    "${workspaceFolder}/rtl",
+    "${workspaceFolder}/tb/common"
+  ],
+  "verilog.project.topModules": [
+    "risc_dis_unit"
+  ],
+  "verilog.project.exclude": [
+    "**/sim/**",
+    "**/synth/**"
+  ],
+  "verilog.linting.useProjectContext": true,
+  "verilog.preprocessor.useProjectDefines": true,
+  "verilog.semanticDiagnostics.enabled": true,
+  "verilog.linting.linter": "none",
+  "verilog.linting.iverilog.includePath": [
+    "${workspaceFolder}/rtl/common",
+    "${workspaceFolder}/rtl"
+  ],
+  "verilog.linting.slang.includePath": [
+    "${workspaceFolder}/rtl/common",
+    "${workspaceFolder}/rtl"
+  ]
+}

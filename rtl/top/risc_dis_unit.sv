@@ -4,7 +4,7 @@
 module risc_dis_unit
   import rv_dis_pkg::*;
 #(
-  parameter word_t RESET_PC = word_t'(32'h0000_0000)
+  parameter word_t RESET_PC = RESET_PC_INIT
 ) (
   // external controls
   input  logic        clk,

@@ -1,0 +1,17 @@
+{
+  "flags": "-f rtl/project.f",
+  "index": [
+    {
+      "dirs": [
+        "rtl",
+        "tb"
+      ],
+      "excludeDirs": [
+        "build",
+        "sim",
+        "node_modules"
+      ]
+    }
+  ],
+  "build": "rtl/project.f"
+}
