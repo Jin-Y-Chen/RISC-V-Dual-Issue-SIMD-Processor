@@ -4,9 +4,9 @@
 
 import rv_dis_pkg::*;
 
-module scoreboard_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module scoreboard_tb;
 
   logic        i0_reg_write;
   logic [4:0]  i0_rd;

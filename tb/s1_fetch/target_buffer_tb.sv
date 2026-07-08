@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::word_t;
+
+`include "../include/tb_console.svh"
+
 // target_buffer_tb — BTB lookup/WB; DUT vs gm/target_buffer_gm.sv.
 module target_buffer_tb;
-
-  import rv_dis_pkg::word_t;
-
-  `include "../tb/common/tb_console.svh"
 
   localparam int INDEX_W = 13;
   localparam int WAYS    = 16;

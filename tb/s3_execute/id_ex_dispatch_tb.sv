@@ -11,9 +11,9 @@ import rv_dis_pkg::*;
 import rob_pkg::*;
 import rob_queue_pkg::*;
 
-module id_ex_dispatch_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module id_ex_dispatch_tb;
 
   localparam int CLK_PERIOD = 10;
   localparam string ROB_LOG_FILE = "rob_entries.txt";

@@ -1,7 +1,7 @@
 // Shared testbench logging (required in all tb/<unit>/*_tb.sv).
 //
 // From tb/<unit>/*_tb.sv:
-//   `include "../common/tb_console.svh"
+//   `include "../include/tb_console.svh"
 // Include path for sim drivers: -I <repo>/tb
 //
 // Multi-line result format (tb_report_open + tb_field_* + tb_report_close):

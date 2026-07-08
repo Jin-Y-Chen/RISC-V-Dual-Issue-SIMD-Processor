@@ -4,9 +4,9 @@
 
 import rv_dis_pkg::*;
 
-module if_id_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module if_id_tb;
 
   localparam int CLK_PERIOD = 10;
 

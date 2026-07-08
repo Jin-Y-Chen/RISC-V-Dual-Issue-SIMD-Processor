@@ -12,9 +12,9 @@
 import rv_dis_pkg::*;
 import decode_pkg::*;
 
-module register_file_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module register_file_tb;
 
   localparam int CLK_PERIOD = 10;
 

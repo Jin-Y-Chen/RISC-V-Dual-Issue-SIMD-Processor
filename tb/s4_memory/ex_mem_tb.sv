@@ -5,9 +5,9 @@
 
 import rv_dis_pkg::*;
 
-module ex_mem_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module ex_mem_tb;
 
   localparam int CLK_PERIOD = 10;
 

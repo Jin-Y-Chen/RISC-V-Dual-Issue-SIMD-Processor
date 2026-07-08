@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
 
+`include "../include/tb_console.svh"
+
 // pc_tb — exhaustive control sweep; reference = gm/pc_gm.sv (64-entry LUT).
 // No CASE_FILE — not file-driven; remove legacy CASE_FILE Vivado sim generic if set.
 module pc_tb;
@@ -74,8 +76,6 @@ module pc_tb;
   task automatic tick;
     @(negedge clk);
   endtask
-
-  `include "tb_console.svh"
 
   task automatic gm_load_reset_pulse;
     gm_load_reset = 1'b1;

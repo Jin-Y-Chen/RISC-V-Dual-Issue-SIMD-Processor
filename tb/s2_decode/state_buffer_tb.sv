@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
+`include "../include/tb_console.svh"
+
 // state_buffer_tb — storage lookup, WB update, and 2-bit direction FSM train.
 module state_buffer_tb;
-
-  `include "../common/tb_console.svh"
 
   localparam logic [31:0] PC0   = 32'h0000_1000;
   localparam logic [31:0] PC1   = 32'h0000_1004;

@@ -1,8 +1,10 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 // PC unit — pc0/pc1 from pc0_in/pc1_in; mode=1 => +4/+4, mode=0 => +8/+8.
 module pc #(
-  parameter logic [31:0] RESET_PC = rv_dis_pkg::RESET_PC
+  parameter word_t RESET_PC = RESET_PC_INIT
 ) (
   // external controls
   input  logic          clk,

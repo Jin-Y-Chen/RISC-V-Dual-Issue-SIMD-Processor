@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
 
+`include "../include/tb_console.svh"
+
 // pc_selector_tb — exhaustive 5-bit control sweep; reference = gm/pc_selector_gm.sv.
 module pc_selector_tb;
 
@@ -76,8 +78,6 @@ module pc_selector_tb;
     .pc0_out         (ref_pc0_out),
     .pc1_out         (ref_pc1_out)
   );
-
-  `include "tb_console.svh"
 
   task automatic check_vector(input int unsigned ctrl);
     bit pass;

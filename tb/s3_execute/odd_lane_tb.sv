@@ -5,9 +5,9 @@
 import rv_dis_pkg::*;
 import decode_pkg::*;
 
-module odd_lane_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module odd_lane_tb;
 
   logic        enable;
   logic [6:0]  opcode;

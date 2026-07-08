@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
+`include "../include/tb_console.svh"
+
 // fetch_core_struct_tb — integrated fetch; DUT vs gm/fetch_core_struct_gm.sv.
 module fetch_core_struct_tb;
-
-  import rv_dis_pkg::*;
-
-  `include "../common/tb_console.svh"
 
   localparam int CLK_PERIOD = 10;
   localparam word_t TB_RESET_PC = word_t'(32'h0000_1000);

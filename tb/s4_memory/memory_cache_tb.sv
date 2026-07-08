@@ -4,9 +4,9 @@
 
 import rv_dis_pkg::*;
 
-module memory_cache_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module memory_cache_tb;
 
   localparam int CLK_PERIOD     = 10;
   localparam int L2_FILL_CYCLES = 4;

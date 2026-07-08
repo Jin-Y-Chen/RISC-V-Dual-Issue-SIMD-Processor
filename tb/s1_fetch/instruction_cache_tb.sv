@@ -3,10 +3,10 @@
 // instruction_cache_tb — dual fetch; hex preload; DUT vs gm/instruction_cache_gm.sv.
 import rv_dis_pkg::*;
 
-module instruction_cache_tb;
+`include "../include/tb_console.svh"
+`include "../include/imem_hex_loader.svh"
 
-  `include "../common/tb_console.svh"
-  `include "../common/imem_hex_loader.svh"
+module instruction_cache_tb;
 
   localparam int INDEX_W = PC_INDEX_AW;
   localparam int WAYS    = 4;

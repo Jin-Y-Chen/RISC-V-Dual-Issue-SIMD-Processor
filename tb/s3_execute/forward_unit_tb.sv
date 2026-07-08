@@ -4,9 +4,9 @@
 
 import rv_dis_pkg::*;
 
-module forward_unit_tb;
+`include "../include/tb_console.svh"
 
-  `include "../common/tb_console.svh"
+module forward_unit_tb;
 
   logic        ev0_enable;
   logic [4:0]  ev0_rs1_addr;
