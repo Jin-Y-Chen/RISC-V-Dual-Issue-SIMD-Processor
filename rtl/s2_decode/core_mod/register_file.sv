@@ -11,15 +11,14 @@ module register_file (
   // external controls
   input  logic        clk,
   input  logic        rst_n,
-  input  logic        enable,
 
   // internal controls
   input  logic        i0_rs1_use,
   input  logic        i0_rs2_use,
   input  logic        i1_rs1_use,
   input  logic        i1_rs2_use,
-  input  logic        i0_wen,
-  input  logic        i1_wen,
+  input  logic        i0_valid_wb,
+  input  logic        i1_valid_wb,
 
   // input data
   input  gpr_addr_t   i0_rs1_addr,
@@ -28,16 +27,16 @@ module register_file (
   input  gpr_addr_t   i1_rs2_addr,
   input  gpr_addr_t   i0_rd,
   input  gpr_addr_t   i1_rd,
-  input  word_t        i0_wdata,
-  input  word_t        i1_wdata,
-  input  word_t        i0_wpc,
-  input  word_t        i1_wpc,
+  input  word_t       i0_data_wb,
+  input  word_t       i1_data_wb,
+  input  word_t       i0_pc_wb,
+  input  word_t       i1_pc_wb,
 
   // output data
-  output word_t        i0_rs1_data,
-  output word_t        i0_rs2_data,
-  output word_t        i1_rs1_data,
-  output word_t        i1_rs2_data
+  output word_t       i0_rs1_data,
+  output word_t       i0_rs2_data,
+  output word_t       i1_rs1_data,
+  output word_t       i1_rs2_data
 );
 
   // x1-x31 stored; x0 is not physical storage
@@ -48,10 +47,10 @@ module register_file (
   logic same_rd;
   logic i1_wins;
 
-  assign i0_wr = i0_wen && (i0_rd != 5'd0);
-  assign i1_wr = i1_wen && (i1_rd != 5'd0);
+  assign i0_wr = i0_valid_wb && (i0_rd != 5'd0);
+  assign i1_wr = i1_valid_wb && (i1_rd != 5'd0);
   assign same_rd = i0_wr && i1_wr && (i0_rd == i1_rd);
-  assign i1_wins = same_rd && (i1_wpc >= i0_wpc);
+  assign i1_wins = same_rd && (i1_pc_wb >= i0_pc_wb);
 
   function automatic word_t rf_array_read(input logic [4:0] addr);
     if (addr == 5'd0)
@@ -61,29 +60,28 @@ module register_file (
   endfunction
 
   function automatic word_t rf_read_port(input logic rs_use, input logic [4:0] addr);
-    word_t         stored;
-    logic         i0_byp, i1_byp;
-    word_t         wdata;
+    word_t       stored;
+    logic        i0_byp, i1_byp;
+    word_t       wdata;
 
-    if (!rs_use) begin
+    if (!rs_use)
       rf_read_port = '0;
-      return;
+    else begin
+      stored  = rf_array_read(addr);
+      i0_byp  = i0_wr && (i0_rd == addr);
+      i1_byp  = i1_wr && (i1_rd == addr);
+
+      if (i0_byp && i1_byp)
+        wdata = i1_wins ? i1_data_wb : i0_data_wb;
+      else if (i1_byp)
+        wdata = i1_data_wb;
+      else if (i0_byp)
+        wdata = i0_data_wb;
+      else
+        wdata = stored;
+
+      rf_read_port = wdata;
     end
-
-    stored  = rf_array_read(addr);
-    i0_byp  = i0_wr && (i0_rd == addr);
-    i1_byp  = i1_wr && (i1_rd == addr);
-
-    if (i0_byp && i1_byp)
-      wdata = i1_wins ? i1_wdata : i0_wdata;
-    else if (i1_byp)
-      wdata = i1_wdata;
-    else if (i0_byp)
-      wdata = i0_wdata;
-    else
-      wdata = stored;
-
-    rf_read_port = wdata;
   endfunction
 
   // always_comb (not assign+function): XSim must see full bypass/write sensitivity
@@ -98,11 +96,11 @@ module register_file (
     if (!rst_n) begin
       for (int i = 1; i < NUM_GPR; i++)
         regs[i] <= '0;
-    end else if (enable) begin
+    end else begin
       if (i0_wr && !i1_wins)
-        regs[i0_rd] <= i0_wdata;
+        regs[i0_rd] <= i0_data_wb;
       if (i1_wr && (!same_rd || i1_wins))
-        regs[i1_rd] <= i1_wdata;
+        regs[i1_rd] <= i1_data_wb;
     end
   end
 

@@ -10,7 +10,9 @@ Run from repo root:
 .\scripts\lib\run_yosys.ps1 -Top <name> -Sim
 ```
 
-Shared logging: `common/tb_console.svh` (`tb_report_open`, `tb_field_*`, `tb_summary`).
+Shared utilities: `common/` (`tb_console.svh`, `tb_block_case_loader.svh`). See `common/README.md`.
+
+Golden models: `gm/` (Verilog, sim) + `tb/gm/` (C++ offline check). See `model/README.md`.
 
 ## Conventions (WSL)
 
@@ -20,9 +22,11 @@ Shared logging: `common/tb_console.svh` (`tb_report_open`, `tb_field_*`, `tb_sum
 
 ```
 tb/
-  common/tb_console.svh
+  common/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader.svh
   models/         (future BFMs / memory models)
-  s1_fetch/       pc_tb, pc_selector_tb, instruction_cache_tb, target_buffer_tb, fetch_core_struct_tb
+  s1_fetch/
+    cases/        *.txt case data
+    pc_tb, pc_selector_tb, instruction_cache_tb, target_buffer_tb, fetch_core_struct_tb
   s2_decode/      if_id_tb, decoder_tb, state_buffer_tb, register_file_tb
   s3_execute/     even_lane_tb, odd_lane_tb, id_ex_dispatch_tb,
                   forward_unit_tb, scoreboard_tb

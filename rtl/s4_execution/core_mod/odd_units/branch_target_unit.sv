@@ -3,7 +3,7 @@
 // Branch condition evaluation for the odd execution lane.
 import rv_dis_pkg::*;
 
-module branch_unit (
+module branch_target_unit (
   // input data
   input  funct3_t     funct3,
   input  logic        rs1_use,    // decode: rs1 is a real GPR read

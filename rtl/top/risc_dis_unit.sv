@@ -20,6 +20,26 @@ module risc_dis_unit #(
   output logic        stall_id
 );
 
+  logic        flush_core;
+  logic        br_recover;
+
+  // Writeback → GPR (decode) and BTB / predictor (fetch)
+  logic        i0_reg_write_wb;
+  logic [4:0]  i0_rd_addr_wb;
+  logic [31:0] i0_wdata_wb;
+  logic [31:0] i0_gpr_wpc;
+  logic        i1_reg_write_wb;
+  logic [4:0]  i1_rd_addr_wb;
+  logic [31:0] i1_wdata_wb;
+  logic [31:0] i1_gpr_wpc;
+
+  logic        i0_br_valid_wb;
+  logic        i1_br_valid_wb;
+  logic [31:0] i0_btb_pc_wb;
+  logic [31:0] i1_btb_pc_wb;
+  logic [31:0] i0_pc_target_wb;
+  logic [31:0] i1_pc_target_wb;
+
   // -------------------------------------------------------------------------
   // Fetch — PC + instruction cache (dual-issue pair)
   // -------------------------------------------------------------------------
@@ -29,10 +49,6 @@ module risc_dis_unit #(
   logic        i1_brch_recover;
   logic [31:0] i0_pc_execute;
   logic [31:0] i1_pc_execute;
-  logic        i0_valid_wb;
-  logic        i1_valid_wb;
-  logic [31:0] i0_pc_target_wb;
-  logic [31:0] i1_pc_target_wb;
 
   logic [31:0] i0_instr_if;
   logic [31:0] i1_instr_if;
@@ -48,18 +64,8 @@ module risc_dis_unit #(
   logic [31:0] i0_pc_target_id;
   logic [31:0] i1_pc_target_id;
 
-  assign i0_pred_taken    = 1'b0;
-  assign i1_pred_taken    = 1'b0;
-  assign i0_brch_recover  = 1'b0;
-  assign i1_brch_recover  = 1'b0;
-  assign i0_pc_execute    = 32'd0;
-  assign i1_pc_execute    = 32'd0;
-  assign i0_valid_wb      = 1'b0;  // tie resolved branch/jump retire here
-  assign i1_valid_wb      = 1'b0;
-  assign i0_pc_target_wb  = 32'd0;
-  assign i1_pc_target_wb  = 32'd0;
-  assign i0_pc_if         = pc_fetch;
-  assign i1_pc_if         = pc_fetch_plus4;
+  assign i0_pc_if = pc_fetch;
+  assign i1_pc_if = pc_fetch_plus4;
 
   s1_fetch_struct #(
     .RESET_PC(RESET_PC)
@@ -77,10 +83,10 @@ module risc_dis_unit #(
     // input data
     .i0_pc_execute    (i0_pc_execute),
     .i1_pc_execute    (i1_pc_execute),
-    .i0_valid_wb      (i0_valid_wb),
-    .i1_valid_wb      (i1_valid_wb),
-    .i0_pc_wb         (i0_pc_wb),
-    .i1_pc_wb         (i1_pc_wb),
+    .i0_valid_wb      (i0_br_valid_wb),
+    .i1_valid_wb      (i1_br_valid_wb),
+    .i0_pc_wb         (i0_btb_pc_wb),
+    .i1_pc_wb         (i1_btb_pc_wb),
     .i0_pc_target_wb  (i0_pc_target_wb),
     .i1_pc_target_wb  (i1_pc_target_wb),
     // output data
@@ -98,7 +104,7 @@ module risc_dis_unit #(
     .rst_n            (rst_n),
     .enable           (enable),
     // internal controls
-    .flush            (flush),
+    .flush            (flush_core),
     .stall            (stall_id),
     // input data
     .i0_instr_if      (i0_instr_if),
@@ -150,14 +156,10 @@ module risc_dis_unit #(
   word_t i1_rs1_data;
   word_t i1_rs2_data;
 
-  logic        i0_reg_write_wb;
-  logic [4:0]  i0_rd_addr_wb;
-  logic [31:0] i0_wdata_wb;
-  logic [31:0] i0_pc_wb;
-  logic        i1_reg_write_wb;
-  logic [4:0]  i1_rd_addr_wb;
-  logic [31:0] i1_wdata_wb;
-  logic [31:0] i1_pc_wb;
+  br_state_t   i0_target_state;
+  br_state_t   i1_target_state;
+  br_state_t   i0_target_state_wb;
+  br_state_t   i1_target_state_wb;
 
   s2_decode_struct u_decode (
     // external controls
@@ -172,10 +174,10 @@ module risc_dis_unit #(
     .i1_instr        (i1_instr_id),
     .i0_rd           (i0_rd_addr_wb),
     .i0_wdata        (i0_wdata_wb),
-    .i0_wpc          (i0_pc_wb),
+    .i0_wpc          (i0_gpr_wpc),
     .i1_rd           (i1_rd_addr_wb),
     .i1_wdata        (i1_wdata_wb),
-    .i1_wpc          (i1_pc_wb),
+    .i1_wpc          (i1_gpr_wpc),
     // output data
     .i0_lane_sel     (i0_lane_sel_dec),
     .i0_opcode       (i0_opcode_dec),
@@ -208,6 +210,27 @@ module risc_dis_unit #(
     .i1_reg_write    (i1_reg_write_dec)
   );
 
+  state_buffer u_state_buf (
+    .clk                 (clk),
+    .rst_n               (rst_n),
+    .i0_pc               (i0_pc_id),
+    .i1_pc               (i1_pc_id),
+    .i0_brch_en          (i0_brch_en_dec),
+    .i1_brch_en          (i1_brch_en_dec),
+    .i0_valid_wb         (i0_br_valid_wb),
+    .i1_valid_wb         (i1_br_valid_wb),
+    .i0_pc_wb            (i0_btb_pc_wb),
+    .i1_pc_wb            (i1_btb_pc_wb),
+    .i0_target_state_wb  (i0_target_state_wb),
+    .i1_target_state_wb  (i1_target_state_wb),
+    .i0_target_state     (i0_target_state),
+    .i1_target_state     (i1_target_state)
+  );
+
+  // state[1] => predict taken (see project_outline state table)
+  assign i0_pred_taken = i0_brch_en_dec && i0_target_state[1];
+  assign i1_pred_taken = i1_brch_en_dec && i1_target_state[1];
+
   // -------------------------------------------------------------------------
   // Dispatch — id_dp + dispatch_core_struct (s3_dispatch)
   // -------------------------------------------------------------------------
@@ -239,15 +262,6 @@ module risc_dis_unit #(
   logic [31:0] i1_rs1_data_dp;
   logic [31:0] i1_rs2_data_dp;
   logic [31:0] i1_pc_dp;
-
-  logic        ev0_reg_write_exwb;
-  logic [4:0]  ev0_rd_addr_exwb;
-  logic [31:0] ev0_wdata_exwb;
-  logic [31:0] ev0_pc_exwb;
-  logic        ev1_reg_write_exwb;
-  logic [4:0]  ev1_rd_addr_exwb;
-  logic [31:0] ev1_wdata_exwb;
-  logic [31:0] ev1_pc_exwb;
 
   logic        i0_reg_write_ex;
   logic        i1_reg_write_ex;
@@ -302,8 +316,6 @@ module risc_dis_unit #(
 
   logic [31:0] od0_load_mem_data;
   logic [31:0] od1_load_mem_data;
-  logic [31:0] od0_wdata_mem_fwd;
-  logic [31:0] od1_wdata_mem_fwd;
 
   logic        wb_push0_valid;
   logic [4:0]  wb_push0_rd;
@@ -318,7 +330,7 @@ module risc_dis_unit #(
     .clk             (clk),
     .rst_n           (rst_n),
     .enable          (enable),
-    .flush           (flush),
+    .flush           (flush_core),
     .stall           (stall_id),
     .i0_valid_id     (i0_valid_dec),
     .i0_lane_sel_id  (i0_lane_sel_dec),
@@ -382,7 +394,7 @@ module risc_dis_unit #(
     .clk                 (clk),
     .rst_n               (rst_n),
     .enable              (enable),
-    .flush               (flush),
+    .flush               (flush_core),
     .commit_en           (1'b0),
     .commit_count        (2'd0),
     .set_complete_en     (1'b0),
@@ -521,7 +533,14 @@ module risc_dis_unit #(
   logic [31:0] od1_alu_result_mem;
   logic [31:0] od1_pc_mem;
 
+  logic        dcache_busy;
+
   s4_execute_struct u_execute (
+    // external controls
+    .clk                 (clk),
+    .rst_n               (rst_n),
+    .enable              (enable),
+    .flush               (flush_core),
     // internal controls
     .i0_reg_write_ex     (i0_reg_write_ex),
     .i1_reg_write_ex     (i1_reg_write_ex),
@@ -574,10 +593,10 @@ module risc_dis_unit #(
     .od1_pc_ex           (od1_pc_ex),
     .wb0_rd_addr         (i0_rd_addr_wb),
     .wb0_data            (i0_wdata_wb),
-    .wb0_pc              (i0_pc_wb),
+    .wb0_pc              (i0_gpr_wpc),
     .wb1_rd_addr         (i1_rd_addr_wb),
     .wb1_data            (i1_wdata_wb),
-    .wb1_pc              (i1_pc_wb),
+    .wb1_pc              (i1_gpr_wpc),
     // output controls
     .od0_use_link_ex     (od0_use_link_ex),
     .od1_use_link_ex     (od1_use_link_ex),
@@ -611,8 +630,8 @@ module risc_dis_unit #(
     .clk                 (clk),
     .rst_n               (rst_n),
     .enable              (enable),
-    .stall_od0           (1'b0),
-    .stall_od1           (1'b0),
+    .stall_od0           (dcache_busy && od0_mem_en_mem),
+    .stall_od1           (dcache_busy && od1_mem_en_mem),
     .od0_enable_ex       (od0_enable_ex),
     .od0_reg_write_ex    (i0_reg_write_ex),
     .od0_rd_ex           (od0_rd_ex),
@@ -669,11 +688,36 @@ module risc_dis_unit #(
     .od1_pc_mem          (od1_pc_mem)
   );
 
+  // Branch resolve → fetch redirect (odd lanes at MEM)
+  assign i0_brch_recover = od0_brch_taken_mem;
+  assign i1_brch_recover = od1_brch_taken_mem;
+  assign i0_pc_execute   = od0_brch_pc_mem;
+  assign i1_pc_execute   = od1_brch_pc_mem;
+  assign br_recover      = i0_brch_recover | i1_brch_recover;
+  assign flush_core      = flush | br_recover;
+
+  assign i0_br_valid_wb     = od0_brch_taken_mem;
+  assign i1_br_valid_wb     = od1_brch_taken_mem;
+  assign i0_btb_pc_wb       = od0_pc_mem;
+  assign i1_btb_pc_wb       = od1_pc_mem;
+  assign i0_pc_target_wb    = od0_brch_pc_mem;
+  assign i1_pc_target_wb    = od1_brch_pc_mem;
+
+  state_LUT u_state_lut0 (
+    .state      (i0_target_state),
+    .pc_sctrl   (od0_brch_taken_mem),
+    .next_state (i0_target_state_wb)
+  );
+
+  state_LUT u_state_lut1 (
+    .state      (i1_target_state),
+    .pc_sctrl   (od1_brch_taken_mem),
+    .next_state (i1_target_state_wb)
+  );
+
   // -------------------------------------------------------------------------
   // Memory — L1 data cache (s5)
   // -------------------------------------------------------------------------
-  logic        dcache_busy;
-
   s5_memory_struct u_memory (
     // external controls
     .clk               (clk),
@@ -705,7 +749,7 @@ module risc_dis_unit #(
     .clk                (clk),
     .rst_n              (rst_n),
     .enable             (enable),
-    .flush              (flush),
+    .flush              (flush_core),
     .ev0_reg_write_ex   (ev0_enable_ex && i0_reg_write_ex),
     .ev0_rd_addr_ex     (ev0_rd_ex),
     .ev0_wdata_ex       (ev0_alu_result),
@@ -730,16 +774,16 @@ module risc_dis_unit #(
     .od1_mem_en_mem     (od1_mem_en_mem),
     .od1_mem_act_mem    (od1_mem_act_mem),
     .od1_load_mem_data     (od1_load_mem_data),
-    .ev0_reg_write_exwb (ev0_reg_write_exwb),
-    .ev0_rd_addr_exwb   (ev0_rd_addr_exwb),
-    .ev0_wdata_exwb     (ev0_wdata_exwb),
-    .ev0_pc_exwb        (ev0_pc_exwb),
-    .ev1_reg_write_exwb (ev1_reg_write_exwb),
-    .ev1_rd_addr_exwb   (ev1_rd_addr_exwb),
-    .ev1_wdata_exwb     (ev1_wdata_exwb),
-    .ev1_pc_exwb        (ev1_pc_exwb),
-    .od0_wdata_mem      (od0_wdata_mem_fwd),
-    .od1_wdata_mem      (od1_wdata_mem_fwd),
+    .ev0_reg_write_exwb (),
+    .ev0_rd_addr_exwb   (),
+    .ev0_wdata_exwb     (),
+    .ev0_pc_exwb        (),
+    .ev1_reg_write_exwb (),
+    .ev1_rd_addr_exwb   (),
+    .ev1_wdata_exwb     (),
+    .ev1_pc_exwb        (),
+    .od0_wdata_mem      (),
+    .od1_wdata_mem      (),
     .push0_valid        (wb_push0_valid),
     .push0_rd           (wb_push0_rd),
     .push0_wdata        (wb_push0_wdata),
@@ -753,10 +797,10 @@ module risc_dis_unit #(
   assign i0_reg_write_wb = wb_push0_valid;
   assign i0_rd_addr_wb   = wb_push0_rd;
   assign i0_wdata_wb     = wb_push0_wdata;
-  assign i0_pc_wb        = wb_push0_pc;
+  assign i0_gpr_wpc      = wb_push0_pc;
   assign i1_reg_write_wb = wb_push1_valid;
   assign i1_rd_addr_wb   = wb_push1_rd;
   assign i1_wdata_wb     = wb_push1_wdata;
-  assign i1_pc_wb        = wb_push1_pc;
+  assign i1_gpr_wpc      = wb_push1_pc;
 
 endmodule

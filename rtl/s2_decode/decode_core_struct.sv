@@ -117,32 +117,31 @@ module s2_decode_struct (
 
   register_file u_regfile (
     // external controls
-    .clk         (clk),
-    .rst_n       (rst_n),
-    .enable      (enable),
+    .clk          (clk),
+    .rst_n        (rst_n),
     // internal controls
-    .i0_rs1_use  (rf_i0_rs1_use),
-    .i0_rs2_use  (rf_i0_rs2_use),
-    .i1_rs1_use  (rf_i1_rs1_use),
-    .i1_rs2_use  (rf_i1_rs2_use),
-    .i0_wen      (i0_wen),
-    .i1_wen      (i1_wen),
+    .i0_rs1_use   (rf_i0_rs1_use),
+    .i0_rs2_use   (rf_i0_rs2_use),
+    .i1_rs1_use   (rf_i1_rs1_use),
+    .i1_rs2_use   (rf_i1_rs2_use),
+    .i0_valid_wb  (i0_wen),
+    .i1_valid_wb  (i1_wen),
     // input data
-    .i0_rs1_addr (rf_i0_rs1_addr),
-    .i0_rs2_addr (rf_i0_rs2_addr),
-    .i1_rs1_addr (rf_i1_rs1_addr),
-    .i1_rs2_addr (rf_i1_rs2_addr),
-    .i0_rd       (i0_rd),
-    .i1_rd       (i1_rd),
-    .i0_wdata    (i0_wdata),
-    .i1_wdata    (i1_wdata),
-    .i0_wpc      (i0_wpc),
-    .i1_wpc      (i1_wpc),
+    .i0_rs1_addr  (rf_i0_rs1_addr),
+    .i0_rs2_addr  (rf_i0_rs2_addr),
+    .i1_rs1_addr  (rf_i1_rs1_addr),
+    .i1_rs2_addr  (rf_i1_rs2_addr),
+    .i0_rd        (i0_rd),
+    .i1_rd        (i1_rd),
+    .i0_data_wb   (i0_wdata),
+    .i1_data_wb   (i1_wdata),
+    .i0_pc_wb     (i0_wpc),
+    .i1_pc_wb     (i1_wpc),
     // output data
-    .i0_rs1_data (i0_rs1_data),
-    .i0_rs2_data (i0_rs2_data),
-    .i1_rs1_data (i1_rs1_data),
-    .i1_rs2_data (i1_rs2_data)
+    .i0_rs1_data  (i0_rs1_data),
+    .i0_rs2_data  (i0_rs2_data),
+    .i1_rs1_data  (i1_rs1_data),
+    .i1_rs2_data  (i1_rs2_data)
   );
 
 endmodule

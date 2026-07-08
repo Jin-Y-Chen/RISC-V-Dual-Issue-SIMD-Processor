@@ -127,9 +127,7 @@ module reservation_station (
   output word_t       od1_pc_ex
 );
 
-  // -----------------------------------------------------------------------
-  // Per-lane RS storage (ring buffer per even/odd execute copy)
-  // -----------------------------------------------------------------------
+  localparam rs_cnt_t RS_DEPTH_CNT = RS_DEPTH[RS_AW:0];
   rs_entry_t ev0_bank [0:RS_DEPTH-1];
   rs_entry_t ev1_bank [0:RS_DEPTH-1];
   rs_entry_t od0_bank [0:RS_DEPTH-1];
@@ -166,7 +164,6 @@ module reservation_station (
     disp_even_packet.packet.opcode    = opcode;
     disp_even_packet.packet.funct3    = funct3;
     disp_even_packet.packet.funct7    = funct7;
-    disp_even_packet.packet.rd        = renamed_tag;
     disp_even_packet.packet.rs1       = rs1;
     disp_even_packet.packet.rs2       = rs2;
     disp_even_packet.packet.imm       = imm;
@@ -197,7 +194,6 @@ module reservation_station (
     disp_odd_packet.packet.opcode    = opcode;
     disp_odd_packet.packet.funct3    = funct3;
     disp_odd_packet.packet.funct7    = 7'd0;
-    disp_odd_packet.packet.rd        = renamed_tag;
     disp_odd_packet.packet.rs1       = rs1;
     disp_odd_packet.packet.rs2       = rs2;
     disp_odd_packet.packet.imm       = imm;
@@ -247,16 +243,16 @@ module reservation_station (
       return 1'b0;
     for (int i = 0; i < RS_DEPTH; i++) begin
       if ((self_lane != 0) &&
-          ev0_q[i].valid && ev0_q[i].packet.reg_write && (ev0_q[i].packet.rd == rs))
+          ev0_q[i].valid && ev0_q[i].packet.reg_write && (ev0_q[i].renamed_tag == rs))
         return 1'b1;
       if ((self_lane != 1) &&
-          ev1_q[i].valid && ev1_q[i].packet.reg_write && (ev1_q[i].packet.rd == rs))
+          ev1_q[i].valid && ev1_q[i].packet.reg_write && (ev1_q[i].renamed_tag == rs))
         return 1'b1;
       if ((self_lane != 2) &&
-          od0_q[i].valid && od0_q[i].packet.reg_write && (od0_q[i].packet.rd == rs))
+          od0_q[i].valid && od0_q[i].packet.reg_write && (od0_q[i].renamed_tag == rs))
         return 1'b1;
       if ((self_lane != 3) &&
-          od1_q[i].valid && od1_q[i].packet.reg_write && (od1_q[i].packet.rd == rs))
+          od1_q[i].valid && od1_q[i].packet.reg_write && (od1_q[i].renamed_tag == rs))
         return 1'b1;
     end
     return 1'b0;
@@ -422,19 +418,19 @@ module reservation_station (
         od1_bank[i] <= '0;
       end
     end else if (enable) begin
-      if (ev0_in_pkt.valid && (ev0_count < RS_DEPTH)) begin
+      if (ev0_in_pkt.valid && (ev0_count < RS_DEPTH_CNT)) begin
         ev0_bank[ev0_wptr[RS_AW-1:0]] <= rs_entry_from_ex(ev0_in_pkt);
         ev0_wptr <= ev0_wptr + 1'b1;
       end
-      if (ev1_in_pkt.valid && (ev1_count < RS_DEPTH)) begin
+      if (ev1_in_pkt.valid && (ev1_count < RS_DEPTH_CNT)) begin
         ev1_bank[ev1_wptr[RS_AW-1:0]] <= rs_entry_from_ex(ev1_in_pkt);
         ev1_wptr <= ev1_wptr + 1'b1;
       end
-      if (od0_in_pkt.valid && (od0_count < RS_DEPTH)) begin
+      if (od0_in_pkt.valid && (od0_count < RS_DEPTH_CNT)) begin
         od0_bank[od0_wptr[RS_AW-1:0]] <= rs_entry_from_ex(od0_in_pkt);
         od0_wptr <= od0_wptr + 1'b1;
       end
-      if (od1_in_pkt.valid && (od1_count < RS_DEPTH)) begin
+      if (od1_in_pkt.valid && (od1_count < RS_DEPTH_CNT)) begin
         od1_bank[od1_wptr[RS_AW-1:0]] <= rs_entry_from_ex(od1_in_pkt);
         od1_wptr <= od1_wptr + 1'b1;
       end
@@ -444,10 +440,10 @@ module reservation_station (
       if (od0_issue) od0_rptr <= od0_rptr + 1'b1;
       if (od1_issue) od1_rptr <= od1_rptr + 1'b1;
 
-      ev0_count <= rs_retire(rs_alloc(ev0_count, ev0_in_pkt.valid && (ev0_count < RS_DEPTH)), ev0_issue);
-      ev1_count <= rs_retire(rs_alloc(ev1_count, ev1_in_pkt.valid && (ev1_count < RS_DEPTH)), ev1_issue);
-      od0_count <= rs_retire(rs_alloc(od0_count, od0_in_pkt.valid && (od0_count < RS_DEPTH)), od0_issue);
-      od1_count <= rs_retire(rs_alloc(od1_count, od1_in_pkt.valid && (od1_count < RS_DEPTH)), od1_issue);
+      ev0_count <= rs_retire(rs_alloc(ev0_count, ev0_in_pkt.valid && (ev0_count < RS_DEPTH_CNT)), ev0_issue);
+      ev1_count <= rs_retire(rs_alloc(ev1_count, ev1_in_pkt.valid && (ev1_count < RS_DEPTH_CNT)), ev1_issue);
+      od0_count <= rs_retire(rs_alloc(od0_count, od0_in_pkt.valid && (od0_count < RS_DEPTH_CNT)), od0_issue);
+      od1_count <= rs_retire(rs_alloc(od1_count, od1_in_pkt.valid && (od1_count < RS_DEPTH_CNT)), od1_issue);
     end
   end
 

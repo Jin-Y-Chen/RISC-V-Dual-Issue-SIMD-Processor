@@ -61,6 +61,8 @@ module s1_fetch_struct #(
   );
 
   instruction_cache u_icache (
+    .clk    (clk),
+    .rst_n  (rst_n),
     .pc0    (pc0),
     .pc1    (pc1),
     .instr0 (instr0),
@@ -68,6 +70,8 @@ module s1_fetch_struct #(
   );
 
   target_buffer u_target (
+    .clk             (clk),
+    .rst_n           (rst_n),
     .i0_pc           (pc0),
     .i1_pc           (pc1),
     .i0_valid_wb     (i0_valid_wb),

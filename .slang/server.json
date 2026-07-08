@@ -1,5 +1,5 @@
 {
-  "flags": "-f rtl/project.f",
+  "flags": "-f rtl/project.f -F tb/slang-server.f",
   "index": [
     {
       "dirs": [
@@ -9,10 +9,17 @@
       "excludeDirs": [
         "build",
         "sim",
-        "synth",
-        "node_modules"
+        "node_modules",
+        "loaders",
+        "cases",
+        "common"
       ]
     }
   ],
-  "build": "rtl/project.f"
+  "buildPattern": "tb/s1_fetch/{}.f",
+  "builds": [
+    {
+      "glob": "tb/s1_fetch/*_tb.f"
+    }
+  ]
 }

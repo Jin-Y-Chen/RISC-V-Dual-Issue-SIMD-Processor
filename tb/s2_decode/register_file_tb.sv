@@ -36,7 +36,7 @@ module register_file_tb;
   localparam word_t WB_X2_LW        = 32'h0000_00bb;
   // Odd-lane insn PC (I1 = PC_BASE+4); wpc on WB bus is this latched PC
   localparam word_t ODD_PC          = PC_BASE + 32'd4;
-  // jal/jalr Green Card: R[rd] = PC+4 (link only on i1_wdata; PC jump not on GPR bus)
+  // jal/jalr Green Card: R[rd] = PC+4 (link only on i1_data_wb; PC jump not on GPR bus)
   localparam word_t WB_JAL_LINK     = ODD_PC + 32'd4;
   // lui x7,0x2a: R[rd] = imm<<12
   localparam word_t LUI_IMM_2A      = 32'h0000_002a;
@@ -63,31 +63,30 @@ module register_file_tb;
 
   logic        clk;
   logic        rst_n;
-  logic        enable;
 
   logic [4:0]  i0_rs1_addr;
   logic [4:0]  i0_rs2_addr;
   logic        i0_rs1_use;
   logic        i0_rs2_use;
-  word_t        i0_rs1_data;
-  word_t        i0_rs2_data;
+  word_t       i0_rs1_data;
+  word_t       i0_rs2_data;
 
   logic [4:0]  i1_rs1_addr;
   logic [4:0]  i1_rs2_addr;
   logic        i1_rs1_use;
   logic        i1_rs2_use;
-  word_t        i1_rs1_data;
-  word_t        i1_rs2_data;
+  word_t       i1_rs1_data;
+  word_t       i1_rs2_data;
 
-  logic        i0_wen;
+  logic        i0_valid_wb;
   logic [4:0]  i0_rd;
-  word_t        i0_wdata;
-  word_t        i0_wpc;
+  word_t       i0_data_wb;
+  word_t       i0_pc_wb;
 
-  logic        i1_wen;
+  logic        i1_valid_wb;
   logic [4:0]  i1_rd;
-  word_t        i1_wdata;
-  word_t        i1_wpc;
+  word_t       i1_data_wb;
+  word_t       i1_pc_wb;
 
   int pass_cnt;
   int fail_cnt;
@@ -102,14 +101,14 @@ module register_file_tb;
   endtask
 
   task automatic clear_writes;
-    i0_wen   = 1'b0;
-    i1_wen    = 1'b0;
+    i0_valid_wb   = 1'b0;
+    i1_valid_wb    = 1'b0;
     i0_rd    = 5'd0;
     i1_rd     = 5'd0;
-    i0_wdata = '0;
-    i1_wdata  = '0;
-    i0_wpc   = '0;
-    i1_wpc    = '0;
+    i0_data_wb = '0;
+    i1_data_wb  = '0;
+    i0_pc_wb   = '0;
+    i1_pc_wb    = '0;
   endtask
 
   task automatic set_reads(
@@ -175,14 +174,14 @@ module register_file_tb;
     input word_t        o_wdata,
     input word_t        o_wpc
   );
-    i0_wen   = e_wen;
+    i0_valid_wb   = e_wen;
     i0_rd    = e_rd;
-    i0_wdata = e_wdata;
-    i0_wpc   = e_wpc;
-    i1_wen    = o_wen;
+    i0_data_wb = e_wdata;
+    i0_pc_wb   = e_wpc;
+    i1_valid_wb    = o_wen;
     i1_rd     = o_rd;
-    i1_wdata  = o_wdata;
-    i1_wpc    = o_wpc;
+    i1_data_wb  = o_wdata;
+    i1_pc_wb    = o_wpc;
   endtask
 
   // Hardware reset, each test starts from empty GPR array (x0 always 0)
@@ -219,24 +218,24 @@ module register_file_tb;
     input word_t       exp_e_rs2_data,
     input word_t       exp_o_rs1_data,
     input word_t       exp_o_rs2_data,
-    input logic       exp_i0_wen,
+    input logic       exp_i0_valid_wb,
     input logic [4:0] exp_i0_rd,
-    input word_t       exp_i0_wdata,
-    input word_t       exp_i0_wpc,
-    input logic       exp_i1_wen,
+    input word_t       exp_i0_data_wb,
+    input word_t       exp_i0_pc_wb,
+    input logic       exp_i1_valid_wb,
     input logic [4:0] exp_i1_rd,
-    input word_t       exp_i1_wdata,
-    input word_t       exp_i1_wpc
+    input word_t       exp_i1_data_wb,
+    input word_t       exp_i1_pc_wb
   );
     bit pass;
     pass = (i0_rs1_addr === exp_e_rs1_addr) && (i0_rs2_addr === exp_e_rs2_addr) &&
            (i1_rs1_addr  === exp_o_rs1_addr)  && (i1_rs2_addr  === exp_o_rs2_addr)  &&
            (i0_rs1_data === exp_e_rs1_data) && (i0_rs2_data === exp_e_rs2_data) &&
            (i1_rs1_data  === exp_o_rs1_data)  && (i1_rs2_data  === exp_o_rs2_data)  &&
-           (i0_wen      === exp_i0_wen)    && (i0_rd       === exp_i0_rd)    &&
-           (i0_wdata    === exp_i0_wdata)  && (i0_wpc      === exp_i0_wpc)    &&
-           (i1_wen       === exp_i1_wen)     && (i1_rd        === exp_i1_rd)     &&
-           (i1_wdata     === exp_i1_wdata)   && (i1_wpc       === exp_i1_wpc);
+           (i0_valid_wb      === exp_i0_valid_wb)    && (i0_rd       === exp_i0_rd)    &&
+           (i0_data_wb    === exp_i0_data_wb)  && (i0_pc_wb      === exp_i0_pc_wb)    &&
+           (i1_valid_wb       === exp_i1_valid_wb)     && (i1_rd        === exp_i1_rd)     &&
+           (i1_data_wb     === exp_i1_data_wb)   && (i1_pc_wb       === exp_i1_pc_wb);
     tb_report_open(pass, name, detail);
     $display("  read ctrl ID");
     tb_field_line("i0_rs1_use", $sformatf("%0d", i0_rs1_use), "-");
@@ -253,14 +252,14 @@ module register_file_tb;
     tb_field_xreg("i1_rs2_addr",  i1_rs2_addr,  exp_o_rs2_addr);
     tb_field_u32 ("i1_rs2_data",  i1_rs2_data,  exp_o_rs2_data);
     $display("  write ports WB");
-    tb_field_bit ("i0_wen",      i0_wen,      exp_i0_wen);
+    tb_field_bit ("i0_valid_wb",      i0_valid_wb,      exp_i0_valid_wb);
     tb_field_xreg("i0_rd",       i0_rd,       exp_i0_rd);
-    tb_field_u32 ("i0_wdata",    i0_wdata,    exp_i0_wdata);
-    tb_field_u32 ("i0_wpc",      i0_wpc,      exp_i0_wpc);
-    tb_field_bit ("i1_wen",       i1_wen,       exp_i1_wen);
+    tb_field_u32 ("i0_data_wb",    i0_data_wb,    exp_i0_data_wb);
+    tb_field_u32 ("i0_pc_wb",      i0_pc_wb,      exp_i0_pc_wb);
+    tb_field_bit ("i1_valid_wb",       i1_valid_wb,       exp_i1_valid_wb);
     tb_field_xreg("i1_rd",        i1_rd,        exp_i1_rd);
-    tb_field_u32 ("i1_wdata",     i1_wdata,     exp_i1_wdata);
-    tb_field_u32 ("i1_wpc",       i1_wpc,       exp_i1_wpc);
+    tb_field_u32 ("i1_data_wb",     i1_data_wb,     exp_i1_data_wb);
+    tb_field_u32 ("i1_pc_wb",       i1_pc_wb,       exp_i1_pc_wb);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -286,10 +285,10 @@ module register_file_tb;
     tb_field_u32("WB_X2_IMM",   WB_X2_IMM,   WB_X2_IMM);
     tb_field_u32("WB_X2_ADDI",  WB_X2_ADDI,  WB_X2_ADDI);
     tb_field_u32("WB_X2_LW",    WB_X2_LW,    WB_X2_LW);
-    tb_info_msg("Green Card i1_wdata: jal/jalr R[rd]=insn_PC+4 only");
+    tb_info_msg("Green Card i1_data_wb: jal/jalr R[rd]=insn_PC+4 only");
     tb_field_u32("ODD_PC",       ODD_PC,       ODD_PC);
     tb_field_u32("WB_JAL_LINK",  WB_JAL_LINK,  WB_JAL_LINK);
-    tb_info_msg("Green Card i1_wdata: lui R[rd]=imm<<12, auipc R[rd]=insn_PC+(imm<<12)");
+    tb_info_msg("Green Card i1_data_wb: lui R[rd]=imm<<12, auipc R[rd]=insn_PC+(imm<<12)");
     tb_field_u32("LUI_IMM_2A",   LUI_IMM_2A,   LUI_IMM_2A);
     tb_field_u32("WB_LUI_X7",    WB_LUI_X7,    WB_LUI_X7);
     tb_field_u32("AUIPC_IMM_2",  AUIPC_IMM_2,  AUIPC_IMM_2);
@@ -315,7 +314,6 @@ module register_file_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
-    enable   = 1'b1;
 
     i0_rs1_addr = 5'd0;
     i0_rs2_addr = 5'd0;
@@ -513,7 +511,7 @@ module register_file_tb;
       1'b1, ADDR_X2, WB_X2_LW, ODD_WPC_4);
     // =========================================================================
     // Odd-lane WB specials (wpc = ODD_PC). Green Card GPR results only:
-    //   jal/jalr: R[rd] = PC+4  -> i1_wdata = ODD_PC+4 (0x1008), not jump target
+    //   jal/jalr: R[rd] = PC+4  -> i1_data_wb = ODD_PC+4 (0x1008), not jump target
     //   lui:      R[rd] = imm<<12
     //   auipc:    R[rd] = PC+(imm<<12) using insn PC = ODD_PC
     // =========================================================================

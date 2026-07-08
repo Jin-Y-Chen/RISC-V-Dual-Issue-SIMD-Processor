@@ -1,6 +1,7 @@
 // RV-DIS RTL filelist — packages first, then modules (Verilog-HDL project index).
-+incdir+${workspaceFolder}/rtl/common
-+incdir+${workspaceFolder}/tb/common
++incdir+rtl/common
++incdir+tb/common
++incdir+tb/s1_fetch
 
 // Packages
 rtl/common/rv_dis_pkg.sv
@@ -28,6 +29,7 @@ rtl/s2_decode/decode_core_struct.sv
 
 // S3 dispatch
 rtl/s3_dispatch/id_dp.sv
+rtl/s3_dispatch/core/scoreboard.sv
 rtl/s3_dispatch/core/branch_speculate.sv
 rtl/s3_dispatch/core/rename_dispatch.sv
 rtl/s3_dispatch/core/reorder_buffer.sv
@@ -36,6 +38,7 @@ rtl/s3_dispatch/dispatch_core_struct.sv
 // S4 execute
 rtl/s4_execution/dp_ex.sv
 rtl/s4_execution/core_mod/reservation_station.sv
+rtl/s4_execution/core_mod/forward_unit.sv
 rtl/s4_execution/core_mod/even_units/scalar_alu_unit.sv
 rtl/s4_execution/core_mod/even_units/even_lane_struct.sv
 rtl/s4_execution/core_mod/odd_units/branch_target_unit.sv

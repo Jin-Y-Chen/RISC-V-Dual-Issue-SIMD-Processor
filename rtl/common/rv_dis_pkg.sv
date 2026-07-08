@@ -85,13 +85,18 @@ package rv_dis_pkg;
   // Immediate helpers
   // =========================================================================
   // imm_align4 — force imm[1:0]=00 on branch/jump offsets (B, J, JALR)
-  function automatic word_t imm_align4(input word_t imm);
-    imm_align4 = {imm[31:2], 2'b00};
+  function word_t imm_align4;
+    input word_t imm;
+    begin
+      imm_align4 = {imm[31:2], 2'b00};
+    end
   endfunction
 
-  // sign_extend — I-type / OP-IMM 12-bit field to 32-bit byte offset
-  function automatic word_t sign_extend(input logic [11:0] imm12);
-    sign_extend = {{20{imm12[11]}}, imm12};
+  function word_t sign_extend;
+    input [11:0] imm12;
+    begin
+      sign_extend = {{20{imm12[11]}}, imm12};
+    end
   endfunction
 
 endpackage
