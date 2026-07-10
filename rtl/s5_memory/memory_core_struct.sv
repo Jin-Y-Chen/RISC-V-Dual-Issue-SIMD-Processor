@@ -11,9 +11,9 @@ module s5_memory_struct (
 
   // internal controls
   input  logic        od0_mem_en_mem,
-  input  logic        od0_mem_act_mem,
+  input  logic        od0_mem_write_mem,
   input  logic        od1_mem_en_mem,
-  input  logic        od1_mem_act_mem,
+  input  logic        od1_mem_write_mem,
 
   // input data
   input  word_t         od0_mem_addr_mem,
@@ -41,12 +41,12 @@ module s5_memory_struct (
   logic [31:0] cache_i1_wdata;
   logic [3:0]  cache_i1_besel;
 
-  assign cache_i0_act   = od0_mem_en_mem ? od0_mem_act_mem : 1'b0;
+  assign cache_i0_act   = od0_mem_en_mem ? od0_mem_write_mem : 1'b0;
   assign cache_i0_addr  = od0_mem_addr_mem;
   assign cache_i0_wdata = od0_mem_wdata_mem;
   assign cache_i0_besel = od0_mem_en_mem ? od0_mem_besel_mem : 4'b0000;
 
-  assign cache_i1_act   = od1_mem_en_mem ? od1_mem_act_mem : 1'b0;
+  assign cache_i1_act   = od1_mem_en_mem ? od1_mem_write_mem : 1'b0;
   assign cache_i1_addr  = od1_mem_addr_mem;
   assign cache_i1_wdata = od1_mem_wdata_mem;
   assign cache_i1_besel = od1_mem_en_mem ? od1_mem_besel_mem : 4'b0000;

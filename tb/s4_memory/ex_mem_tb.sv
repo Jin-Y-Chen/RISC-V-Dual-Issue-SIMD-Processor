@@ -25,7 +25,7 @@ module ex_mem_tb;
   logic        od0_brch_taken_ex;
   logic [31:0] od0_brch_pc_ex;
   logic        od0_mem_en_ex;
-  logic        od0_mem_act_ex;
+  logic        od0_mem_write_ex;
   logic [31:0] od0_mem_addr_ex;
   logic [31:0] od0_mem_wdata_ex;
   logic [3:0]  od0_mem_besel_ex;
@@ -41,7 +41,7 @@ module ex_mem_tb;
   logic        od1_brch_taken_ex;
   logic [31:0] od1_brch_pc_ex;
   logic        od1_mem_en_ex;
-  logic        od1_mem_act_ex;
+  logic        od1_mem_write_ex;
   logic [31:0] od1_mem_addr_ex;
   logic [31:0] od1_mem_wdata_ex;
   logic [3:0]  od1_mem_besel_ex;
@@ -56,7 +56,7 @@ module ex_mem_tb;
   logic        od0_brch_taken_mem;
   logic [31:0] od0_brch_pc_mem;
   logic        od0_mem_en_mem;
-  logic        od0_mem_act_mem;
+  logic        od0_mem_write_mem;
   logic [31:0] od0_mem_addr_mem;
   logic [31:0] od0_mem_wdata_mem;
   logic [3:0]  od0_mem_besel_mem;
@@ -71,7 +71,7 @@ module ex_mem_tb;
   logic        od1_brch_taken_mem;
   logic [31:0] od1_brch_pc_mem;
   logic        od1_mem_en_mem;
-  logic        od1_mem_act_mem;
+  logic        od1_mem_write_mem;
   logic [31:0] od1_mem_addr_mem;
   logic [31:0] od1_mem_wdata_mem;
   logic [3:0]  od1_mem_besel_mem;
@@ -95,12 +95,12 @@ module ex_mem_tb;
   task automatic clear_ex;
     od0_enable_ex = 1'b0; od0_reg_write_ex = 1'b0;
     od0_rd_ex = '0; od0_brch_taken_ex = 1'b0; od0_brch_pc_ex = '0;
-    od0_mem_en_ex = 1'b0; od0_mem_act_ex = 1'b0;
+    od0_mem_en_ex = 1'b0; od0_mem_write_ex = 1'b0;
     od0_mem_addr_ex = '0; od0_mem_wdata_ex = '0; od0_mem_besel_ex = '0;
     od0_link_pc_ex = '0; od0_alu_result_ex = '0; od0_use_link_ex = 1'b0; od0_pc_ex = '0;
     od1_enable_ex = 1'b0; od1_reg_write_ex = 1'b0;
     od1_rd_ex = '0; od1_brch_taken_ex = 1'b0; od1_brch_pc_ex = '0;
-    od1_mem_en_ex = 1'b0; od1_mem_act_ex = 1'b0;
+    od1_mem_en_ex = 1'b0; od1_mem_write_ex = 1'b0;
     od1_mem_addr_ex = '0; od1_mem_wdata_ex = '0; od1_mem_besel_ex = '0;
     od1_link_pc_ex = '0; od1_alu_result_ex = '0; od1_use_link_ex = 1'b0; od1_pc_ex = '0;
   endtask
@@ -113,7 +113,7 @@ module ex_mem_tb;
     input logic        exp_brch,
     input logic [31:0] exp_brch_pc,
     input logic        exp_mem_en,
-    input logic        exp_mem_act,
+    input logic        exp_mem_write,
     input logic [31:0] exp_mem_addr,
     input logic [31:0] exp_mem_wdata,
     input logic [3:0]  exp_besel,
@@ -124,7 +124,7 @@ module ex_mem_tb;
     bit pass;
     pass = (od0_reg_write_mem === exp_rw) && (od0_rd_mem === exp_rd) &&
            (od0_brch_taken_mem === exp_brch) && (od0_brch_pc_mem === exp_brch_pc) &&
-           (od0_mem_en_mem === exp_mem_en) && (od0_mem_act_mem === exp_mem_act) &&
+           (od0_mem_en_mem === exp_mem_en) && (od0_mem_write_mem === exp_mem_write) &&
            (od0_mem_addr_mem === exp_mem_addr) && (od0_mem_wdata_mem === exp_mem_wdata) &&
            (od0_mem_besel_mem === exp_besel) && (od0_link_pc_mem === exp_link) &&
            (od0_alu_result_mem === exp_alu) && (od0_pc_mem === exp_pc);
@@ -134,7 +134,7 @@ module ex_mem_tb;
     tb_field_bit("od0_brch_taken_mem", od0_brch_taken_mem, exp_brch);
     tb_field_u32("od0_brch_pc_mem", od0_brch_pc_mem, exp_brch_pc);
     tb_field_bit("od0_mem_en_mem", od0_mem_en_mem, exp_mem_en);
-    tb_field_bit("od0_mem_act_mem", od0_mem_act_mem, exp_mem_act);
+    tb_field_bit("od0_mem_write_mem", od0_mem_write_mem, exp_mem_write);
     tb_field_u32("od0_mem_addr_mem", od0_mem_addr_mem, exp_mem_addr);
     tb_field_u32("od0_mem_wdata_mem", od0_mem_wdata_mem, exp_mem_wdata);
     tb_field_be("od0_mem_besel_mem", od0_mem_besel_mem, exp_besel);
@@ -151,19 +151,19 @@ module ex_mem_tb;
     input logic        exp_rw,
     input logic [4:0]  exp_rd,
     input logic        exp_mem_en,
-    input logic        exp_mem_act,
+    input logic        exp_mem_write,
     input logic [31:0] exp_mem_addr,
     input logic [31:0] exp_mem_wdata
   );
     bit pass;
     pass = (od1_reg_write_mem === exp_rw) && (od1_rd_mem === exp_rd) &&
-           (od1_mem_en_mem === exp_mem_en) && (od1_mem_act_mem === exp_mem_act) &&
+           (od1_mem_en_mem === exp_mem_en) && (od1_mem_write_mem === exp_mem_write) &&
            (od1_mem_addr_mem === exp_mem_addr) && (od1_mem_wdata_mem === exp_mem_wdata);
     tb_report_open(pass, name, detail);
     tb_field_bit("od1_reg_write_mem", od1_reg_write_mem, exp_rw);
     tb_field_u5("od1_rd_mem", od1_rd_mem, exp_rd);
     tb_field_bit("od1_mem_en_mem", od1_mem_en_mem, exp_mem_en);
-    tb_field_bit("od1_mem_act_mem", od1_mem_act_mem, exp_mem_act);
+    tb_field_bit("od1_mem_write_mem", od1_mem_write_mem, exp_mem_write);
     tb_field_u32("od1_mem_addr_mem", od1_mem_addr_mem, exp_mem_addr);
     tb_field_u32("od1_mem_wdata_mem", od1_mem_wdata_mem, exp_mem_wdata);
     tb_report_close(pass);
@@ -196,7 +196,7 @@ module ex_mem_tb;
     od0_reg_write_ex   = 1'b1;
     od0_rd_ex          = 5'd7;
     od0_mem_en_ex      = 1'b1;
-    od0_mem_act_ex     = 1'b0;
+    od0_mem_write_ex     = 1'b0;
     od0_mem_addr_ex    = 32'h400;
     od0_pc_ex          = 32'h0000_1008;
     tick();
@@ -208,7 +208,7 @@ module ex_mem_tb;
     od1_enable_ex      = 1'b1;
     od1_reg_write_ex   = 1'b0;
     od1_mem_en_ex      = 1'b1;
-    od1_mem_act_ex     = 1'b1;
+    od1_mem_write_ex     = 1'b1;
     od1_mem_addr_ex    = 32'h200;
     od1_mem_wdata_ex   = 32'hDEAD_BEEF;
     od1_mem_besel_ex   = 4'b1111;
@@ -224,7 +224,7 @@ module ex_mem_tb;
     od0_pc_ex          = 32'h0000_1020;
     od1_enable_ex      = 1'b1;
     od1_mem_en_ex      = 1'b1;
-    od1_mem_act_ex     = 1'b0;
+    od1_mem_write_ex     = 1'b0;
     od1_mem_addr_ex    = 32'h800;
     od1_pc_ex          = 32'h0000_1024;
     tick();
@@ -239,14 +239,14 @@ module ex_mem_tb;
     od0_reg_write_ex   = 1'b1;
     od0_rd_ex          = 5'd4;
     od0_mem_en_ex      = 1'b1;
-    od0_mem_act_ex     = 1'b0;
+    od0_mem_write_ex     = 1'b0;
     od0_mem_addr_ex    = 32'h100;
     od0_pc_ex          = 32'h0000_1030;
     tick();
     od0_mem_addr_ex    = 32'h999;
     od1_enable_ex      = 1'b1;
     od1_mem_en_ex      = 1'b1;
-    od1_mem_act_ex     = 1'b1;
+    od1_mem_write_ex     = 1'b1;
     od1_mem_addr_ex    = 32'h300;
     stall_od0          = 1'b1;
     tick();

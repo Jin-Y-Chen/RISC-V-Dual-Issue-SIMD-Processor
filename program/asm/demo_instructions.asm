@@ -1,6 +1,6 @@
 # RV-DIS comprehensive demo — dual-issue RV32I subset + GPR behavior (project_outline §5)
-# Assemble:  py tests/scripts/assembler.py tests/asm/demo_instructions.asm
-# Outputs:   tests/bin/demo_instructions.{hex,mem,txt}
+# Assemble:  py program/assembler/assembler.py program/asm/demo_instructions.asm
+# Outputs:   program/bin/demo_instructions.{hex,mem,txt}
 #
 # Lane map (decode_pkg):
 #   Even: OP / OP-IMM — add addi sub sll slt xor srl sra or and

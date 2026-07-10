@@ -31,8 +31,6 @@ localparam rob_state_t ROB_SPEC_EXEC = 3'b110;
 typedef struct packed {
   logic      lane_sel;
   logic      reg_write;
-  logic      rs1_use;
-  logic      rs2_use;
   opcode_t   opcode;
   funct3_t   funct3;
   funct7_t   funct7;

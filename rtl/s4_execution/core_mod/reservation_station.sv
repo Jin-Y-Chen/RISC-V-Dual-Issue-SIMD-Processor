@@ -4,6 +4,7 @@
 // Dispatch routes by lane_sel; each enable allocates an rs_entry_t tagged by renamed_tag.
 // Issue oldest ready entry per queue to the matching execute lane copy.
 import rv_dis_pkg::*;
+import decode_pkg::*;
 import rob_rename_pkg::*;
 
 module reservation_station (
@@ -159,8 +160,6 @@ module reservation_station (
     disp_even_packet.renamed_tag = renamed_tag;
     disp_even_packet.packet.lane_sel  = 1'b0;
     disp_even_packet.packet.reg_write = reg_write;
-    disp_even_packet.packet.rs1_use   = 1'b1;
-    disp_even_packet.packet.rs2_use   = 1'b1;
     disp_even_packet.packet.opcode    = opcode;
     disp_even_packet.packet.funct3    = funct3;
     disp_even_packet.packet.funct7    = funct7;
@@ -189,8 +188,6 @@ module reservation_station (
     disp_odd_packet.renamed_tag = renamed_tag;
     disp_odd_packet.packet.lane_sel  = 1'b1;
     disp_odd_packet.packet.reg_write = reg_write;
-    disp_odd_packet.packet.rs1_use   = 1'b1;
-    disp_odd_packet.packet.rs2_use   = 1'b1;
     disp_odd_packet.packet.opcode    = opcode;
     disp_odd_packet.packet.funct3    = funct3;
     disp_odd_packet.packet.funct7    = 7'd0;
@@ -268,10 +265,10 @@ module reservation_station (
   );
     if (!entry.valid)
       return 1'b0;
-    if (rs_producer_busy(entry.packet.rs1, entry.packet.rs1_use,
+    if (rs_producer_busy(entry.packet.rs1, decode_rs1_use(entry.packet.opcode),
                          ev0_q, ev1_q, od0_q, od1_q, self_lane))
       return 1'b0;
-    if (rs_producer_busy(entry.packet.rs2, entry.packet.rs2_use,
+    if (rs_producer_busy(entry.packet.rs2, decode_rs2_use(entry.packet.opcode),
                          ev0_q, ev1_q, od0_q, od1_q, self_lane))
       return 1'b0;
     return 1'b1;

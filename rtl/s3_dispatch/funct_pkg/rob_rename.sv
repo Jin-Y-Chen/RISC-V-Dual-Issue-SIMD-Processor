@@ -4,6 +4,7 @@
 package rob_rename_pkg;
 
 import rv_dis_pkg::*;
+import decode_pkg::*;
 import rob_pkg::*;
 import rob_queue_pkg::*;
 
@@ -65,11 +66,11 @@ function automatic EX_packet_t rob_apply_forward(
   rob_apply_forward = pkt;
   if (!pkt.valid)
     return pkt;
-  if (pkt.packet.rs1_use)
+  if (decode_rs1_use(pkt.packet.opcode))
     rob_apply_forward.packet.rs1_data = rob_forward_operand(
       tags, bank, pkt.packet.rs1, pkt.packet.rs1_data, commit_ptr, write_ptr
     );
-  if (pkt.packet.rs2_use)
+  if (decode_rs2_use(pkt.packet.opcode))
     rob_apply_forward.packet.rs2_data = rob_forward_operand(
       tags, bank, pkt.packet.rs2, pkt.packet.rs2_data, commit_ptr, write_ptr
     );

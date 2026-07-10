@@ -8,11 +8,10 @@ module memory_address_unit (
   input  logic        is_store,
 
   // input data
+  input  opcode_t     opcode,
   input  funct3_t     funct3,
-  input  logic        rs1_use,    // decode: rs1 is a real GPR read (address base)
-  input  logic        rs2_use,    // decode: rs2 is a real GPR read (store data)
-  input  word_t       rs1_data,
-  input  word_t       rs2_data,
+  input  word_t       operand_a,
+  input  word_t       operand_b,
   input  word_t       imm,
 
   // output data
@@ -23,12 +22,10 @@ module memory_address_unit (
 
   logic [1:0] addr_lsb;
 
-  // Base address is rs1 when it is a real source; with no base register the
-  // effective address is the immediate alone (base 0 + imm). Store data is rs2
-  // when used, otherwise the immediate stands in.
-  assign mem_addr  = (rs1_use ? rs1_data : word_t'(32'd0)) + imm;
+  // LOAD/STORE only: base + offset; store data is rs2, load wdata unused.
+  assign mem_addr  = operand_a + imm;
   assign addr_lsb  = mem_addr[1:0];
-  assign mem_wdata = rs2_use ? rs2_data : imm;
+  assign mem_wdata = (opcode == OPC_STORE) ? operand_b : imm;
 
   always_comb begin
     mem_besel = 4'b0000;

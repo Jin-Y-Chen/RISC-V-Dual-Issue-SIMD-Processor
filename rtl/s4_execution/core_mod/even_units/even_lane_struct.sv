@@ -11,11 +11,9 @@ module even_lane (
   input  opcode_t     opcode,
   input  funct3_t     funct3,
   input  funct7_t     funct7,
-  input  logic        rs1_use,    // decode: rs1 is a real GPR read
-  input  logic        rs2_use,    // decode: rs2 is a real GPR read
-  input  word_t        rs1_data,
-  input  word_t        rs2_data,
-  input  word_t        imm,
+  input  word_t       rs1_data,
+  input  word_t       rs2_data,
+  input  word_t       imm,
 
   // output controls
   output logic        reg_write,
@@ -29,10 +27,9 @@ module even_lane (
 
   assign reg_write = enable && ((opcode == OPC_OP) || (opcode == OPC_OP_IMM));
 
-  // ALUSrc select: use the register value when decode marks the source used,
-  // otherwise the immediate stands in (e.g. OP-IMM has rs2_use = 0 -> operand_b = imm).
-  assign operand_a = rs1_use ? rs1_data : imm;
-  assign operand_b = rs2_use ? rs2_data : imm;
+  // OP: rs1 + rs2; OP-IMM: rs1 + imm (only opcodes routed to this lane).
+  assign operand_a = rs1_data;
+  assign operand_b = (opcode == OPC_OP) ? rs2_data : imm;
 
   scalar_alu u_scalar_alu (
     .opcode     (opcode),

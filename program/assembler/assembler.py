@@ -5,14 +5,14 @@ RV-DIS assembler — RV32I subset matching rtl/s2_decode (even/odd lanes).
 Converts .asm to machine code for instruction fetch (32-bit words, byte PC).
 
 Usage (from repo root):
-  py tests/scripts/assembler.py tests/asm/demo_instructions.asm
+  py program/assembler/assembler.py program/asm/demo_instructions.asm
 
-Outputs (default: tests/bin/ — flat, no subfolders):
+Outputs (default: program/bin/ — flat, no subfolders):
   <name>.txt   — listing: byte PC, hex insn, mnemonic, [even|odd]
   <name>.hex   — Verilog $readmemh: @byte_address, one 32-bit hex word per line
   <name>.mem   — byte-wide IMEM init: @byte_address, one 00..FF hex byte per line
 
-Example: tests/asm/demo_instructions.asm → tests/bin/demo_instructions.{hex,mem,txt}
+Example: program/asm/demo_instructions.asm → program/bin/demo_instructions.{hex,mem,txt}
 
 Supported mnemonics: add addi sub lw sw beq bne blt bge jal jalr lui auipc
   and R-type ALU: sll slt xor srl sra or and (even lane)
@@ -430,17 +430,20 @@ def main() -> int:
         return 1
 
     name = args.input.stem
-    tests_root = Path(__file__).resolve().parent.parent
-    out_dir = tests_root / "bin"
+    prog_root = Path(__file__).resolve().parent.parent
+    out_dir = prog_root / "bin"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     listing = args.listing or (out_dir / f"{name}.txt")
     hexpath = args.hex or (out_dir / f"{name}.hex")
     mempath = args.mem or (out_dir / f"{name}.mem")
+    tb_mem = prog_root.parent / "tb" / "s1_fetch" / f"{name}.mem"
 
     write_listing(listing, args.input, lines)
     write_hex(hexpath, lines)
     write_mem8(mempath, lines)
+    tb_mem.parent.mkdir(parents=True, exist_ok=True)
+    write_mem8(tb_mem, lines)
 
     entry = lines[0].pc if lines else 0
     print(f"assembled {len(lines)} instructions ({len(lines) * 4} bytes)")
@@ -448,6 +451,7 @@ def main() -> int:
     print(f"  listing: {listing}")
     print(f"  hex:     {hexpath}")
     print(f"  mem:     {mempath}")
+    print(f"  vivado:  {tb_mem}")
     return 0
 
 

@@ -3,7 +3,6 @@
 // even_lane_tb — DUT vs hand-written expected ALU results (decoder_tb-style stimulus).
 
 import rv_dis_pkg::*;
-import decode_pkg::*;
 
 `include "../include/tb_console.svh"
 
@@ -13,8 +12,6 @@ module even_lane_tb;
   logic [6:0]  opcode;
   logic [2:0]  funct3;
   logic [6:0]  funct7;
-  logic        rs1_use;
-  logic        rs2_use;
   logic [31:0] rs1_data;
   logic [31:0] rs2_data;
   logic [31:0] imm;
@@ -24,10 +21,6 @@ module even_lane_tb;
 
   int pass_cnt;
   int fail_cnt;
-
-  // rs*_use follow decode policy (OP reads rs2, OP-IMM uses imm as operand_b).
-  assign rs1_use = decode_rs1_use(opcode);
-  assign rs2_use = decode_rs2_use(opcode);
 
   even_lane dut (.*);
 

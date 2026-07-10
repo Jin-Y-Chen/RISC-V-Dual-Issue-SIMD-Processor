@@ -15,7 +15,7 @@ project/
 ├── sim/              simulation build outputs (logs/, waves/)
 ├── synth/            netlists, reports, Yosys run logs
 ├── scripts/          lib/, sim/, maint/ — see scripts/README.md
-├── tests/            ASM programs + assembler
+├── program/          ASM sources, hex images, assembler
 ├── docs/             ISA and architecture notes
 └── Makefile          forwards to scripts/Makefile
 ```

@@ -22,7 +22,7 @@ Golden models: `gm/` (Verilog, sim) + `tb/gm/` (C++ offline check). See `model/R
 
 ```
 tb/
-  common/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader.svh
+  include/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader.svh (.mem)
   models/         (future BFMs / memory models)
   s1_fetch/
     cases/        *.txt case data

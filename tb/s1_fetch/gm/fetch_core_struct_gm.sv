@@ -39,26 +39,10 @@ module fetch_core_struct_gm #(
   word_t       pc0_next;
   word_t       pc1_next;
 
-  logic        gm_load_reset;
-  logic        gm_step;
-
-  logic        ic_preload_en;
-  word_t       ic_preload_pc;
-  instr_t      ic_preload_data;
-
-  always @(posedge clk) begin
-    if (!rst_n) begin
-      gm_load_reset <= 1'b1;
-      gm_step       <= 1'b0;
-    end else begin
-      gm_load_reset <= 1'b0;
-      gm_step       <= 1'b1;
-    end
-  end
-
-  pc_gm u_pc_gm (
-    .load_reset     (gm_load_reset),
-    .step           (gm_step),
+  pc_gm #(
+    .RESET_PC(RESET_PC)
+  ) u_pc_gm (
+    .clk            (clk),
     .rst_n          (rst_n),
     .enable         (enable),
     .fetch_stall    (fetch_stall),
@@ -67,22 +51,16 @@ module fetch_core_struct_gm #(
     .spec0_en       (spec0_en),
     .pc0_in         (pc0_next),
     .pc1_in         (pc1_next),
-    .reset_pc       (RESET_PC),
     .pc0_out        (pc0),
     .pc1_out        (pc1),
     .is_spec        (is_spec)
   );
 
   instruction_cache_gm u_icache_gm (
-    .clk          (clk),
-    .rst_n        (rst_n),
-    .preload_en   (ic_preload_en),
-    .preload_pc   (ic_preload_pc),
-    .preload_data (ic_preload_data),
-    .pc0          (pc0),
-    .pc1          (pc1),
-    .instr0       (instr0),
-    .instr1       (instr1)
+    .pc0    (pc0),
+    .pc1    (pc1),
+    .instr0 (instr0),
+    .instr1 (instr1)
   );
 
   target_buffer_gm u_target_gm (
@@ -118,10 +96,5 @@ module fetch_core_struct_gm #(
     .pc0_out         (pc0_next),
     .pc1_out         (pc1_next)
   );
-
-  // Tie off preload (integration TB loads DUT I$ directly when needed)
-  assign ic_preload_en   = 1'b0;
-  assign ic_preload_pc   = '0;
-  assign ic_preload_data = '0;
 
 endmodule

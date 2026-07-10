@@ -5,10 +5,12 @@ import rv_dis_pkg::word_t;
 `include "../include/tb_console.svh"
 
 // target_buffer_tb — BTB lookup/WB; DUT vs gm/target_buffer_gm.sv.
+// Each vector applies inputs on posedge clk.
 module target_buffer_tb;
 
   localparam int INDEX_W = 13;
   localparam int WAYS    = 16;
+  localparam int CLK_PERIOD = 10;
 
   localparam word_t PC0       = word_t'(32'h0000_1000);
   localparam word_t PC1       = word_t'(32'h0000_1004);
@@ -69,6 +71,7 @@ module target_buffer_tb;
     input word_t pc1_wb,
     input word_t tgt1_wb
   );
+    @(posedge clk);
     i0_pc           = i0_pc_v;
     i1_pc           = i1_pc_v;
     i0_valid_wb     = v0_wb;
@@ -78,7 +81,6 @@ module target_buffer_tb;
     i0_pc_target_wb = tgt0_wb;
     i1_pc_target_wb = tgt1_wb;
     #0;
-    @(posedge clk);
   endtask
 
   task automatic check_state(input string name, input string detail);
@@ -106,8 +108,9 @@ module target_buffer_tb;
 
   initial begin
     clk = 1'b0;
-    forever #5 clk = ~clk;
   end
+
+  always #(CLK_PERIOD/2) clk <= ~clk;
 
   initial begin
     pass_cnt = 0;
@@ -120,7 +123,6 @@ module target_buffer_tb;
     i0_pc_target_wb = '0;
     i1_pc_target_wb = '0;
 
-    clk   = 1'b0;
     rst_n = 1'b0;
     repeat (2) @(posedge clk);
     rst_n = 1'b1;
@@ -174,9 +176,10 @@ module target_buffer_tb;
     drive(BR_PC, BR_PC, 1'b0, '0, '0, 1'b0, '0, '0);
     check_state("dual_port_same_pc", "i0_pc == i1_pc => identical targets");
 
+    $display("");
     tb_summary(pass_cnt, fail_cnt);
     if (fail_cnt != 0)
-      $fatal(1, "target_buffer_tb failed");
+      $error("target_buffer_tb: %0d failure(s)", fail_cnt);
     $finish;
   end
 

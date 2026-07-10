@@ -169,7 +169,6 @@ module dispatch_core_struct (
   ));
   wire [ROB_DATA_W:0] add_line1 = rob_entry_to_cache(bundle_i1(
     i1_valid_dp, i1_lane_sel_dp, i1_reg_write_dp,
-    i1_rs1_use_dp, i1_rs2_use_dp,
     i1_opcode_dp, i1_funct3_dp, i1_funct7_dp,
     i1_rd_addr_dp, i1_rs1_addr_dp, i1_rs2_addr_dp,
     i1_imm_dp, i1_rs1_data_dp, i1_rs2_data_dp, i1_pc_dp,

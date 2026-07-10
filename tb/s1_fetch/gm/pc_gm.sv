@@ -2,7 +2,6 @@
 
 // Golden model for rtl/s1_fetch/pc.sv
 // Exhaustive 6-bit control LUT — one explicit table row per ctrl[5:0].
-// Keep in sync with model/src/pc_gm.cpp.
 //
 // ctrl[5:0] = {rst_n, enable, fetch_stall, dispatch_stall, mode, spec0_en}
 //   rst_n          — 0 => RESET regardless of other inputs
@@ -11,10 +10,13 @@
 //   dispatch_stall — 1 => HOLD (when rst_n=1, enable=1)
 //   mode           — 0 => ADV8 at 6'h30-31, ADV4 at 6'h32-33; 1 => HOLD
 //   spec0_en       — is_spec on ADV4/ADV8 rows only
+//
+// State advances on posedge clk, matching pc.sv.
 
-module pc_gm (
-  input  logic        load_reset,
-  input  logic        step,
+module pc_gm #(
+  parameter logic [31:0] RESET_PC = 32'h0000_0000
+) (
+  input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,
   input  logic        fetch_stall,
@@ -23,7 +25,6 @@ module pc_gm (
   input  logic        spec0_en,
   input  logic [31:0] pc0_in,
   input  logic [31:0] pc1_in,
-  input  logic [31:0] reset_pc,
   output logic [31:0] pc0_out,
   output logic [31:0] pc1_out,
   output logic        is_spec
@@ -112,11 +113,7 @@ module pc_gm (
     '{GM_HOLD,  1'b0}  // 6'h3f  {1,1,1,1,1,1}
   };
 
-  logic [5:0] ctrl;
-  logic [31:0] st_pc0;
-  logic [31:0] st_pc1;
-  logic        st_is_spec;
-
+  logic [5:0]  ctrl;
   gm_lut_row_t lut_row;
   logic [31:0] aligned_pc0;
   logic [31:0] aligned_pc1;
@@ -125,44 +122,32 @@ module pc_gm (
   assign lut_row     = CTRL_LUT[ctrl];
   assign aligned_pc0 = pc0_in & ~32'd3;
   assign aligned_pc1 = pc1_in & ~32'd3;
-  assign pc0_out     = st_pc0;
-  assign pc1_out     = st_pc1;
-  assign is_spec     = st_is_spec;
 
-  initial begin
-    st_pc0     = '0;
-    st_pc1     = '0;
-    st_is_spec = 1'b0;
-  end
-
-  always @(posedge load_reset) begin
-    st_pc0     <= reset_pc;
-    st_pc1     <= reset_pc + 32'd4;
-    st_is_spec <= 1'b0;
-  end
-
-  always @(posedge step) begin
-    unique case (lut_row.op)
-      GM_RESET: begin
-        st_pc0     <= reset_pc;
-        st_pc1     <= reset_pc + 32'd4;
-        st_is_spec <= 1'b0;
-      end
-      GM_HOLD: begin
-        // LUT row says hold — keep registered state
-      end
-      GM_ADV4: begin
-        st_pc0     <= aligned_pc0 + 32'd4;
-        st_pc1     <= aligned_pc1 + 32'd4;
-        st_is_spec <= lut_row.is_spec;
-      end
-      GM_ADV8: begin
-        st_pc0     <= aligned_pc0 + 32'd8;
-        st_pc1     <= aligned_pc1 + 32'd8;
-        st_is_spec <= lut_row.is_spec;
-      end
-      default: ;
-    endcase
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      pc0_out <= RESET_PC;
+      pc1_out <= RESET_PC + 32'd4;
+      is_spec <= 1'b0;
+    end else begin
+      unique case (lut_row.op)
+        GM_HOLD: begin
+          // keep registered state
+        end
+        GM_ADV4: begin
+          pc0_out <= aligned_pc0 + 32'd4;
+          pc1_out <= aligned_pc1 + 32'd4;
+          is_spec <= lut_row.is_spec;
+        end
+        GM_ADV8: begin
+          pc0_out <= aligned_pc0 + 32'd8;
+          pc1_out <= aligned_pc1 + 32'd8;
+          is_spec <= lut_row.is_spec;
+        end
+        default: begin
+          // GM_RESET rows apply only when rst_n=0 (handled above)
+        end
+      endcase
+    end
   end
 
 endmodule

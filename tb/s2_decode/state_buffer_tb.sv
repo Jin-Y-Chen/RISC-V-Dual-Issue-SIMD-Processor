@@ -130,24 +130,24 @@ module state_buffer_tb;
     tb_banner("state_buffer_tb - combinational storage lookup and WB update");
 
     check_slot0("cold_miss",
-                "no valid entry => default 01",
-                2'b01);
+                "no valid entry => default 10",
+                2'b10);
 
     i0_pc = BR_PC;
     check_slot0("cold_branch_pc",
                 "branch PC still default before train",
-                2'b01);
+                2'b10);
 
     i0_brch_en = 1'b0;
     check_slot0("brch_en_off",
                 "non-branch lookup forced to default",
-                2'b01);
+                2'b10);
     i0_brch_en = 1'b1;
 
     fsm_step(BR_PC, 1'b0);
     i0_pc = BR_PC;
     check_slot0("train_not_taken",
-                "01 + not taken => 00",
+                "10 + not taken => 00",
                 2'b00);
 
     fsm_step(BR_PC, 1'b1);

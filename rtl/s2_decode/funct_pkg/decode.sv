@@ -174,6 +174,14 @@ import rv_dis_pkg::*;
     endcase
   endfunction
 
+  function automatic logic decode_jump_en(input logic [6:0] opcode);
+    unique case (opcode)
+      OPC_JAL,
+      OPC_JALR: decode_jump_en = 1'b1;
+      default:  decode_jump_en = 1'b0;
+    endcase
+  endfunction
+
   // RV32I subset implemented in even_lane / odd_lane (SB/SH/LB/LH and *U branches off)
   function automatic logic insn_legal_scalar(
     input logic [6:0] opcode,

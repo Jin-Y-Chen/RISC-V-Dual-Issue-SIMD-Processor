@@ -13,6 +13,7 @@ module decoder (
   // output data
   output logic        lane_sel,
   output logic        brch_en,
+  output logic        jump_en,
   output opcode_t     opcode,
   output funct3_t     funct3,
   output funct7_t     funct7,
@@ -44,7 +45,7 @@ module decoder (
   assign lane_sel   = decode_lane_sel(opcode_raw);
   assign valid      = insn_legal_scalar(opcode_raw, funct3_raw);
   assign brch_en    = valid && decode_brch_en(opcode_raw);
-
+  assign jump_en    = valid && decode_jump_en(opcode_raw);
   assign rs1_use    = decode_rs1_use(opcode_raw);
   assign rs2_use    = decode_rs2_use(opcode_raw);
   assign reg_write  = decode_reg_write(opcode_raw, funct3_raw, rd);

@@ -127,6 +127,7 @@ module risc_dis_unit #(
   // -------------------------------------------------------------------------
   logic        i0_valid_dec;
   logic        i0_brch_en_dec;
+  logic        i0_jump_en_dec;
   logic        i0_lane_sel_dec;
   logic [6:0]  i0_opcode_dec;
   logic [2:0]  i0_funct3_dec;
@@ -139,6 +140,7 @@ module risc_dis_unit #(
 
   logic        i1_valid_dec;
   logic        i1_brch_en_dec;
+  logic        i1_jump_en_dec;
   logic        i1_lane_sel_dec;
   logic [6:0]  i1_opcode_dec;
   logic [2:0]  i1_funct3_dec;
@@ -156,6 +158,13 @@ module risc_dis_unit #(
   word_t i1_rs1_data;
   word_t i1_rs2_data;
 
+  word_t       i0_pc_predict_dec;
+  word_t       i1_pc_predict_dec;
+  logic        i0_set_target_dec;
+  logic        i1_set_target_dec;
+  logic        i0_tp_wb_valid_dec;
+  logic        i1_tp_wb_valid_dec;
+
   br_state_t   i0_target_state;
   br_state_t   i1_target_state;
   br_state_t   i0_target_state_wb;
@@ -172,6 +181,16 @@ module risc_dis_unit #(
     // input data
     .i0_instr        (i0_instr_id),
     .i1_instr        (i1_instr_id),
+    .i0_pc           (i0_pc_id),
+    .i1_pc           (i1_pc_id),
+    .i0_pc_target    (i0_pc_target_id),
+    .i1_pc_target    (i1_pc_target_id),
+    .i0_br_valid_wb  (i0_br_valid_wb),
+    .i1_br_valid_wb  (i1_br_valid_wb),
+    .i0_br_pc_wb     (i0_btb_pc_wb),
+    .i1_br_pc_wb     (i1_btb_pc_wb),
+    .i0_target_state_wb (i0_target_state_wb),
+    .i1_target_state_wb (i1_target_state_wb),
     .i0_rd           (i0_rd_addr_wb),
     .i0_wdata        (i0_wdata_wb),
     .i0_wpc          (i0_gpr_wpc),
@@ -201,35 +220,29 @@ module risc_dis_unit #(
     .i1_rs2_data     (i1_rs2_data),
     // output controls
     .i0_valid        (i0_valid_dec),
-    .i0_brch_en     (i0_brch_en_dec),
+    .i0_brch_en      (i0_brch_en_dec),
+    .i0_jump_en      (i0_jump_en_dec),
     .i0_reg_write    (i0_reg_write_dec),
     .i1_valid        (i1_valid_dec),
-    .i1_brch_en     (i1_brch_en_dec),
+    .i1_brch_en      (i1_brch_en_dec),
+    .i1_jump_en      (i1_jump_en_dec),
     .i1_rs1_use      (i1_rs1_use_dec),
     .i1_rs2_use      (i1_rs2_use_dec),
-    .i1_reg_write    (i1_reg_write_dec)
+    .i1_reg_write    (i1_reg_write_dec),
+    // branch predict
+    .i0_target_state (i0_target_state),
+    .i1_target_state (i1_target_state),
+    .i0_pc_predict   (i0_pc_predict_dec),
+    .i1_pc_predict   (i1_pc_predict_dec),
+    .i0_set_target   (i0_set_target_dec),
+    .i1_set_target   (i1_set_target_dec),
+    .i0_tp_wb_valid  (i0_tp_wb_valid_dec),
+    .i1_tp_wb_valid  (i1_tp_wb_valid_dec)
   );
 
-  state_buffer u_state_buf (
-    .clk                 (clk),
-    .rst_n               (rst_n),
-    .i0_pc               (i0_pc_id),
-    .i1_pc               (i1_pc_id),
-    .i0_brch_en          (i0_brch_en_dec),
-    .i1_brch_en          (i1_brch_en_dec),
-    .i0_valid_wb         (i0_br_valid_wb),
-    .i1_valid_wb         (i1_br_valid_wb),
-    .i0_pc_wb            (i0_btb_pc_wb),
-    .i1_pc_wb            (i1_btb_pc_wb),
-    .i0_target_state_wb  (i0_target_state_wb),
-    .i1_target_state_wb  (i1_target_state_wb),
-    .i0_target_state     (i0_target_state),
-    .i1_target_state     (i1_target_state)
-  );
-
-  // state[1] => predict taken (see project_outline state table)
-  assign i0_pred_taken = i0_brch_en_dec && i0_target_state[1];
-  assign i1_pred_taken = i1_brch_en_dec && i1_target_state[1];
+  // predict taken from target_predict (jumps + state[1] for branches)
+  assign i0_pred_taken = i0_set_target_dec;
+  assign i1_pred_taken = i1_set_target_dec;
 
   // -------------------------------------------------------------------------
   // Dispatch — id_dp + dispatch_core_struct (s3_dispatch)
@@ -488,7 +501,7 @@ module risc_dis_unit #(
   logic        od0_brch_taken;
   logic [31:0] od0_brch_pc;
   logic        od0_mem_en;
-  logic        od0_mem_act;
+  logic        od0_mem_write;
   logic [31:0] od0_mem_addr;
   logic [31:0] od0_mem_wdata;
   logic [3:0]  od0_mem_besel;
@@ -498,7 +511,7 @@ module risc_dis_unit #(
   logic        od1_brch_taken;
   logic [31:0] od1_brch_pc;
   logic        od1_mem_en;
-  logic        od1_mem_act;
+  logic        od1_mem_write;
   logic [31:0] od1_mem_addr;
   logic [31:0] od1_mem_wdata;
   logic [3:0]  od1_mem_besel;
@@ -512,7 +525,7 @@ module risc_dis_unit #(
   logic        od0_brch_taken_mem;
   logic [31:0] od0_brch_pc_mem;
   logic        od0_mem_en_mem;
-  logic        od0_mem_act_mem;
+  logic        od0_mem_write_mem;
   logic [31:0] od0_mem_addr_mem;
   logic [31:0] od0_mem_wdata_mem;
   logic [3:0]  od0_mem_besel_mem;
@@ -525,7 +538,7 @@ module risc_dis_unit #(
   logic        od1_brch_taken_mem;
   logic [31:0] od1_brch_pc_mem;
   logic        od1_mem_en_mem;
-  logic        od1_mem_act_mem;
+  logic        od1_mem_write_mem;
   logic [31:0] od1_mem_addr_mem;
   logic [31:0] od1_mem_wdata_mem;
   logic [3:0]  od1_mem_besel_mem;
@@ -602,10 +615,10 @@ module risc_dis_unit #(
     .od1_use_link_ex     (od1_use_link_ex),
     .od0_brch_taken      (od0_brch_taken),
     .od0_mem_en          (od0_mem_en),
-    .od0_mem_act         (od0_mem_act),
+    .od0_mem_write         (od0_mem_write),
     .od1_brch_taken      (od1_brch_taken),
     .od1_mem_en          (od1_mem_en),
-    .od1_mem_act         (od1_mem_act),
+    .od1_mem_write         (od1_mem_write),
     // output data
     .ev0_alu_result      (ev0_alu_result),
     .ev1_alu_result      (ev1_alu_result),
@@ -638,7 +651,7 @@ module risc_dis_unit #(
     .od0_brch_taken_ex   (od0_brch_taken),
     .od0_brch_pc_ex      (od0_brch_pc),
     .od0_mem_en_ex       (od0_mem_en),
-    .od0_mem_act_ex      (od0_mem_act),
+    .od0_mem_write_ex      (od0_mem_write),
     .od0_mem_addr_ex     (od0_mem_addr),
     .od0_mem_wdata_ex    (od0_mem_wdata),
     .od0_mem_besel_ex    (od0_mem_besel),
@@ -652,7 +665,7 @@ module risc_dis_unit #(
     .od1_brch_taken_ex   (od1_brch_taken),
     .od1_brch_pc_ex      (od1_brch_pc),
     .od1_mem_en_ex       (od1_mem_en),
-    .od1_mem_act_ex      (od1_mem_act),
+    .od1_mem_write_ex      (od1_mem_write),
     .od1_mem_addr_ex     (od1_mem_addr),
     .od1_mem_wdata_ex    (od1_mem_wdata),
     .od1_mem_besel_ex    (od1_mem_besel),
@@ -665,7 +678,7 @@ module risc_dis_unit #(
     .od0_brch_taken_mem  (od0_brch_taken_mem),
     .od0_brch_pc_mem     (od0_brch_pc_mem),
     .od0_mem_en_mem      (od0_mem_en_mem),
-    .od0_mem_act_mem     (od0_mem_act_mem),
+    .od0_mem_write_mem     (od0_mem_write_mem),
     .od0_mem_addr_mem    (od0_mem_addr_mem),
     .od0_mem_wdata_mem   (od0_mem_wdata_mem),
     .od0_mem_besel_mem   (od0_mem_besel_mem),
@@ -678,7 +691,7 @@ module risc_dis_unit #(
     .od1_brch_taken_mem  (od1_brch_taken_mem),
     .od1_brch_pc_mem     (od1_brch_pc_mem),
     .od1_mem_en_mem      (od1_mem_en_mem),
-    .od1_mem_act_mem     (od1_mem_act_mem),
+    .od1_mem_write_mem     (od1_mem_write_mem),
     .od1_mem_addr_mem    (od1_mem_addr_mem),
     .od1_mem_wdata_mem   (od1_mem_wdata_mem),
     .od1_mem_besel_mem   (od1_mem_besel_mem),
@@ -725,9 +738,9 @@ module risc_dis_unit #(
     .enable            (enable),
     // internal controls
     .od0_mem_en_mem    (od0_mem_en_mem),
-    .od0_mem_act_mem   (od0_mem_act_mem),
+    .od0_mem_write_mem   (od0_mem_write_mem),
     .od1_mem_en_mem    (od1_mem_en_mem),
-    .od1_mem_act_mem   (od1_mem_act_mem),
+    .od1_mem_write_mem   (od1_mem_write_mem),
     // input data
     .od0_mem_addr_mem  (od0_mem_addr_mem),
     .od0_mem_wdata_mem (od0_mem_wdata_mem),
@@ -764,7 +777,7 @@ module risc_dis_unit #(
     .od0_use_link_mem   (od0_use_link_mem),
     .od0_alu_result_mem (od0_alu_result_mem),
     .od0_mem_en_mem     (od0_mem_en_mem),
-    .od0_mem_act_mem    (od0_mem_act_mem),
+    .od0_mem_write_mem    (od0_mem_write_mem),
     .od0_load_mem_data     (od0_load_mem_data),
     .od1_reg_write_mem  (od1_reg_write_mem),
     .od1_rd_addr_mem    (od1_rd_mem),
@@ -772,7 +785,7 @@ module risc_dis_unit #(
     .od1_use_link_mem   (od1_use_link_mem),
     .od1_alu_result_mem (od1_alu_result_mem),
     .od1_mem_en_mem     (od1_mem_en_mem),
-    .od1_mem_act_mem    (od1_mem_act_mem),
+    .od1_mem_write_mem    (od1_mem_write_mem),
     .od1_load_mem_data     (od1_load_mem_data),
     .ev0_reg_write_exwb (),
     .ev0_rd_addr_exwb   (),

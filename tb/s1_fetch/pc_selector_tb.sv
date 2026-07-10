@@ -3,10 +3,12 @@
 `include "../include/tb_console.svh"
 
 // pc_selector_tb — exhaustive 5-bit control sweep; reference = gm/pc_selector_gm.sv.
+// Each vector applies inputs on posedge clk.
 module pc_selector_tb;
 
-  localparam int CTRL_BITS = 5;
-  localparam int N_VECTORS = 1 << CTRL_BITS;
+  localparam int CTRL_BITS  = 5;
+  localparam int N_VECTORS  = 1 << CTRL_BITS;
+  localparam int CLK_PERIOD = 10;  // TB-only pacing clock (DUT is combinational)
 
   localparam logic [31:0] PC0_IN = 32'h0000_1000;
   localparam logic [31:0] PC1_IN = 32'h0000_1004;
@@ -37,6 +39,8 @@ module pc_selector_tb;
   logic        ref_spec0_en;
   logic [31:0] ref_pc0_out;
   logic [31:0] ref_pc1_out;
+
+  logic        clk;  // testbench pacing only — not connected to DUT/GM
 
   int pass_cnt;
   int fail_cnt;
@@ -79,10 +83,14 @@ module pc_selector_tb;
     .pc1_out         (ref_pc1_out)
   );
 
+  initial clk = 1'b0;
+  always #(CLK_PERIOD/2) clk <= ~clk;
+
   task automatic check_vector(input int unsigned ctrl);
     bit pass;
     string detail;
 
+    @(posedge clk);
     is_spec         = ctrl[4];
     i0_pred_taken   = ctrl[3];
     i1_pred_taken   = ctrl[2];
@@ -101,6 +109,20 @@ module pc_selector_tb;
 
     detail = $sformatf("ctrl=%05b", ctrl[4:0]);
     tb_report_open(pass, $sformatf("ctrl_%02x", ctrl), detail);
+    tb_log_section("inputs");
+    tb_field_in_bit("is_spec",         is_spec);
+    tb_field_in_bit("i0_pred_taken",   i0_pred_taken);
+    tb_field_in_bit("i1_pred_taken",   i1_pred_taken);
+    tb_field_in_bit("i0_brch_recover", i0_brch_recover);
+    tb_field_in_bit("i1_brch_recover", i1_brch_recover);
+    tb_field_in_u32("pc0_in",          pc0_in);
+    tb_field_in_u32("pc1_in",          pc1_in);
+    tb_field_in_u32("i0_pc_target",    i0_pc_target);
+    tb_field_in_u32("i1_pc_target",    i1_pc_target);
+    tb_field_in_u32("i0_pc_execute",    i0_pc_execute);
+    tb_field_in_u32("i1_pc_execute",    i1_pc_execute);
+    $display("");
+    tb_log_section("check");
     tb_field_bit("stall",    stall,    ref_stall);
     tb_field_bit("mode",     mode,     ref_mode);
     tb_field_bit("spec0_en", spec0_en, ref_spec0_en);
@@ -115,15 +137,17 @@ module pc_selector_tb;
 
     pass_cnt = 0;
     fail_cnt = 0;
-    tb_banner("pc_selector_tb — DUT vs pc_selector_gm.sv (32 vectors)");
+    tb_banner("pc_selector_tb: DUT vs pc_selector_gm.sv (32 vectors)");
 
     for (ctrl = 0; ctrl < N_VECTORS; ctrl++)
       check_vector(ctrl);
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);
-    if (fail_cnt != 0)
-      $fatal(1, "pc_selector_tb failed");
+    if (pass_cnt + fail_cnt != N_VECTORS)
+      $error("pc_selector_tb: expected %0d vectors, ran %0d", N_VECTORS, pass_cnt + fail_cnt);
+    else if (fail_cnt != 0)
+      $error("pc_selector_tb: %0d failure(s)", fail_cnt);
     $finish;
   end
 

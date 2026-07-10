@@ -2,7 +2,7 @@
 
 // Branch state buffer — registered storage with same-cycle WB read bypass.
 // 8192 entries over 32 KiB I$ (PC[14:2]); 512 sets x 16 ways.
-// Miss (valid=0) => DEFAULT_STATE (weakly not taken).
+// Miss (valid=0) => DEFAULT_STATE (weakly taken).
 import rv_dis_pkg::*;
 import cache_pkg::*;
 
@@ -10,7 +10,7 @@ module state_buffer #(
   parameter integer INDEX_W = PC_INDEX_AW,
   parameter integer DATA_W  = 2,
   parameter integer WAYS    = 16,
-  parameter [1:0] DEFAULT_STATE = 2'b01
+  parameter [1:0] DEFAULT_STATE = 2'b10
 ) (
   // external controls
   input  logic        clk,

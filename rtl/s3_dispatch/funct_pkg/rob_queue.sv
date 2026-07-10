@@ -13,8 +13,6 @@ import rob_pkg::*;
 function automatic ID_packet_t ID_packet_pack(
   input logic      lane_sel,
   input logic      reg_write,
-  input logic      rs1_use,
-  input logic      rs2_use,
   input opcode_t   opcode,
   input funct3_t   funct3,
   input funct7_t   funct7,
@@ -27,8 +25,6 @@ function automatic ID_packet_t ID_packet_pack(
 );
   ID_packet_pack.lane_sel  = lane_sel;
   ID_packet_pack.reg_write = reg_write;
-  ID_packet_pack.rs1_use   = rs1_use;
-  ID_packet_pack.rs2_use   = rs2_use;
   ID_packet_pack.opcode    = opcode;
   ID_packet_pack.funct3    = funct3;
   ID_packet_pack.funct7    = funct7;
@@ -83,7 +79,7 @@ function automatic rob_entry_t bundle_i0(
     valid,
     rd,
     ID_packet_pack(
-      lane_sel, reg_write, 1'b1, 1'b1,
+      lane_sel, reg_write,
       opcode, funct3, funct7, rs1, rs2,
       imm, rs1_data, rs2_data, pc
     ),
@@ -96,8 +92,6 @@ function automatic rob_entry_t bundle_i1(
   input logic      valid,
   input logic      lane_sel,
   input logic      reg_write,
-  input logic      rs1_use,
-  input logic      rs2_use,
   input opcode_t   opcode,
   input funct3_t   funct3,
   input funct7_t   funct7,
@@ -115,7 +109,7 @@ function automatic rob_entry_t bundle_i1(
     valid,
     rd,
     ID_packet_pack(
-      lane_sel, reg_write, rs1_use, rs2_use,
+      lane_sel, reg_write,
       opcode, funct3, funct7, rs1, rs2,
       imm, rs1_data, rs2_data, pc
     ),

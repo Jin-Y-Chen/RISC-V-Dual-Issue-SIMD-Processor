@@ -17,11 +17,11 @@ module ex_mem_wb (
   input  logic        od0_reg_write_mem,
   input  logic        od0_use_link_mem,
   input  logic        od0_mem_en_mem,
-  input  logic        od0_mem_act_mem,
+  input  logic        od0_mem_write_mem,
   input  logic        od1_reg_write_mem,
   input  logic        od1_use_link_mem,
   input  logic        od1_mem_en_mem,
-  input  logic        od1_mem_act_mem,
+  input  logic        od1_mem_write_mem,
 
   // input data
   input  gpr_addr_t   ev0_rd_addr_ex,
@@ -75,8 +75,8 @@ module ex_mem_wb (
   word_t        od1_wdata_memwb;
   word_t        od1_pc_memwb;
 
-  assign od0_odd_load_mem = od0_reg_write_mem && od0_mem_en_mem && !od0_mem_act_mem;
-  assign od1_odd_load_mem = od1_reg_write_mem && od1_mem_en_mem && !od1_mem_act_mem;
+  assign od0_odd_load_mem = od0_reg_write_mem && od0_mem_en_mem && !od0_mem_write_mem;
+  assign od1_odd_load_mem = od1_reg_write_mem && od1_mem_en_mem && !od1_mem_write_mem;
 
   // output data — odd lane WB mux (load / link / ALU)
   assign od0_wdata_mem = od0_odd_load_mem ? od0_load_mem_data :

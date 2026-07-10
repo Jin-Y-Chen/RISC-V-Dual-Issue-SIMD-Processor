@@ -44,11 +44,11 @@ module pc_selector (
     pc1_out = imm_align4(pc1_in);
 
     if (i0_brch_recover) begin
-      pc0_out = imm_align4(i0_pc_execute);
-      pc1_out = imm_align4(i0_pc_execute) + 32'd4;
+      pc0_out = imm_align4(i0_pc_execute) + 32'd4;
+      pc1_out = imm_align4(i0_pc_execute) + 32'd8;
     end else if (i1_brch_recover) begin
-      pc0_out = imm_align4(i1_pc_execute);
-      pc1_out = imm_align4(i1_pc_execute) + 32'd4;
+      pc0_out = imm_align4(i1_pc_execute) + 32'd4;
+      pc1_out = imm_align4(i1_pc_execute) + 32'd8;
     end else begin
       if (i0_pred_taken && i1_pred_taken) begin
         pc0_out = imm_align4(i0_pc_target);

@@ -3,7 +3,6 @@
 // odd_lane_tb — DUT vs hand-written expected (decoder_tb-style run_insn + check_expect).
 
 import rv_dis_pkg::*;
-import decode_pkg::*;
 
 `include "../include/tb_console.svh"
 
@@ -12,8 +11,6 @@ module odd_lane_tb;
   logic        enable;
   logic [6:0]  opcode;
   logic [2:0]  funct3;
-  logic        rs1_use;
-  logic        rs2_use;
   logic [31:0] rs1_data;
   logic [31:0] rs2_data;
   logic [31:0] imm;
@@ -22,7 +19,7 @@ module odd_lane_tb;
   logic        brch_taken;
   logic [31:0] brch_pc;
   logic        mem_en;
-  logic        mem_act;
+  logic        mem_write;
   logic [31:0] mem_addr;
   logic [31:0] mem_wdata;
   logic [3:0]  mem_besel;
@@ -31,10 +28,6 @@ module odd_lane_tb;
 
   int pass_cnt;
   int fail_cnt;
-
-  // rs*_use follow decode policy (base/store/compare register reads).
-  assign rs1_use = decode_rs1_use(opcode);
-  assign rs2_use = decode_rs2_use(opcode);
 
   odd_lane dut (.*);
 
@@ -62,7 +55,7 @@ module odd_lane_tb;
     input logic        exp_brch_taken,
     input logic [31:0] exp_brch_pc,
     input logic        exp_mem_en,
-    input logic        exp_mem_act,
+    input logic        exp_mem_write,
     input logic [31:0] exp_mem_addr,
     input logic [31:0] exp_mem_wdata,
     input logic [3:0]  exp_mem_besel,
@@ -76,7 +69,7 @@ module odd_lane_tb;
       return;
     end
     pass = (brch_taken === exp_brch_taken && brch_pc === exp_brch_pc &&
-            mem_en === exp_mem_en && mem_act === exp_mem_act &&
+            mem_en === exp_mem_en && mem_write === exp_mem_write &&
             mem_addr === exp_mem_addr && mem_wdata === exp_mem_wdata &&
             mem_besel === exp_mem_besel &&
             link_pc === exp_link && reg_wdata === exp_reg_wdata);
@@ -84,7 +77,7 @@ module odd_lane_tb;
     tb_field_bit("brch_taken", brch_taken, exp_brch_taken);
     tb_field_u32("brch_pc", brch_pc, exp_brch_pc);
     tb_field_bit("mem_en", mem_en, exp_mem_en);
-    tb_field_bit("mem_act", mem_act, exp_mem_act);
+    tb_field_bit("mem_write", mem_write, exp_mem_write);
     tb_field_u32("mem_addr", mem_addr, exp_mem_addr);
     tb_field_u32("mem_wdata", mem_wdata, exp_mem_wdata);
     tb_field_be("mem_besel", mem_besel, exp_mem_besel);

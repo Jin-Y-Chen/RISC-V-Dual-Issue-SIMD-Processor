@@ -30,7 +30,7 @@ module ex_mem_wb_tb;
   logic        od0_use_link_mem;
   logic [31:0] od0_alu_result_mem;
   logic        od0_mem_en_mem;
-  logic        od0_mem_act_mem;
+  logic        od0_mem_write_mem;
   logic [31:0] od0_load_mem_data;
 
   logic        od1_reg_write_mem;
@@ -39,7 +39,7 @@ module ex_mem_wb_tb;
   logic        od1_use_link_mem;
   logic [31:0] od1_alu_result_mem;
   logic        od1_mem_en_mem;
-  logic        od1_mem_act_mem;
+  logic        od1_mem_write_mem;
   logic [31:0] od1_load_mem_data;
 
   logic        ev0_reg_write_exwb;
@@ -93,7 +93,7 @@ module ex_mem_wb_tb;
     od0_use_link_mem = 1'b0;
     od0_alu_result_mem = '0;
     od0_mem_en_mem = 1'b0;
-    od0_mem_act_mem = 1'b0;
+    od0_mem_write_mem = 1'b0;
     od0_load_mem_data = '0;
     od1_reg_write_mem = 1'b0;
     od1_rd_addr_mem = '0;
@@ -101,7 +101,7 @@ module ex_mem_wb_tb;
     od1_use_link_mem = 1'b0;
     od1_alu_result_mem = '0;
     od1_mem_en_mem = 1'b0;
-    od1_mem_act_mem = 1'b0;
+    od1_mem_write_mem = 1'b0;
     od1_load_mem_data = '0;
   endtask
 
@@ -210,7 +210,7 @@ module ex_mem_wb_tb;
     od0_rd_addr_mem   = 5'd7;
     od0_pc_mem        = 32'h0000_2000;
     od0_mem_en_mem    = 1'b1;
-    od0_mem_act_mem   = 1'b0;
+    od0_mem_write_mem   = 1'b0;
     od0_load_mem_data = 32'hDEAD_BEEF;
     tick();
     check_od0_wdata("od0_load_mux", "load uses mem_data",
