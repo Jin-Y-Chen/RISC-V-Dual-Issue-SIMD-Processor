@@ -36,6 +36,8 @@ module fetch_core_struct_gm #(
   logic        mode;
   logic        spec0_en;
   logic        is_spec;
+  logic        i0_btb_valid;
+  logic        i1_btb_valid;
   word_t       pc0_next;
   word_t       pc1_next;
 
@@ -74,6 +76,8 @@ module fetch_core_struct_gm #(
     .i1_pc_wb        (i1_pc_wb),
     .i0_pc_target_wb (i0_pc_target_wb),
     .i1_pc_target_wb (i1_pc_target_wb),
+    .i0_valid        (i0_btb_valid),
+    .i1_valid        (i1_btb_valid),
     .i0_pc_target    (i0_pc_target),
     .i1_pc_target    (i1_pc_target)
   );

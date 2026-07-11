@@ -4,7 +4,7 @@
 // Upstream: id_dp (ID/DP register). Downstream: dp_ex (DP/EX register) -> reservation stations.
 //
 //   reorder_buffer   — add / read / update / clear
-//   branch_speculate — NEW vs SPEC_NEW, br_inflight
+//   branch_speculate — combo NEW vs SPEC_NEW / br_inflight_next (count in this struct)
 //   rename_dispatch  — operand forward + route to ev0/ev1/od0/od1
 //
 // Entry lifecycle (rob_state_t):
@@ -136,29 +136,38 @@ module dispatch_core_struct (
   wire [ROB_AW-1:0] commit_idx1 = rob_commit_ptr[ROB_AW-1:0] + 1'b1;
 
   // -------------------------------------------------------------------------
-  // Branch speculation — SPEC_NEW vs NEW on add
+  // Branch speculation — SPEC_NEW vs NEW on add (combo); count registered here
   // -------------------------------------------------------------------------
-  logic spec_i0;
-  logic spec_i1;
+  logic     spec_i0;
+  logic     spec_i1;
+  rob_ptr_t br_inflight_q;
+  rob_ptr_t br_inflight_next;
 
+  assign br_inflight = br_inflight_q;
+
+  // Combo only — br_inflight register lives below (uses clk/rst_n/enable/flush).
   branch_speculate u_branch_speculate (
-    .clk          (clk),
-    .rst_n        (rst_n),
-    .enable       (enable),
-    .flush        (flush),
-    .add_en       (add_en),
-    .i0_valid     (i0_valid_dp),
-    .i0_opcode    (i0_opcode_dp),
-    .i1_valid     (i1_valid_dp),
-    .i1_opcode    (i1_opcode_dp),
-    .clear_en     (commit_en),
-    .clear_count  (commit_count),
-    .cmt0_opcode  (rob_cache_data_read(rob_bank[commit_idx0], '0).packet.opcode),
-    .cmt1_opcode  (rob_cache_data_read(rob_bank[commit_idx1], '0).packet.opcode),
-    .spec_i0      (spec_i0),
-    .spec_i1      (spec_i1),
-    .br_inflight  (br_inflight)
+    .add_en           (add_en),
+    .i0_valid         (i0_valid_dp),
+    .i0_opcode        (i0_opcode_dp),
+    .i1_valid         (i1_valid_dp),
+    .i1_opcode        (i1_opcode_dp),
+    .clear_en         (commit_en),
+    .clear_count      (commit_count),
+    .cmt0_opcode      (rob_cache_data_read(rob_bank[commit_idx0], '0).packet.opcode),
+    .cmt1_opcode      (rob_cache_data_read(rob_bank[commit_idx1], '0).packet.opcode),
+    .br_inflight      (br_inflight_q),
+    .spec_i0          (spec_i0),
+    .spec_i1          (spec_i1),
+    .br_inflight_next (br_inflight_next)
   );
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n || flush)
+      br_inflight_q <= '0;
+    else if (enable)
+      br_inflight_q <= br_inflight_next;
+  end
 
   wire [ROB_DATA_W:0] add_line0 = rob_entry_to_cache(bundle_i0(
     i0_valid_dp, i0_lane_sel_dp, i0_reg_write_dp,

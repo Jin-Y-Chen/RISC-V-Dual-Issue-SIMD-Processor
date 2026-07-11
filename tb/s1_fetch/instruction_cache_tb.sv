@@ -1,19 +1,21 @@
 `timescale 1ns / 1ps
 
-// instruction_cache_tb — dual fetch; DUT bank preload vs gm LUT; image from .mem.
-// Vectors: independent I0/I1, delta +4, delta +8; each vector applies pc0/pc1 on posedge clk.
-// Vivado: add demo_instructions.mem next to this TB (tb/s1_fetch/) or pass +imem_mem=<path>.
+// instruction_cache_tb — dual fetch vs gm; preload .mem into 2-way I$ bank.
+// Geometry: INDEX_W=13, WAYS=2, SETS=4096; each entry = valid + 4-byte ILEN word.
+// Vectors: i0/i1 solo, mode=1 split (pc,pc+4), mode=0 bundle (pc+8,pc+12); posedge.
+// Vivado: +imem_mem=<path>; optional +cache_dump=<path> writes valid bank lines.
 import rv_dis_pkg::*;
+import imem_hex_loader_pkg::*;
 
 `include "../include/tb_console.svh"
-`include "../include/imem_hex_loader.svh"
 
 module instruction_cache_tb;
 
   localparam int INDEX_W = PC_INDEX_AW;
-  localparam int WAYS    = 4;
+  localparam int WAYS    = 2;
   localparam int WAY_AW  = $clog2(WAYS);
   localparam int SETS    = (1 << INDEX_W) / WAYS;
+  localparam int BYTES_PER_ENTRY = ILEN / ADDR_UNIT_BITS;  // 4
 
   localparam string MEM_FILE_DEFAULT = "demo_instructions.mem";
   localparam int    CLK_PERIOD       = 10;
@@ -62,7 +64,27 @@ module instruction_cache_tb;
   endfunction
 
   task automatic preload_slot(input word_t pc, input instr_t word);
+    // Install one 4-byte ILEN word at the PC's set/way (valid=1).
     dut.bank[idx_set(pc)][idx_way(pc)] = {1'b1, word[31:0]};
+  endtask
+
+  task automatic dump_cache_txt(input string path);
+    int fd;
+    fd = $fopen(path, "w");
+    if (fd == 0) begin
+      $error("dump_cache_txt: cannot open %s", path);
+      return;
+    end
+    $fdisplay(fd, "# instruction_cache DUT bank (valid entries only)");
+    $fdisplay(fd, "# INDEX_W=%0d WAYS=%0d SETS=%0d BYTES_PER_ENTRY=%0d",
+              INDEX_W, WAYS, SETS, BYTES_PER_ENTRY);
+    $fdisplay(fd, "# columns: set way instr_word");
+    for (int s = 0; s < SETS; s++)
+      for (int w = 0; w < WAYS; w++)
+        if (dut.bank[s][w][32])
+          $fdisplay(fd, "%4d %2d 0x%08h", s, w, dut.bank[s][w][31:0]);
+    $fclose(fd);
+    $display("[INFO] cache dump -> %s", path);
   endtask
 
   task automatic drive(input word_t pc0_v, input word_t pc1_v);
@@ -169,37 +191,45 @@ module instruction_cache_tb;
       check_fetch(case_name, case_detail);
     end
 
-    // Dual fetch, delta +4 (sequential in-pair: pc, pc+4).
+    // mode=1 speculative / split: pc0=pc, pc1=pc+4 (divergent pc0_in/pc1_in; +4 step)
     for (int i = 0; i < prog_len - 1; i++) begin
       pc_a = prog[i].pc;
       pc_b = pc_a + word_t'(32'd4);
-      case_name   = $sformatf("delta4_%08h_%08h", pc_a, pc_b);
-      case_detail = $sformatf("dual fetch +4 spacing [%0d/%0d]", i, prog_len - 2);
+      case_name   = $sformatf("spec_delta4_%08h_%08h", pc_a, pc_b);
+      case_detail = $sformatf("mode=1 split pair [%0d/%0d]", i, prog_len - 2);
       drive(pc_a, pc_b);
       check_fetch(case_name, case_detail);
     end
 
-    // Dual fetch, delta +8 (skip one slot: pc, pc+8).
-    for (int i = 0; i < prog_len - 2; i++) begin
-      pc_a = prog[i].pc;
-      pc_b = pc_a + word_t'(32'd8);
-      case_name   = $sformatf("delta8_%08h_%08h", pc_a, pc_b);
-      case_detail = $sformatf("dual fetch +8 spacing [%0d/%0d]", i, prog_len - 3);
+    // mode=0 sequential dual-issue: (pc0,pc1)+8 -> e.g. 1000,1004 then 1008,100c
+    for (int i = 0; i < prog_len - 3; i++) begin
+      pc_a = prog[i].pc + word_t'(32'd8);
+      pc_b = prog[i].pc + word_t'(32'd12);
+      case_name   = $sformatf("seq_delta8_%08h_%08h", pc_a, pc_b);
+      case_detail = $sformatf("mode=0 +8 bundle from base 0x%08h [%0d/%0d]",
+                              prog[i].pc, i, prog_len - 4);
       drive(pc_a, pc_b);
       check_fetch(case_name, case_detail);
     end
 
     drive(prog[0].pc, prog[0].pc + word_t'(32'd4));
-    check_fetch("repeat_first_delta4",
-                "re-read first +4 pair after sweeps");
+    check_fetch("repeat_first_spec_delta4",
+                "re-read first mode=1 split pair after sweeps");
 
     drive(prog[prog_len-2].pc, prog[prog_len-1].pc);
-    check_fetch("last_delta4",
-                "final +4 pair at end of demo program");
+    check_fetch("last_spec_delta4",
+                "final mode=1 split pair at end of demo program");
 
     drive(MISS_PC, MISS_PC + word_t'(32'd4));
-    check_fetch("unloaded_miss_delta4",
+    check_fetch("unloaded_miss_spec_delta4",
                 "both ports miss outside demo .mem image => 32'h0");
+
+    if ($test$plusargs("cache_dump")) begin
+      string dump_path;
+      dump_path = "icache_bank.txt";
+      void'($value$plusargs("cache_dump=%s", dump_path));
+      dump_cache_txt(dump_path);
+    end
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

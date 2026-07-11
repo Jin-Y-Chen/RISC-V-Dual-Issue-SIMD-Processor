@@ -10,6 +10,7 @@ module target_buffer_tb;
 
   localparam int INDEX_W = 13;
   localparam int WAYS    = 16;
+  localparam int SETS    = (1 << INDEX_W) / WAYS;
   localparam int CLK_PERIOD = 10;
 
   localparam word_t PC0       = word_t'(32'h0000_1000);
@@ -28,8 +29,12 @@ module target_buffer_tb;
   logic [31:0] i1_pc_wb;
   logic [31:0] i0_pc_target_wb;
   logic [31:0] i1_pc_target_wb;
+  logic        i0_valid;
+  logic        i1_valid;
   logic [31:0] i0_pc_target;
   logic [31:0] i1_pc_target;
+  logic        ref_i0_valid;
+  logic        ref_i1_valid;
   logic [31:0] ref_i0_pc_target;
   logic [31:0] ref_i1_pc_target;
   logic        clk;
@@ -57,9 +62,29 @@ module target_buffer_tb;
     .i1_pc_wb        (i1_pc_wb),
     .i0_pc_target_wb (i0_pc_target_wb),
     .i1_pc_target_wb (i1_pc_target_wb),
+    .i0_valid        (ref_i0_valid),
+    .i1_valid        (ref_i1_valid),
     .i0_pc_target    (ref_i0_pc_target),
     .i1_pc_target    (ref_i1_pc_target)
   );
+
+  task automatic dump_btb_txt(input string path);
+    int fd;
+    fd = $fopen(path, "w");
+    if (fd == 0) begin
+      $error("dump_btb_txt: cannot open %s", path);
+      return;
+    end
+    $fdisplay(fd, "# target_buffer DUT bank (valid entries only)");
+    $fdisplay(fd, "# INDEX_W=%0d WAYS=%0d SETS=%0d", INDEX_W, WAYS, SETS);
+    $fdisplay(fd, "# columns: set way target");
+    for (int s = 0; s < SETS; s++)
+      for (int w = 0; w < WAYS; w++)
+        if (dut.bank[s][w][32])
+          $fdisplay(fd, "%4d %2d 0x%08h", s, w, dut.bank[s][w][31:0]);
+    $fclose(fd);
+    $display("[INFO] BTB dump -> %s", path);
+  endtask
 
   task automatic drive(
     input word_t i0_pc_v,
@@ -86,7 +111,8 @@ module target_buffer_tb;
   task automatic check_state(input string name, input string detail);
     bit pass;
 
-    pass = (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target);
+    pass = (i0_valid === ref_i0_valid) && (i1_valid === ref_i1_valid)
+        && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target);
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
@@ -100,6 +126,8 @@ module target_buffer_tb;
     tb_field_in_u32("i1_pc_target_wb", i1_pc_target_wb);
     $display("");
     tb_log_section("check");
+    tb_field_bit("i0_valid",     i0_valid,     ref_i0_valid);
+    tb_field_bit("i1_valid",     i1_valid,     ref_i1_valid);
     tb_field_u32("i0_pc_target", i0_pc_target, ref_i0_pc_target);
     tb_field_u32("i1_pc_target", i1_pc_target, ref_i1_pc_target);
     tb_report_close(pass);
@@ -127,10 +155,10 @@ module target_buffer_tb;
     repeat (2) @(posedge clk);
     rst_n = 1'b1;
 
-    tb_banner("target_buffer_tb — DUT vs target_buffer_gm.sv");
+    tb_banner("target_buffer_tb: DUT vs target_buffer_gm.sv");
 
     drive(PC0, PC1, 1'b0, '0, '0, 1'b0, '0, '0);
-    check_state("cold_miss", "empty bank => i0/i1 predict sequential pc+4");
+    check_state("cold_miss", "empty bank => i0/i1 valid=0, target=0");
 
     drive(PC0, PC1, 1'b1, BR_PC, BR_TARGET, 1'b0, '0, '0);
     check_state("i0_wb_train", "WB cycle still reads prior miss (lookup pc unchanged)");
@@ -165,7 +193,7 @@ module target_buffer_tb;
     check_state("overwrite_hit", "read returns updated aligned target 0xD000");
 
     drive(COLD_PC, PC1, 1'b0, '0, '0, 1'b0, '0, '0);
-    check_state("index_miss", "untrained PC => fallthrough; other slot unchanged");
+    check_state("index_miss", "untrained PC => target=0; other slot unchanged");
 
     drive(COLD_PC, PC1,
           1'b1, COLD_PC, word_t'(32'h0000_E000),
@@ -175,6 +203,13 @@ module target_buffer_tb;
 
     drive(BR_PC, BR_PC, 1'b0, '0, '0, 1'b0, '0, '0);
     check_state("dual_port_same_pc", "i0_pc == i1_pc => identical targets");
+
+    if ($test$plusargs("btb_dump")) begin
+      string dump_path;
+      dump_path = "btb_bank.txt";
+      void'($value$plusargs("btb_dump=%s", dump_path));
+      dump_btb_txt(dump_path);
+    end
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

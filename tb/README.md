@@ -22,14 +22,13 @@ Golden models: `gm/` (Verilog, sim) + `tb/gm/` (C++ offline check). See `model/R
 
 ```
 tb/
-  include/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader.svh (.mem)
+  include/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader_pkg.sv (.mem)
   models/         (future BFMs / memory models)
   s1_fetch/
     cases/        *.txt case data
     pc_tb, pc_selector_tb, instruction_cache_tb, target_buffer_tb, fetch_core_struct_tb
-  s2_decode/      if_id_tb, decoder_tb, state_buffer_tb, register_file_tb
-  s3_execute/     even_lane_tb, odd_lane_tb, id_ex_dispatch_tb,
-                  forward_unit_tb, scoreboard_tb
+  s2_decode/      if_id_tb, decoder_tb, state_buffer_tb, register_file_tb (+ gm/)
+  s3_execute/     even_lane_tb, odd_lane_tb, id_ex_dispatch_tb
   s4_memory/      ex_mem_tb, memory_cache_tb
   s5_wback/       ex_mem_wb_tb
 ```
@@ -41,19 +40,19 @@ tb/
 | `pc_tb` | `rtl/s1_fetch/pc.sv` | Reset, +8/+8, +4/+4, stall, enable hold |
 | `pc_selector_tb` | `rtl/s1_fetch/core_mod/pc_selector.sv` | Predict / recover / stall-in-spec |
 | `instruction_cache_tb` | `tb/s1_fetch/models/instruction_cache.sv` | Dual read, miss → 0 |
-| `target_buffer_tb` | `tb/s1_fetch/models/target_buffer.sv` | Miss → pc+4, WB install hit |
+| `target_buffer_tb` | `rtl/s1_fetch/core_mod/target_buffer.sv` | Miss → 0, WB install hit |
 | `fetch_core_struct_tb` | `rtl/s1_fetch/fetch_core_struct.sv` (+ real `pc` / `pc_selector`, sim I$/BTB models) | Sequential, BTB, predict, stall, recover |
 
 I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by all simulators. Real RTL remains under `rtl/s1_fetch/core_mod/`.
 
 ## s2_decode
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `if_id_tb` | `rtl/s2_decode/if_id.sv` | IF/ID register |
-| `decoder_tb` | `rtl/s2_decode/core/decoder.sv` | opcode, imm, `lane_sel`, reg flags |
-| `state_buffer_tb` | `rtl/s2_decode/branch/state_buffer.sv` | branch predictor state |
-| `register_file_tb` | `rtl/s2_decode/core/register_file.sv` | x0, dual WB, bypass, 4 read ports |
+| TB | DUT | GM | Checks |
+|----|-----|-----|--------|
+| `if_id_tb` | `rtl/s2_decode/if_id.sv` | `gm/if_id_gm.sv` | CLEAR/HOLD/CAPTURE LUT |
+| `decoder_tb` | `rtl/s2_decode/core_mod/decoder.sv` | `gm/decoder_gm.sv` | opcode/funct3 LUTs, imm, flags |
+| `state_buffer_tb` | `rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv` | `gm/state_buffer_gm.sv` | bank + WB bypass |
+| `register_file_tb` | `rtl/s2_decode/core_mod/register_file.sv` | `gm/register_file_gm.sv` | x0, dual WB, bypass |
 
 ## s3_execute
 
@@ -62,8 +61,6 @@ I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_p
 | `even_lane_tb` | `even_lane.sv` + `scalar_alu.sv` | ADD/SUB/AND/OR/XOR |
 | `odd_lane_tb` | `odd_lane.sv`, branch + LSU | branches, JAL/JALR, LW/SW |
 | `id_ex_dispatch_tb` | `rtl/s3_dispatch/dispatch_core_struct.sv` | even/odd dispatch |
-| `forward_unit_tb` | `rtl/s3_execution/core/forward_unit.sv` | EX/MEM/WB forward mux |
-| `scoreboard_tb` | `rtl/s3_execution/dispatch_funct/scoreboard.sv` | RAW / stall |
 
 ## s4_memory
 

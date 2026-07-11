@@ -1,6 +1,6 @@
 {
-  "flags": "-f .slang/slang-server.f",
-  "build": ".slang/slang-server.f",
+  "flags": "-f .slang/project.f -y rtl/import -y rtl/s1_fetch/core_mod -y rtl/s1_fetch -y tb/include -y tb/s1_fetch/gm -y tb/s2_decode/gm",
+  "build": ".slang/project.f",
   "index": [
     {
       "dirs": ["rtl", "tb"],

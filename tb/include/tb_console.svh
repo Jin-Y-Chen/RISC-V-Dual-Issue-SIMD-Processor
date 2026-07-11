@@ -1,3 +1,6 @@
+`ifndef TB_CONSOLE_SVH
+`define TB_CONSOLE_SVH
+
 // Shared testbench logging (required in all tb/<unit>/*_tb.sv).
 //
 // From tb/<unit>/*_tb.sv:
@@ -52,7 +55,7 @@ task automatic tb_summary(input int passed, input int failed);
 endtask
 
 // Sample on negedge (clock # delays live in the TB clock generator only).
-task automatic tb_advance(input logic clk);
+task automatic tb_advance(ref logic clk);
   @(negedge clk);
 endtask
 
@@ -160,3 +163,5 @@ initial begin
   $dumpvars(0);
 end
 `endif
+
+`endif // TB_CONSOLE_SVH

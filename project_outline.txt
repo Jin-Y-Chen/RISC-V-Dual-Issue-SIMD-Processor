@@ -15,32 +15,6 @@ RV32I Instruction Set Architecture Deisgned:
 
 S1_Fetch:
 
-    Shared indexed-table geometry (I$, BTB, BHT):
-
-        All fetch/decode predictor banks index the 32 KiB instruction space via
-        PC[14:2] using cache_pkg::pc_set / pc_way. Geometry differs by module:
-
-        | Module          | Sets × Ways | Entry width     | WB edge   | Miss default        |
-        |-----------------|-------------|-----------------|-----------|---------------------|
-        | instruction_cache | 2048 × 4  | valid + 32b insn| n/a (TBD) | 32'h0 (valid=0)     |
-        | target_buffer (BTB) | 512 × 16 | valid + 32b tgt | negedge   | pc + 4              |
-        | state_buffer (BHT)  | 512 × 16 | valid + 2b state| posedge   | DEFAULT_STATE 2'b10 |
-
-    Branch speculation dataflow (fetch ↔ decode):
-
-        ```mermaid
-        flowchart LR
-            BTB[target_buffer] --> IF_ID[if_id]
-            IF_ID --> DEC[decoder]
-            IF_ID --> TP[target_predict]
-            BHT[state_buffer] --> TP
-            DEC --> TP
-            TP -->|set_target| SEL[pc_selector]
-            SEL --> PC[pc.sv]
-            PC --> BTB
-            MEM[state_LUT @ MEM] -->|target_state_wb| BHT
-        ```
-
     Program Counter (PC):                                   [Verified - Done]   [Proof - TBD]
 
             // external controls 
@@ -65,7 +39,7 @@ S1_Fetch:
 
         0. Structure and Specification:
 
-            The PC unit (rtl/s1_fetch/pc.sv) is a registered dual-issue address generator.
+            The PC unit (`rtl/s1_fetch/pc.sv`) is a registered dual-issue address generator.
             It owns two 32-bit byte addresses, pc0_out and pc1_out, that name the
             instruction pair fetched on the even (I0) and odd (I1) lanes. The module is
             intentionally narrow: it does not decode branches or read the BTB. It only
@@ -98,25 +72,25 @@ S1_Fetch:
 
         2. Branch Speculation and Stalls Behavior:
 
-            Speculation is a cross-module contract between pc_selector and pc.sv, not
+            Speculation is a cross-module contract between pc_selector and `pc.sv`, not
             logic inside the PC adder itself. pc_selector drives pc0_in / pc1_in, mode,
-            spec0_en, and fetch_stall; pc.sv consumes those signals and exposes is_spec
+            spec0_en, and fetch_stall; `pc.sv` consumes those signals and exposes is_spec
             back to the selector.
 
             | Signal          | Direction   | Role                                                                 |
             |-----------------|-------------|----------------------------------------------------------------------|
-            | spec0_en        | sel → pc    | Enter/remain in speculative fetch; latched as is_spec on update      |
-            | is_spec         | pc → sel    | While set, new predict asserts fetch_stall (no nested speculation)   |
-            | fetch_stall     | sel → pc    | Freeze PC pair during unresolved speculation                         |
-            | dispatch_stall  | dispatch→pc | Freeze PC independently (BTB train, dispatch back-pressure); keeps is_spec |
-            | mode            | sel → pc    | +8/+8 (0) vs +4/+4 (1) increment selection                           |
+            | spec0_en        | sel -> pc    | Enter/remain in speculative fetch; latched as is_spec on update      |
+            | is_spec         | pc -> sel    | While set, new predict asserts fetch_stall (no nested speculation)   |
+            | fetch_stall     | sel -> pc    | Freeze PC pair during unresolved speculation                         |
+            | dispatch_stall  | dispatch->pc | Freeze PC independently (BTB train, dispatch back-pressure); keeps is_spec |
+            | mode            | sel -> pc    | +8/+8 (0) vs +4/+4 (1) increment selection                           |
 
             On branch recovery (i0_brch_recover or i1_brch_recover), pc_selector reloads
             pc0_in / pc1_in from execute-stage PCs, clears speculation via spec0_en, and
             sets mode=0 so the next enabled cycle resumes +8/+8 sequential advance from
             the recovered pair. Wrong predictions fall back to the execute address;
             correct predictions continue from the recovered stream with flush handled
-            downstream in decode/dispatch, not inside pc.sv.
+            downstream in decode/dispatch, not inside `pc.sv`.
 
     Program Selector (PC_Selector):                         [Verified - Done]   [Proof - TBD]
 
@@ -144,15 +118,15 @@ S1_Fetch:
 
         0. Structure and Specification:
 
-            pc_selector (rtl/s1_fetch/core_mod/pc_selector.sv) is a purely combinational
+            pc_selector (`rtl/s1_fetch/core_mod/pc_selector.sv`) is a purely combinational
             routing block between the registered PC pair, the branch target buffer, and
-            execute-stage recovery. It does not increment addresses; that is pc.sv's
+            execute-stage recovery. It does not increment addresses; that is `pc.sv`'s
             job. Each cycle it observes the live fetch PCs (pc0_in, pc1_in), BTB targets
             (i0_pc_target, i1_pc_target), and resolved execute PCs (i0_pc_execute,
-            i1_pc_execute), then drives pc0_out / pc1_out as the aligned bases that pc.sv
+            i1_pc_execute), then drives pc0_out / pc1_out as the aligned bases that `pc.sv`
             will add to on the next enabled update. It also exports three control signals
-            consumed by pc.sv: stall (wired as fetch_stall in fetch_core_struct),
-            mode, and spec0_en. The registered is_spec flag from pc.sv is fed back so
+            consumed by `pc.sv`: stall (wired as fetch_stall in fetch_core_struct),
+            mode, and spec0_en. The registered is_spec flag from `pc.sv` is fed back so
             the selector can block nested predicts while a prior speculation is still
             in flight.
 
@@ -161,7 +135,7 @@ S1_Fetch:
             With no predict and no recovery active, the default path simply aligns the
             current fetch pair: pc0_out = align(pc0_in), pc1_out = align(pc1_in). All
             targets and execute addresses are ignored. This is the straight-line case
-            where pc.sv will apply mode=0 and advance both lanes by +8 from these bases.
+            where `pc.sv` will apply mode=0 and advance both lanes by +8 from these bases.
 
             When a predict is taken, selection follows fixed priority (recovery overrides
             predict; see sections 3 and 4):
@@ -178,12 +152,12 @@ S1_Fetch:
 
         2. Mode and Control signals:
 
-            Three outputs encode how pc.sv should treat the next update:
+            Three outputs encode how `pc.sv` should treat the next update:
 
-            | Output   | Asserted when                                      | Effect on pc.sv                          |
+            | Output   | Asserted when                                      | Effect on `pc.sv`                          |
             |----------|----------------------------------------------------|------------------------------------------|
             | spec0_en | predict taken (unless recovery)                  | latched as is_spec on enabled update     |
-            | mode     | exactly one of i0_pred / i1_pred (XOR)           | +4/+4 advance; 0 → +8/+8 or recovery   |
+            | mode     | exactly one of i0_pred / i1_pred (XOR)           | +4/+4 advance; 0 -> +8/+8 or recovery   |
             | stall    | new predict while is_spec already set              | fetch_stall; freezes PC pair             |
 
             All three are suppressed when recover_any = i0_brch_recover | i1_brch_recover
@@ -191,9 +165,9 @@ S1_Fetch:
 
         3. Branch Speculation and Stalls Behavior:
 
-            Predict vs mode interaction in pc.sv:
+            Predict vs mode interaction in `pc.sv`:
 
-            | i0_pred | i1_pred | mode (XOR) | pc.sv increment | Notes                          |
+            | i0_pred | i1_pred | mode (XOR) | `pc.sv` increment | Notes                          |
             |---------|---------|------------|-----------------|--------------------------------|
             | 0       | 0       | 0          | +8 / +8         | straight-line or recovery      |
             | 1       | 0       | 1          | +4 / +4         | split streams                  |
@@ -201,7 +175,7 @@ S1_Fetch:
             | 1       | 1       | 0          | +8 / +8         | both taken; rerouted target pair |
 
             A predict-taken asserts spec0_en (unless recovery). While is_spec is set in
-            pc.sv, any new predict without recovery asserts stall=1, blocking nested
+            `pc.sv`, any new predict without recovery asserts stall=1, blocking nested
             speculation until execute resolves the outstanding branch. dispatch_stall is
             separate and not generated here.
 
@@ -214,14 +188,14 @@ S1_Fetch:
             | 1        | i0_brch_recover    | align(i0_pc_execute)       | align(i0_pc_execute) + 4        |
             | 2        | i1_brch_recover    | align(i1_pc_execute)       | align(i1_pc_execute) + 4        |
 
-            Recovery clears spec0_en, mode, and stall in the same cycle, so pc.sv resumes
+            Recovery clears spec0_en, mode, and stall in the same cycle, so `pc.sv` resumes
             non-speculative +8/+8 from the recovered bases on the next enabled update.
             Un-stall occurs because recovery deasserts stall and spec0_en while is_spec
-            clears in pc.sv after the recovered update. Wrong predictions redirect to the
+            clears in `pc.sv` after the recovered update. Wrong predictions redirect to the
             execute-stage pair; correct predictions realign the fetch window, with pipeline
             flush handled outside pc_selector.
 
-    Insturction Cache (Instruction_Cache):                  [Verified - TBD]    [Proof - TBD]
+    Instruction Cache (Instruction_Cache):                  [Verified - Done]   [Proof - TBD]
 
             //external controls
             input  wire     clk,
@@ -237,18 +211,35 @@ S1_Fetch:
 
         0. Structure and Specification:
 
-            instruction_cache (rtl/s1_fetch/core_mod/instruction_cache.sv) is a
-            dual-port instruction store sized for the 32 KiB RV32I fetch space.
-            Lookups are combinational; the bank is cleared on reset (clk/rst_n) and
-            preloaded by simulation (or external load) until sequential miss handling
-            is added. Each stored entry is 33 bits: a valid bit plus one 32-bit
-            little-endian instruction word (ILEN=32). The array is 4-way
-            set-associative over PC[14:2]: INDEX_W = 13 index bits, 8192 logical
-            slots, 2048 sets × 4 ways. Set and way decode use cache_pkg::pc_set and
-            cache_pkg::pc_way from the fetch PCs. The module exposes pc0/pc1 in and
-            instr0/instr1 out; it does not yet arbitrate misses, refill, or coherence.
+            instruction_cache (`rtl/s1_fetch/core_mod/instruction_cache.sv`) is the
+            fetch-stage dual-port instruction store for the 32 KiB RV32I I$ space
+            (rv_dis_pkg::I_SIZE). The program counter is byte-addressed
+            (ADDR_UNIT_BITS=8), while each bank cell holds one aligned ILEN=32
+            little-endian instruction word plus a valid bit (a 33-bit packed entry
+            through cache_pkg). INDEX_W = PC_INDEX_AW = 13 selects among 8192 logical
+            slots using PC[14:2]. Lookups are combinational; clk and rst_n clear the
+            bank on reset. Until sequential miss/refill exists, simulation
+            (instruction_cache_tb) or an external loader preloads valid entries. The
+            module exposes pc0/pc1 in and instr0/instr1 out and does not yet arbitrate
+            misses, refill, or coherence.
 
-        1. Combinational Dual Instruction Address Read:
+        1. 2-way Set-Associative Bank (4-byte instruction word per entry):
+
+            The bank is organized as WAYS=2 (WAY_AW=1, SET_AW=12, SETS=4096): 4096
+            sets of two ways, for 8192 x 4 B = 32 KiB of instruction payload.
+            cache_pkg::pc_set / pc_way map each fetch PC to one cell with way =
+            PC[2] and set = PC[14:3], so each entry stores {valid, instr[31:0]} -
+            one full RV32I word, not a single byte. Two-way associativity is chosen
+            as the minimum that matches dual-issue fetch: a straight-line pair
+            (pc, pc+4) are consecutive word addresses that differ only in PC[2], so
+            they land in the same set on ways 0 and 1 and can be read in parallel
+            without a same-way bank conflict. An 8-byte aligned dual-issue bundle
+            therefore maps onto both ways of one set, which is exactly the
+            (pc0, pc1) window produced by `pc.sv`. Each port still indexes
+            independently, so any pc0/pc1 pair is legal; the two-way layout makes
+            the common sequential dual-fetch case a natural dual hit inside one set.
+
+        2. Combinational Dual Instruction Address Read:
 
             Both ports read independently in the same cycle. Port I0 indexes
             bank[i0_lookup_set][i0_lookup_way] from pc0; port I1 indexes
@@ -264,10 +255,10 @@ S1_Fetch:
             pc0/pc1 pair, including sequential pairs (pc, pc+4) and identical PCs on
             both ports. The two reads do not block each other; they are two parallel
             cache_way_read calls on separate bank cells. In fetch_core_struct, pc0 and
-            pc1 from pc.sv drive instr0/instr1 into the decode stage on the same cycle
+            pc1 from `pc.sv` drive instr0/instr1 into the decode stage on the same cycle
             as the address presentation.
 
-        2. Sequential Cache Instruction Miss (Working Progress):
+        3. Sequential Cache Instruction Miss (Working Progress):
 
             Not implemented in current RTL. Planned: sequential miss detect, external
             memory refill, valid install, and fetch stall until both requested lines
@@ -292,34 +283,47 @@ S1_Fetch:
             input  word_t      i1_pc_target_wb,
 
             //output data
+            output wire        i0_valid,
+            output wire        i1_valid,
             output wire [31:0] i0_pc_target,
             output wire [31:0] i1_pc_target
 
         0. Structure and Specification:
 
-            target_buffer (rtl/s1_fetch/core_mod/target_buffer.sv) is the fetch-stage
-            branch target buffer (BTB). The bank is clocked storage; lookups are
-            combinational dual read with same-cycle writeback forwarding. The bank
-            mirrors the 32 KiB instruction address space: INDEX_W = 13 over PC[14:2],
-            8192 logical slots arranged as 512 sets × 16 ways (higher associativity
-            than the I$). Each entry is 33 bits: valid plus a 32-bit aligned branch
-            target. Set and way decode use cache_pkg::pc_set and cache_pkg::pc_way
-            from the lookup PCs and from i0_pc_wb / i1_pc_wb on train. The module
-            does not decide predict-taken; it only supplies i0_pc_target and
-            i1_pc_target to pc_selector. Execute-stage i0_valid_wb / i1_valid_wb
-            qualify training writes that install or overwrite the target for the
-            branch PC at WB.
+            target_buffer (`rtl/s1_fetch/core_mod/target_buffer.sv`) is the fetch-stage
+            branch target buffer (BTB). Lookups are combinational dual read with
+            same-cycle writeback forwarding; the bank trains on negedge clk. The
+            module does not decide predict-taken: it only reports per-port hit flags
+            (i0_valid / i1_valid) and predicted targets (i0_pc_target / i1_pc_target)
+            for downstream fetch/select logic. Execute-stage i0_valid_wb /
+            i1_valid_wb qualify training writes that install or overwrite the target
+            for the branch PC at WB. clk and rst_n clear the bank on reset.
 
-        1. Combinational Dual Read with Forwarding:
+        1. 16-way Set-Associative Bank (4-byte aligned target per entry):
+
+            The bank is organized as WAYS=16 (WAY_AW=4, SET_AW=9, SETS=512): 512
+            sets of sixteen ways, for 8192 logical slots over the same INDEX_W=13 /
+            PC[14:2] space as the 32 KiB I$. Each cell is a 33-bit packed entry
+            through cache_pkg: {valid, target[31:0]}, where the payload is one
+            imm_align4 branch target (not an instruction word). cache_pkg::pc_set /
+            pc_way map each lookup or train PC to one cell. Higher associativity than
+            the I$ (16-way vs 2-way) gives more distinct branch PCs room in the same
+            address window without changing the PC index width. Each port still
+            indexes independently, so any i0_pc / i1_pc pair is legal.
+
+        2. Combinational Dual Read with Forwarding:
 
             Each cycle both ports look up independently from i0_pc and i1_pc. For each
             port, way_with_forward selects bank[set][way] unless a valid WB in the same
             cycle targets that same set/way; then the incoming WB entry wins (I0 WB
-            checked before I1 WB). cache_way_read returns the stored target when valid=1;
-            on miss (valid=0) it returns fallthrough = pc+4 for that lane. Lookups are
-            combinational; outputs update in the same cycle as the presented fetch PCs.
+            checked before I1 WB). i0_valid / i1_valid are the forwarded entry valid
+            bits (entry[DATA_W]) and are independent: a miss or stored valid=0 on one
+            port clears only that port's i*_valid. cache_way_read returns the stored
+            target when valid=1; on miss (valid=0) it returns 32'h0 for that lane while
+            i*_valid stays 0. Lookups are combinational; outputs update in the same
+            cycle as the presented fetch PCs.
 
-        2. Sequential Falling-edge Dual Writeback:
+        3. Sequential Falling-edge Dual Writeback:
 
             Training commits on the falling clock edge when i0_valid_wb or i1_valid_wb is
             set. The write index is derived from i0_pc_wb / i1_pc_wb; the stored data is
@@ -327,32 +331,12 @@ S1_Fetch:
             cache_set_write. Dual WB in one cycle can update two distinct slots; if both
             trains map to the same set/way, both nonblocking writes fire and the I1
             update is the final value in that slot. Because forwarding is evaluated
-            before the edge, a train visible on cycle N is readable on port outputs in
-            cycle N even though the bank register updates after the edge; the read path
-            always sees the freshest target for pc_selector in fetch_core_struct.
+            before the edge, a train visible on cycle N is readable on port outputs
+            (i*_valid and i*_pc_target) in cycle N even though the bank register updates
+            after the edge; the read path always sees the freshest hit/target for
+            pc_selector in fetch_core_struct.
 
 S2_Decode:
-
-    decode_core_struct (s2_decode_struct) block diagram:
-
-        ```mermaid
-        flowchart TB
-            IF_ID[IF/ID bundle] --> DEC0[u_dec_i0]
-            IF_ID --> DEC1[u_dec_i1]
-            DEC0 --> RF[register_file]
-            DEC1 --> RF
-            DEC0 --> BHT[state_buffer]
-            DEC1 --> BHT
-            IF_ID --> BHT
-            BHT --> TP0[u_target_predict_i0]
-            BHT --> TP1[u_target_predict_i1]
-            DEC0 --> TP0
-            DEC1 --> TP1
-            IF_ID --> TP0
-            IF_ID --> TP1
-            WB_GPR[GPR writeback] --> RF
-            WB_BR[branch-state WB] --> BHT
-        ```
 
     Intermediate Register (IF_ID):                          [Verified - TBD]    [Proof - TBD]
 
@@ -383,7 +367,7 @@ S2_Decode:
 
         0. Structure and Specification:
 
-            if_id (rtl/s2_decode/if_id.sv) is the pipeline register between fetch (IF) and
+            if_id (`rtl/s2_decode/if_id.sv`) is the pipeline register between fetch (IF) and
             decode (ID). An instruction is in IF or ID, not both; this module is the cycle
             boundary where the dual-issue pair is captured for decode. It is a single
             registered stage with no combinational decode; it only stores and forwards
@@ -402,8 +386,8 @@ S2_Decode:
             |----------------------|-----------------------|-----------------------|
             | i0_instr_if          | instruction_cache I0  | i0_instr_id           |
             | i1_instr_if          | instruction_cache I1  | i1_instr_id           |
-            | i0_pc_if             | pc.sv pc0_out         | i0_pc_id              |
-            | i1_pc_if             | pc.sv pc1_out         | i1_pc_id              |
+            | i0_pc_if             | `pc.sv` pc0_out         | i0_pc_id              |
+            | i1_pc_if             | `pc.sv` pc1_out         | i1_pc_id              |
             | i0_pc_target_if      | target_buffer I0      | i0_pc_target_id       |
             | i1_pc_target_if      | target_buffer I1      | i1_pc_target_id       |
 
@@ -452,12 +436,12 @@ S2_Decode:
 
         0. Structure and Specification:
 
-            decoder (rtl/s2_decode/core_mod/decoder.sv) is a purely combinational
+            decoder (`rtl/s2_decode/core_mod/decoder.sv`) is a purely combinational
             RV32I scalar decode block for one instruction slot. It accepts a single
             32-bit instr word and drives decoded opcode/funct3/funct7, GPR indices
             (rd, rs1, rs2), a sign-extended immediate, and control qualifiers for
             downstream register read, branch prediction, and dispatch. Field extraction
-            and legality tables live in decode_pkg (rtl/s2_decode/funct_pkg/decode.sv);
+            and legality tables live in decode_pkg (`rtl/s2_decode/funct_pkg/decode.sv`);
             the module itself is only wiring: raw opcode/funct3 are sampled first, then
             GPR-specific decoders zero unused register fields per opcode rules. Control
             qualifiers driven per slot:
@@ -465,8 +449,8 @@ S2_Decode:
             | Signal    | Definition                                              |
             |-----------|---------------------------------------------------------|
             | valid     | insn is in the implemented RV-DIS scalar subset           |
-            | brch_en   | valid && opcode ∈ {BRANCH, JAL, JALR}                   |
-            | jump_en   | valid && opcode ∈ {JAL, JALR} (unconditional jumps only)|
+            | brch_en   | valid && opcode in {BRANCH, JAL, JALR}                   |
+            | jump_en   | valid && opcode in {JAL, JALR} (unconditional jumps only)|
             | rs1_use   | operand needs GPR rs1 read                              |
             | rs2_use   | operand needs GPR rs2 read                              |
             | reg_write | insn writes rd (x0 suppressed downstream)               |
@@ -491,7 +475,7 @@ S2_Decode:
             rs1_use/rs2_use, and reg_write. GPR read addresses feed register_file and
             are re-exported as i0_rs1_addr / i0_rs2_addr and i1_rs1_addr / i1_rs2_addr
             for dispatch. state_buffer also lives in decode_core_struct. Pairing legality
-            and which lane may fire are decided later in dispatch, not inside decoder.sv.
+            and which lane may fire are decided later in dispatch, not inside `decoder.sv`.
 
         2. Instruction Lane Differentiation:
 
@@ -541,7 +525,7 @@ S2_Decode:
 
         0. Structure and Specification:
 
-            register_file (rtl/s2_decode/core_mod/register_file.sv) is the dual-issue
+            register_file (`rtl/s2_decode/core_mod/register_file.sv`) is the dual-issue
             scalar GPR file for RV32I: four combinational read ports (I0 rs1/rs2, I1
             rs1/rs2) and two writeback ports (I0/I1). Physical storage is x1-x31;
             x0 is not stored; reads of x0 always return zero and writes to x0 are
@@ -601,11 +585,11 @@ S2_Decode:
 
         0. Structure and Specification:
 
-            state_buffer (rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv)
+            state_buffer (`rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv`)
             is the branch-direction predictor table (BHT). Instantiated inside
             decode_core_struct as u_state_buf. It stores a 2-bit saturating counter
             state (br_state_t) per branch PC, indexed like the BTB: INDEX_W = 13 over
-            PC[14:2], 8192 slots, 512 sets × 16 ways (see shared geometry table in
+            PC[14:2], 8192 slots, 512 sets x 16 ways (see shared geometry table in
             S1_Fetch). Each bank entry is 33 bits: valid plus 2-bit state. Set/way
             decode uses cache_pkg::pc_set and cache_pkg::pc_way. Miss (valid=0) defaults to
             DEFAULT_STATE (2'b10, weakly taken). i0_brch_en / i1_brch_en gate
@@ -618,8 +602,8 @@ S2_Decode:
         1. Branch Predict 2-bit State Encode:
 
             Each stored entry is a 2-bit saturating counter (br_state_t). Prediction at
-            decode uses target_state[1]: 0 → not taken, 1 → taken. Training updates are
-            computed at MEM by state_LUT (rtl/s5_memory/core/state_lookup.sv) from the
+            decode uses target_state[1]: 0 -> not taken, 1 -> taken. Training updates are
+            computed at MEM by state_LUT (`rtl/s5_memory/core/state_lookup.sv`) from the
             current state and resolved outcome pc_sctrl (1 = taken, 0 = not taken), then
             written into state_buffer on the next i0_valid_wb / i1_valid_wb.
 
@@ -688,7 +672,7 @@ S2_Decode:
 
         0. Structure and Specification:
 
-            target_predict (rtl/s2_decode/core_mod/brch_predict_units/target_predict.sv)
+            target_predict (`rtl/s2_decode/core_mod/brch_predict_units/target_predict.sv`)
             is a purely combinational per-lane block instantiated twice inside
             decode_core_struct (u_target_predict_i0 / u_target_predict_i1) beside the
             matching decoder. state_buffer lives in the same struct and feeds
@@ -706,9 +690,9 @@ S2_Decode:
             | pc                  | IF/ID i0_pc                        | insn address             |
             | pc_target           | IF/ID i0_pc_target                 | BTB target from fetch    |
             | target_state        | state_buffer i0_target_state       | 2-bit direction          |
-            | set_target          | → i0_set_target (struct export)    | predict taken            |
-            | wb_valid            | → i0_tp_wb_valid                   | BTB train request        |
-            | pc_predict          | → i0_pc_predict                    | next speculation address |
+            | set_target          | -> i0_set_target (struct export)   | predict taken            |
+            | wb_valid            | -> i0_tp_wb_valid                  | BTB train request        |
+            | pc_predict          | -> i0_pc_predict                   | next speculation address |
 
             When branch_active is low, set_target and wb_valid deassert and pc_predict
             passes pc through unchanged.
@@ -751,20 +735,53 @@ S2_Decode:
             | Condition                         | set_target                         |
             |-----------------------------------|------------------------------------|
             | !branch_active                    | 0                                  |
-            | branch_active && jump_en            | 1 (JAL/JALR always taken)          |
-            | branch_active && !jump_en           | target_state[1] (conditional)    |
+            | branch_active && jump_en          | 1 (JAL/JALR always taken)          |
+            | branch_active && !jump_en         | target_state[1] (conditional)    |
 
             Branch-direction training closes in top: state_LUT at MEM computes
             i0_target_state_wb / i1_target_state_wb; decode_core_struct writes them
             into state_buffer on i0_br_valid_wb / i1_br_valid_wb. In
-            rtl/top/risc_dis_unit.sv, i0_pred_taken / i1_pred_taken are driven from
+            `rtl/top/risc_dis_unit.sv`, i0_pred_taken / i1_pred_taken are driven from
             i0_set_target / i1_set_target for fetch speculation via pc_selector.
-
 
 S3_Dispatch:
 
+    Intermediate Register (ID_DP):
+
+    Branch Speculator:
+
+    Reorder Buffer:
+
+    Rename Dispatch: 
+
 S4_Execution:
+
+    Intermediate Register (DP_EX):
+
+    Reservation Station:
+
+        1. Specification and Structure:
+
+        2. Two 8-entry Reserved Buffer
+
+        3. Out-of-Order Execution 
+
+        4. Forward Result with Write Back Bypass 
+
+    Even Unit: 
+
+    Odd Unit: 
 
 S5_Memory:
 
+    Intermediate Register (EX_MEM):
+
+    Memory Cache:
+
+    Branch State Transition Lookup (State_Lookup):
+
 S6_Wback:
+
+    Reorder Retirement (Retired): 
+
+    Write Back: 
