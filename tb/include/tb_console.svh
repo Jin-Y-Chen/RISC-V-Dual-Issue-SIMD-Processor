@@ -66,7 +66,7 @@ task automatic tb_case_sep();
 endtask
 
 task automatic tb_field_line(input string label, input string got_s, input string exp_s);
-  // Literal format only — some simulators do not support $display(fmt, ...) with runtime fmt.
+  // Literal format only - some simulators do not support $display(fmt, ...) with runtime fmt.
   $display("  %-16s = %18s (exp: %s)", label, got_s, exp_s);
 endtask
 

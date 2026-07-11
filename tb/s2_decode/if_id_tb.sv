@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// if_id_tb — DUT vs gm/if_id_gm.sv (4-bit CLEAR/HOLD/CAPTURE LUT).
+// if_id_tb - DUT vs gm/if_id_gm.sv (4-bit CLEAR/HOLD/CAPTURE LUT).
 
 import rv_dis_pkg::*;
 

@@ -4,7 +4,7 @@ import rv_dis_pkg::*;
 
 `include "../include/tb_console.svh"
 
-// fetch_core_struct_tb — integrated fetch; DUT vs gm/fetch_core_struct_gm.sv.
+// fetch_core_struct_tb - integrated fetch; DUT vs gm/fetch_core_struct_gm.sv.
 // Each vector applies inputs on posedge clk.
 module fetch_core_struct_tb;
 

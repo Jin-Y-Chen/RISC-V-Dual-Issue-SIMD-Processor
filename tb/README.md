@@ -16,9 +16,9 @@ Golden models: `gm/` (Verilog, sim) + `tb/gm/` (C++ offline check). See `model/R
 
 ## Conventions (WSL)
 
-- **`tb_advance(clk)`** — `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang some simulators with timing enabled).
-- **Includes** — `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
-- **`tb_summary`** — end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
+- **`tb_advance(clk)`** - `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang some simulators with timing enabled).
+- **Includes** - `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
+- **`tb_summary`** - end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
 
 ```
 tb/
@@ -39,8 +39,8 @@ tb/
 |----|-----|--------|
 | `pc_tb` | `rtl/s1_fetch/pc.sv` | Reset, +8/+8, +4/+4, stall, enable hold |
 | `pc_selector_tb` | `rtl/s1_fetch/core_mod/pc_selector.sv` | Predict / recover / stall-in-spec |
-| `instruction_cache_tb` | `tb/s1_fetch/models/instruction_cache.sv` | Dual read, miss → 0 |
-| `target_buffer_tb` | `rtl/s1_fetch/core_mod/target_buffer.sv` | Miss → 0, WB install hit |
+| `instruction_cache_tb` | `tb/s1_fetch/models/instruction_cache.sv` | Dual read, miss -> 0 |
+| `target_buffer_tb` | `rtl/s1_fetch/core_mod/target_buffer.sv` | Miss -> 0, WB install hit |
 | `fetch_core_struct_tb` | `rtl/s1_fetch/fetch_core_struct.sv` (+ real `pc` / `pc_selector`, sim I$/BTB models) | Sequential, BTB, predict, stall, recover |
 
 I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by all simulators. Real RTL remains under `rtl/s1_fetch/core_mod/`.
@@ -73,10 +73,10 @@ I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_p
 
 | TB | DUT | Checks |
 |----|-----|--------|
-| `ex_mem_wb_tb` | `rtl/s5_wback/ex_mem_wb.sv` | 4 lane inputs → 2 GPR writes |
+| `ex_mem_wb_tb` | `rtl/s5_wback/ex_mem_wb.sv` | 4 lane inputs -> 2 GPR writes |
 
 ## Not in tree yet
 
-`dispatch_hazard_tb` — listed in `run_yosys.ps1` `-Top` validate set but no `tb/s2_decode/dispatch_hazard_tb.sv` file.
+`dispatch_hazard_tb` - listed in `run_yosys.ps1` `-Top` validate set but no `tb/s2_decode/dispatch_hazard_tb.sv` file.
 
 Design context: [../../project_outline.txt](../../project_outline.txt)

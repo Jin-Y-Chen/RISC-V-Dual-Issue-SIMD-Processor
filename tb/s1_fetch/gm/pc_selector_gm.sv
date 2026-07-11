@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s1_fetch/core_mod/pc_selector.sv
-// Exhaustive 5-bit control LUT — one explicit table row per ctrl[4:0].
+// Exhaustive 5-bit control LUT - one explicit table row per ctrl[4:0].
 // PC math in gm_route_pcs() keyed by per-row route id (any TB stimulus).
 //
 // ctrl[4:0] = {is_spec, i0_pred_taken, i1_pred_taken, i0_brch_recover, i1_brch_recover}
@@ -45,7 +45,7 @@ module pc_selector_gm (
   gm_lut_row_t     lut_row;
 
   // -------------------------------------------------------------------------
-  // CTRL_LUT[ctrl] — 32 rows, index = packed control bus (all 2^5 inputs).
+  // CTRL_LUT[ctrl] - 32 rows, index = packed control bus (all 2^5 inputs).
   // Comment format: 5'hNN  {is_spec,i0_pred,i1_pred,i0_rec,i1_rec}
   //   row = {route, stall, mode, spec0_en}
   // -------------------------------------------------------------------------

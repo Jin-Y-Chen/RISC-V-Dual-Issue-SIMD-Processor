@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// even_lane_tb — DUT vs hand-written expected ALU results (decoder_tb-style stimulus).
+// even_lane_tb - DUT vs hand-written expected ALU results (decoder_tb-style stimulus).
 
 import rv_dis_pkg::*;
 

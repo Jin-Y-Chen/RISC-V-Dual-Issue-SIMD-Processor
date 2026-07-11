@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// register_file_tb — DUT vs gm/register_file_gm.sv (bank + WB bypass).
+// register_file_tb - DUT vs gm/register_file_gm.sv (bank + WB bypass).
 // ID tests: read ports only wen=0, PRE preloaded per test via isolated_reset and preload_gpr.
 // WB tests: same cycle has 2 insns in WB and 2 in ID; ID reads may bypass WB.
 // set_reads_dec uses decode_pkg for stimulus addr mux policy only.

@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// instruction_cache_tb — dual fetch vs gm; preload .mem into 2-way I$ bank.
+// instruction_cache_tb - dual fetch vs gm; preload .mem into 2-way I$ bank.
 // Geometry: INDEX_W=13, WAYS=2, SETS=4096; each entry = valid + 4-byte ILEN word.
 // Vectors: i0/i1 solo, mode=1 split (pc,pc+4), mode=0 bundle (pc+8,pc+12); posedge.
 // Vivado: +imem_mem=<path>; optional +cache_dump=<path> writes valid bank lines.
@@ -173,7 +173,7 @@ module instruction_cache_tb;
     for (int i = 0; i < prog_len; i++)
       preload_slot(prog[i].pc, instr_t'(prog[i].word));
 
-    // Port I0 only — I1 at inactive miss address (pc0 != pc1).
+    // Port I0 only - I1 at inactive miss address (pc0 != pc1).
     for (int i = 0; i < prog_len; i++) begin
       pc_a = prog[i].pc;
       case_name   = $sformatf("i0_only_%08h", pc_a);
@@ -182,7 +182,7 @@ module instruction_cache_tb;
       check_fetch(case_name, case_detail);
     end
 
-    // Port I1 only — I0 at inactive miss address.
+    // Port I1 only - I0 at inactive miss address.
     for (int i = 0; i < prog_len; i++) begin
       pc_a = prog[i].pc;
       case_name   = $sformatf("i1_only_%08h", pc_a);

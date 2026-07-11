@@ -2,7 +2,7 @@
 
 `include "../include/tb_console.svh"
 
-// pc_selector_tb — exhaustive 5-bit control sweep; reference = gm/pc_selector_gm.sv.
+// pc_selector_tb - exhaustive 5-bit control sweep; reference = gm/pc_selector_gm.sv.
 // Each vector applies inputs on posedge clk.
 module pc_selector_tb;
 
@@ -40,7 +40,7 @@ module pc_selector_tb;
   logic [31:0] ref_pc0_out;
   logic [31:0] ref_pc1_out;
 
-  logic        clk;  // testbench pacing only — not connected to DUT/GM
+  logic        clk;  // testbench pacing only - not connected to DUT/GM
 
   int pass_cnt;
   int fail_cnt;

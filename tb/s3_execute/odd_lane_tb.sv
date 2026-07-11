@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// odd_lane_tb — DUT vs hand-written expected (decoder_tb-style run_insn + check_expect).
+// odd_lane_tb - DUT vs hand-written expected (decoder_tb-style run_insn + check_expect).
 
 import rv_dis_pkg::*;
 

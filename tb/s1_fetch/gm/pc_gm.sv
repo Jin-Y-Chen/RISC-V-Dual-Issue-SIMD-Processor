@@ -1,15 +1,15 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s1_fetch/pc.sv
-// Exhaustive 6-bit control LUT — one explicit table row per ctrl[5:0].
+// Exhaustive 6-bit control LUT - one explicit table row per ctrl[5:0].
 //
 // ctrl[5:0] = {rst_n, enable, fetch_stall, dispatch_stall, mode, spec0_en}
-//   rst_n          — 0 => RESET regardless of other inputs
-//   enable         — 0 => HOLD (when rst_n=1)
-//   fetch_stall    — 1 => HOLD (when rst_n=1, enable=1)
-//   dispatch_stall — 1 => HOLD (when rst_n=1, enable=1)
-//   mode           — 0 => ADV8 at 6'h30-31, ADV4 at 6'h32-33; 1 => HOLD
-//   spec0_en       — is_spec on ADV4/ADV8 rows only
+//   rst_n          - 0 => RESET regardless of other inputs
+//   enable         - 0 => HOLD (when rst_n=1)
+//   fetch_stall    - 1 => HOLD (when rst_n=1, enable=1)
+//   dispatch_stall - 1 => HOLD (when rst_n=1, enable=1)
+//   mode           - 0 => ADV8 at 6'h30-31, ADV4 at 6'h32-33; 1 => HOLD
+//   spec0_en       - is_spec on ADV4/ADV8 rows only
 //
 // State advances on posedge clk, matching pc.sv.
 
@@ -43,7 +43,7 @@ module pc_gm #(
   } gm_lut_row_t;
 
   // -------------------------------------------------------------------------
-  // CTRL_LUT[ctrl] — 64 rows, index = packed control bus (all 2^6 inputs).
+  // CTRL_LUT[ctrl] - 64 rows, index = packed control bus (all 2^6 inputs).
   // Comment format: 6'hNN  {rst_n,en,fetch_stall,dispatch_stall,mode,spec0_en}
   // -------------------------------------------------------------------------
   localparam gm_lut_row_t CTRL_LUT [0:63] = '{

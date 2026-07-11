@@ -2,9 +2,9 @@
 
 `include "../include/tb_console.svh"
 
-// pc_tb — exhaustive control sweep; reference = gm/pc_gm.sv (64-entry LUT).
+// pc_tb - exhaustive control sweep; reference = gm/pc_gm.sv (64-entry LUT).
 // Each vector applies inputs on posedge clk.
-// No CASE_FILE — not file-driven; remove legacy CASE_FILE Vivado sim generic if set.
+// No CASE_FILE - not file-driven; remove legacy CASE_FILE Vivado sim generic if set.
 module pc_tb;
 
   localparam int          CLK_PERIOD  = 10;

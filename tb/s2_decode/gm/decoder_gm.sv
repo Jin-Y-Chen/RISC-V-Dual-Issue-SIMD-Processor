@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s2_decode/core_mod/decoder.sv
-// Independent of decode_pkg — opcode/funct3 control LUTs + field/imm helpers.
+// Independent of decode_pkg - opcode/funct3 control LUTs + field/imm helpers.
 import rv_dis_pkg::*;
 
 module decoder_gm (
@@ -23,7 +23,7 @@ module decoder_gm (
 );
 
   // -------------------------------------------------------------------------
-  // Opcode control LUT — one row per RV-DIS opcode class (keyed by opcode).
+  // Opcode control LUT - one row per RV-DIS opcode class (keyed by opcode).
   // -------------------------------------------------------------------------
   typedef struct packed {
     logic lane_sel;
@@ -60,7 +60,7 @@ module decoder_gm (
     endcase
   endfunction
 
-  // Legality LUT — LOAD/STORE/BRANCH gated by funct3; others always legal if opcode known.
+  // Legality LUT - LOAD/STORE/BRANCH gated by funct3; others always legal if opcode known.
   function automatic logic legal_lut(input opcode_t opc, input funct3_t f3);
     unique case (opc)
       OPC_OP, OPC_OP_IMM, OPC_JAL, OPC_JALR, OPC_LUI, OPC_AUIPC:

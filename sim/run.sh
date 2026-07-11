@@ -28,7 +28,7 @@ Options:
   -h, --help          This message
 
 Default: compile only rtl/import + matching DUT/GM + <top>.sv (fast).
-Optional: sim/config/<top>.env — PLUSARGS, ARTIFACTS, EXTRA_SRCS.
+Optional: sim/config/<top>.env - PLUSARGS, ARTIFACTS, EXTRA_SRCS.
 
 Outputs: sim/out/<top>/compile_run.log (+ ARTIFACTS). Vivado scratch uses a temp dir.
 EOF
@@ -152,13 +152,13 @@ rm -rf "${OUT}/_build"
 for arg in "${EXTRA_PLUSARGS[@]}"; do PLUSARGS+=("$arg"); done
 
 run_vivado_sim "$TOP" "$FLIST" "$OUT" "${PLUSARGS[@]}" || {
-  echo "failed — see ${OUT}/compile_run.log" >&2
+  echo "failed - see ${OUT}/compile_run.log" >&2
   exit 1
 }
 
 LOG="${OUT}/compile_run.log"
 if sim_tb_failed "$LOG"; then
-  echo "failures — see ${LOG}" >&2
+  echo "failures - see ${LOG}" >&2
   exit 1
 fi
 

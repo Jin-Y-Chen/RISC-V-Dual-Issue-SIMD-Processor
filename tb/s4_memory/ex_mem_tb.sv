@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// ex_mem_tb — odd-lane EX/MEM copies (od0, od1). Even-lane ALU skips ex_mem
+// ex_mem_tb - odd-lane EX/MEM copies (od0, od1). Even-lane ALU skips ex_mem
 // and routes to ex_mem_wb EX bank.
 
 import rv_dis_pkg::*;

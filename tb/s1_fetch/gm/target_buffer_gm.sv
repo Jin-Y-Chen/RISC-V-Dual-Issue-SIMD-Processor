@@ -8,7 +8,7 @@ import rv_dis_pkg::*;
 // Trains on negedge clk (matches DUT commit edge).
 
 module target_buffer_gm #(
-  parameter integer INDEX_W = 13,  // unused — kept for TB port compatibility
+  parameter integer INDEX_W = 13,  // unused - kept for TB port compatibility
   parameter integer DATA_W  = 32,  // unused
   parameter integer WAYS    = 16,  // unused
   parameter integer CAP     = 64
@@ -42,7 +42,7 @@ module target_buffer_gm #(
     return {addr[31:2], 2'b00};
   endfunction
 
-  // Table lookup by word-aligned PC (linear scan — independent of DUT indexing).
+  // Table lookup by word-aligned PC (linear scan - independent of DUT indexing).
   function automatic void gm_table_get(
     input  logic [31:0] pc,
     output logic        hit,

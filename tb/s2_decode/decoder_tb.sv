@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// decoder_tb — DUT vs gm/decoder_gm.sv (opcode/funct3 control LUTs).
+// decoder_tb - DUT vs gm/decoder_gm.sv (opcode/funct3 control LUTs).
 
 import rv_dis_pkg::*;
 

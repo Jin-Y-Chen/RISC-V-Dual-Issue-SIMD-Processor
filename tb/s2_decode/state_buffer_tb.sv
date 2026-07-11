@@ -2,7 +2,7 @@
 
 `include "../include/tb_console.svh"
 
-// state_buffer_tb — DUT vs gm/state_buffer_gm.sv (bank replica + WB bypass).
+// state_buffer_tb - DUT vs gm/state_buffer_gm.sv (bank replica + WB bypass).
 module state_buffer_tb;
 
   localparam logic [31:0] PC0   = 32'h0000_1000;
@@ -59,7 +59,7 @@ module state_buffer_tb;
     .i1_target_state    (ref_i1_target_state)
   );
 
-  // Stimulus helper — same transition table as rtl/s5_memory/core/state_lookup.sv.
+  // Stimulus helper - same transition table as rtl/s5_memory/core/state_lookup.sv.
   function automatic logic [1:0] state_lut_next(
     input logic [1:0] state,
     input logic       taken

@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s2_decode/if_id.sv
-// Exhaustive 4-bit control LUT — CLEAR / HOLD / CAPTURE.
+// Exhaustive 4-bit control LUT - CLEAR / HOLD / CAPTURE.
 //
 // ctrl[3:0] = {rst_n, enable, flush, stall}
 //   rst_n=0            => CLEAR (async in DUT; modeled on posedge here + async)
@@ -36,7 +36,7 @@ module if_id_gm (
     GM_CAPTURE = 2'd2
   } gm_op_e;
 
-  // ctrl = {rst_n, enable, flush, stall} — 16 rows
+  // ctrl = {rst_n, enable, flush, stall} - 16 rows
   localparam gm_op_e CTRL_LUT [0:15] = '{
     GM_CLEAR,   // 4'h0  {0,0,0,0}
     GM_CLEAR,   // 4'h1  {0,0,0,1}
@@ -89,7 +89,7 @@ module if_id_gm (
           i1_pc_target_id <= i1_pc_target_if;
         end
         default: begin
-          // GM_HOLD — keep registered state
+          // GM_HOLD - keep registered state
         end
       endcase
     end

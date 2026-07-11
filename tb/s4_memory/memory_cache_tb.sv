@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// memory_cache_tb — L1 miss busy, hit path, WAW suppress, WAR read-then-write.
+// memory_cache_tb - L1 miss busy, hit path, WAW suppress, WAR read-then-write.
 
 import rv_dis_pkg::*;
 
@@ -167,7 +167,7 @@ module memory_cache_tb;
     clear_ports();
     tick();
 
-    // --- WAW: dual store same word — I1 (younger) wins ---
+    // --- WAW: dual store same word - I1 (younger) wins ---
     preload_l2_word(TEST_ADDR, 32'hAABB_CCDD);
     fill_line(TEST_ADDR);
     i0_act    = 1'b1;
@@ -186,7 +186,7 @@ module memory_cache_tb;
     clear_ports();
     tick();
 
-    // --- WAR: I0 read + I1 write same word — comb read sees pre-write value ---
+    // --- WAR: I0 read + I1 write same word - comb read sees pre-write value ---
     preload_l2_word(TEST_ADDR, 32'h3333_4444);
     fill_line(TEST_ADDR);
     i0_act   = 1'b0;

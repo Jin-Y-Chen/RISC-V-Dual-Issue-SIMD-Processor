@@ -4,7 +4,7 @@ import rv_dis_pkg::word_t;
 
 `include "../include/tb_console.svh"
 
-// target_buffer_tb — BTB lookup/WB; DUT vs gm/target_buffer_gm.sv.
+// target_buffer_tb - BTB lookup/WB; DUT vs gm/target_buffer_gm.sv.
 // Each vector applies inputs on posedge clk.
 module target_buffer_tb;
 
@@ -177,7 +177,7 @@ module target_buffer_tb;
           1'b1, PC0, word_t'(32'h0000_A000),
           1'b1, PC1, word_t'(32'h0000_B004));
     check_state("dual_wb_same_cycle",
-                "both WB valid same cycle — each way updated independently");
+                "both WB valid same cycle - each way updated independently");
 
     drive(PC0, PC1, 1'b0, '0, '0, 1'b0, '0, '0);
     check_state("dual_wb_hit", "both slots hit their trained targets");

@@ -155,9 +155,9 @@ run_vivado_sim() {
   }
 
   echo >&2
-  echo "[1/3] xvlog — Compiling ${#srcs[@]} SystemVerilog source(s) into the work library." >&2
+  echo "[1/3] xvlog - Compiling ${#srcs[@]} SystemVerilog source(s) into the work library." >&2
   for path in "${srcs[@]}"; do
-    echo "        · $(_ui_rel "$path")" >&2
+    echo "        * $(_ui_rel "$path")" >&2
   done
   {
     echo
@@ -172,7 +172,7 @@ run_vivado_sim() {
   fi
 
   echo >&2
-  echo "[2/3] xelab — Elaborating work.${top} and building simulation snapshot ${top}_sim." >&2
+  echo "[2/3] xelab - Elaborating work.${top} and building simulation snapshot ${top}_sim." >&2
   {
     echo
     echo "=== xelab ==="
@@ -185,7 +185,7 @@ run_vivado_sim() {
   fi
 
   echo >&2
-  echo "[3/3] xsim  — Running simulation snapshot ${top}_sim to completion." >&2
+  echo "[3/3] xsim  - Running simulation snapshot ${top}_sim to completion." >&2
   {
     echo
     echo "=== xsim ==="
