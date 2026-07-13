@@ -1,3 +1,0 @@
-top:    target_buffer_tb
-time:   20260620_164936
-result: 3 passed, 0 failed - OK

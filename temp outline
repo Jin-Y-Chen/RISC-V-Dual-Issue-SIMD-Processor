@@ -1,0 +1,999 @@
+
+Program Counter (PC) — 32-bit byte address:
+
+    PC incrementation 
+    module pc #(
+    parameter logic [31:0] RESET_PC = rv_dis_pkg::RESET_PC
+    ) (
+    // external controls
+    input  logic          clk,
+    input  logic          rst_n,
+    input  logic          enable,
+
+    // internal controls
+    input  logic          fetch_stall,
+    input  logic          dispatch_stall, 
+    input  logic          mode,
+    input  logic          spec0_en,
+
+    // input data
+    input  logic [31:0]   pc0_in,
+    input  logic [31:0]   pc1_in,
+
+    // output data
+    output logic          is_spec,
+    output logic [31:0]   pc0_out,
+    output logic [31:0]   pc1_out
+    );
+
+    1) PC 32-bit byte address (RV32I)
+    
+        a) PC has a length of 32-bits, not all 32-bits will be used.
+        - Defined max count by Instruction Cache Entry (Instruction Cache.1)
+
+        b) PC address 8-bit data per address 
+        - Increment PC + 4 to address successive 32-bit instruction (IALIGN = 32)
+        - Each instruction must start at an PC address divisible by 4 
+
+    2) Relevant PC bits by defining max count
+
+        a) Max PC count = 32,767 to address each Instruction Cache Entry of size 32 KiB (Instruction Cache.1)
+
+            32,767 B = 32KiB = 2^15 B => 15-bits address
+
+        - relevant PC-bit of [14:0] from [31:0] byte-per-address
+
+        b) (IALIGN = 32) 32-bit instruction alignment with 8-bit per address
+
+            32-bit / 8-bit = 4 entry => 2-bits
+
+            15 - 2 = 13-bits 
+
+        - relevant PC-bits of [14:2] from [14:0] with PC+4 succession ([1:0] = 00)
+        
+        b.1) Alternative interpertation (Instruction Cache.2): 
+        - Instruction cache is 4-way set associated, byte per entry with only addressable row 
+        - Each row is one instruction, containing 4 bytes for an full 32-bit instruction 
+
+    3) PC Mode and Speculation Behavior
+        a) PC0 and PC1 are directly in order with exception on branch speculation/prediction
+        - Single counter incrementing previouse PC0 and PC1 by 8, where PC1 is initial set to PC0 + 4
+
+        b) independent PC0 and PC1 select to set PC to branch speculative value (from fetch by pc_selector)
+        - Parallel run speclative route and non-speclative route 
+        - Fall-back on wrong prediction or skip-forward on right prediction with flush 
+
+            Non-dependent case:
+            PC0 : Beq r1, r2, label;    take 
+            PC1 : addi r1, r2, 0x01;    not take 
+
+        - PC0 will fall-back to PC1+4 on wrong prediction
+        - PC1 will skip-forward to PC0+4 on right prediction
+        - flush in-flight (dispatch) and undo computation (reserved buffer) on the wrong route
+
+            Dependent case
+            PC0 : addi r1, r2, 0x01
+            PC1 : beq r1, r2, label
+
+        - PC1 could fall-back to PC0 or PC0 could skip forward to PC1
+        - Data Hazard managed at Dispatch with Out of Order Stall mitigation
+
+Program Counter Selector (pc_selector.sv) and PC unit (pc.sv)
+
+    pc_s
+    Split responsibility between selection and incrementation:
+
+        pc_selector.sv  — routes speculative branch values to I0 only (spec_out).
+                          norm_out carries the fall-through / sequential base (pc0 or pc1).
+                          I1 branch predict/recover is not handled here.
+    
+    2. PC selection and feedback
+
+        a) Default (no predict, no recover): pass current PCs
+            - spec_out = align(pc0), norm_out = align(pc0) sequential / align(pc1) in spec
+            - pc.sv adds per spec_en
+
+        c) Selected values feed back into the PC unit
+
+            - spec_out, norm_out  --->  pc.sv spec_in / norm_in
+
+        d) Control sources for selection
+
+            - predict:  i0_pred_taken + i0_pc_predict only -> split I0 target / I1 fall-through
+            - execute:  recover_en + recover_i0 -> merge / fallback (I0 slot only)
+            - spec flag:  spec_next registered as spec_q; enables divergent +4/+4 in pc.sv
+
+        e) On I0 predict-taken: split PC0 (spec_out) and PC1 (norm_out fall-through)
+        - I1 branch in bundle does not enter fetch speculation (dispatch handles dependent case)
+
+        f) On I0 branch resolve: merge streams, redirect, flush pipeline
+        - recover_i1 / i1_pred_taken ignored by pc_selector
+
+    2) Module boundary
+
+        Inputs
+        - enable              : gate predict entry
+        - in_spec             : registered spec_q — already in divergent fetch
+        - pc0, pc1            : live pc0_out / pc1_out from pc.sv
+        - i0_pc_predict       : BTB read for lane 0 (target_buffer)
+        - i0_pred_taken       : decode state predict — I0 branch taken
+        - recover_en          : execute branch resolved (mispredict or confirm)
+        - recover_correct     : 1 = prediction was right (skip-forward); 0 = wrong (fallback)
+        - recover_i0          : branch was in I0 slot (only slot handled here)
+        - recover_pc          : execute-supplied aligned target / fall-through
+        - recover_use_exec_pc : 1 = use recover_pc; 0 = use outline slot fallback
+
+        Outputs (all combinational)
+        - spec                : spec_next — registered as spec_q in fetch_core_struct
+        - spec_out            : pre-add base for I0 speculative stream (pc0 / spec_in)
+        - norm_out            : pre-add base for I1 / sequential stream (norm_in)
+        - flush               : squash speculative insns (asserted on recover_i0 only)
+
+    3) Predict entry (spec_next = 1, no flush) — I0 only
+
+        Guard: predict blocked when in_spec = 1.
+        i1_pred_taken is ignored by pc_selector.
+
+        predict_i0 — I0 branch predicted taken
+
+            PC0 : beq … (take)          PC1 : addi … (fall-through in bundle)
+
+            spec_out = align(i0_pc_predict) - 4   — branch target stream (pc0)
+            norm_out = align(pc1)                 — fall-through stream (pc1)
+            spec_next = 1
+
+    4) Branch resolve (recover_en && recover_i0, flush = 1, spec_next = 0)
+
+        recover_i1 ignored — no fetch redirect or flush from I1 slot.
+
+        a) Right prediction — I0 slot (recover_correct=1)
+        - norm_out = align(pc0);  spec_out = align(pc0) - 4  — PC1 skip-forward to PC0+4
+
+        b) Wrong prediction — I0 slot (recover_correct=0)
+        - spec_out / norm_out from recover_pc or fall-through fallback pair
+        - flush speculative (target) path still in pipeline
+
+    5) Integration (fetch_core_struct.sv)
+
+        Data loop each cycle:
+
+            pc.sv (pc0_out, pc1_out) --> pc_selector (pc0, pc1 observe)
+            pc_selector (spec_out, norm_out) --> pc.sv (spec_in, norm_in)
+
+        u_pc_sel  -> comb outputs
+        spec_q    <- registered spec_next (cleared on reset or external set)
+        u_pc      <- enable, stall, spec_en=(spec_q|spec_next)&~set, spec_in, norm_in
+
+        PC unit (pc.sv):
+        - spec_en=1: pc0 <= spec_in+4, pc1 <= norm_in+4
+        - spec_en=0: pc0 <= norm_in+8, pc1 <= norm_in+12
+        - stall or !enable: hold current pair
+
+        flush_fetch must OR into global pipeline flush (if_id, id_dp, dispatch) — TBD in top.
+
+    6) Signal sources (not yet fully wired in risc_dis_unit.sv)
+
+        i0_pred_taken                  <- decode state_buffer / target_predict (I0 only in pc_selector)
+        i1_pred_taken                  <- decode (ignored by pc_selector; dispatch dependent case)
+        recover_*                      <- branch_unit at execute (recover_i0 only in pc_selector)
+        flush_fetch                    <- OR into core flush
+
+Branch Target Buffer (BTB)
+
+    1) Buffer size and structure dependent on the size of the single Instruction cache
+
+        a) 16-way set-associative target buffer 
+
+            16 => 2^4 => 4-bits for ways (columns)
+
+            13 - 4 = 9-bits for sets (rows) over full 32 KiB [14:2]
+
+        - way select: PC[5:2]; set index: PC[14:6] (within PC[14:2])
+        - 16-way lookup compares all 16 tags in the selected set in parallel
+        - tag: upper PC bits above the index (e.g. PC[31:15])
+        
+    2) Dual read and write
+        a) BTB miss (valid bit = 0): lookup returns fallthrough(pc) = pc + 4
+        - sequential next-instruction address for dual fetch (older lane pc, younger lane pc+4)
+        - not stored buffer zeros; pc+4 is computed at read time via cache_set_read default
+        b) BTB hit (valid bit = 1): i0_pc_target / i1_pc_target = stored target[31:0]
+        c) Update on WB retire of a resolved branch/jump (i0_valid_wb / i1_valid_wb)
+        - write bank[pc_set(pc_wb)][pc_way(pc_wb)] <= {1'b1, align_target(target_wb)}
+        - align_target(t) = {t[31:2], 2'b00} before store (4-byte aligned targets only)
+
+Instruction Cache and Immediate addressing 
+
+    1) Instruction Cache structure (RV32I)
+        a) Cache addresss uses byte per addressed
+        - Each addressable entry contain 1-byte
+
+        b) Cache size of 32KiB by Desired Specification 
+        - Total of 2^15 bytes or 15-bits to address each byte 
+        - Require only 15-bits of PC to address full instruction cache
+
+        c) Single Instruction is 4-byte for 32-bit entry
+        - Each instruction address must be divisible by 4
+
+        d) Total instruction entry 
+
+            cache size: 32KiB = 2^15 Bytes => 15-bits 
+            
+            total entry: 2^15 / 4 = 2^15 / 2^2 = 2^13 entry 
+
+            - Require 13-bit to address 2^13 or 8192 entries
+            - PC ultized only 13-bit (Program Counter.2)
+
+    2) Implement cache structure with 4-way set association (IALIGN = 32)
+        a) 1-byte per entry for 4-byte per addressable row 
+        - non-addressable Column since each instruction address should by divisible by 4
+        - addressable row by [14:2] of PC 
+        
+    3) Invalid Immediate address from branch or jump raise misaligned exception
+    
+        a) RISC-V: Brach and jump immediate values are scatter in the instruction(not fully/directly mapped) 
+        - encoded immediate are rounded down by leaving imm[0] out of the encoding
+        - decoder appends imm[0] = 0, result in the immediate value to always be even 
+        - decoded value concat immediate offset without storing offset or perform left shift
+        
+        b) RV-DIS: Branch and jump immediate should comply with PC Design
+        - immediate values should be divisible by 4 (not just even) for PC to stay IALIGN = 32
+        - Decoder force imm[1:0] = 00, rounding immediate value down by 2-bit, no shifting 
+        - Encoding ISA for immediate values are unchanged 
+
+            Summary table:
+            | Layer              | imm[0]   | imm[1:0] | imm values         |
+            |--------------------|----------|----------|--------------------|
+            | RISC-V ISA         | 0        | -0       | -2, 0, +2, +4, +6  |
+            | RV-DIS imm_align4  | 0        | 00       | -4, 0, +4, +8, +12 |
+
+Dual Decoder
+
+    1) Parallel decode — two insns per cycle
+    - I0 = older (lower PC), I1 = younger (PC+4): opcode decode, control signals, lane_sel (even / odd)
+
+    2) Lane differatation is determined(lane_sel)
+    - PC age track the order of execution not the lane(even/odd)
+    
+Branch State Buffer with 4-State:
+
+    1) Buffer size and structure mirror Branch Target Buffer
+        a) total entry of 8192 to direct map each entry in BTB 
+        b) 16-way set-associated state buffer
+        c) index by pc 
+        - way select: PC[5:2]; set index: PC[14:6] (within PC[14:2])
+
+
+    2) Store branch state for Prediction
+        a) stores only state value, index by PC outputs valid bit
+        - state transition computed at MEMORY stage 
+        - state value is immediately write back buffer at DECODE, skiping WBACK stage
+        - state value is immediately forward to EXECUTE, skipping WBACK stage 
+
+        b) state encoding:
+        - 2-bit saturating counter (4 states). Predict from MSB: 0 = not taken, 1 = taken.
+        - Reset / default value: 01 (weakly not taken)
+
+Branch Target Predictor 
+
+    1) Early branch target address calulation
+
+        a) PC adder computes pc + imm for target or pc_predict
+
+        b) pc_predict can take the value of pc + imm or pc_target from BTB
+
+        - if valid = 0, pc_predict uses pc + imm (decode) or BTB fallthrough pc + 4 (fetch miss)
+        - if valid = 1, pc_predict is set to pc_target from BTB, case of hit in BTB
+        - The case of valid = 1, but pc + imm != pc_target should not be possible by the assembler ie label value
+        are static by the compilier 
+
+            Possible instruction(register dependent branch label):
+
+                addi r3, r0, 0x00           ;
+                beq r1, r2, main(r3)       ;label + r3 
+
+                main: 
+                    .
+                    .
+                    .
+                    addi r3, r3, 0xa0
+                    beq r4, r5 main(r3)
+                .
+                .
+                .
+
+                (main + 0xa0):         //same immediate label value + r3 offset
+                    .
+                    .
+                    .
+                    beq r4, r5, main(r3)
+                    jmp main
+
+            - Potentially single global label for all jmp/branch target + offset
+            - Assembly level label awareness, more lines of instructions 
+            - Simplified complier, does not have to deal with label encoding
+            - Not RISC-V
+
+    2) State Decode
+        a) Decodes 2-bits state values to predict branch-take (set_target = 1) or branch-not-take (set_target = 0)
+        - A 2-bit predictor is more desirable for long loops with one time exit cost before re-entry
+
+            State table:
+            00  strongly not taken  (predict not taken)
+            01  weakly   not taken  (predict not taken)
+            10  weakly   taken      (predict taken)
+            11  strongly taken      (predict taken)
+
+        - set_pc = state[1]       
+        - always one bit flip to avoid glitchs
+
+Registers File - 32 addressible register:
+    // A conventional size that balances encoding, performance, and hardware simplicity
+    0.1) why more entry (>16) reduce presssure for aggressive compiler optimatizations technieuqes(loops, caching) that uses many temporary register
+
+    0.2) why less entry (<64) a few register dominate in use, get much of the benefits without needing to use all register equally often
+    
+    1) Register x0 is hardwired with zero
+
+    2) General Purpose registers x1-x31 (RV32I Unprivileged ISA, "Register State")
+
+        ABI / convention (not extra hardware in a minimal core):
+        - x1 (ra)  — usual return-address register for JAL / JALR
+        - x2 (sp)  — stack pointer
+        - x5 (t0)  — may be used as an alternate link register in some code sequences
+
+        RV-DIS: JAL/JALR can write the link (pc+4) to whatever GPR rd encodes — no special x1/x5
+        hardware; compilers usually pick x1 (ra), but any rd except x0 is valid.
+
+    3) Scalar GPR ports (RISC-V) x (dual-issue)
+
+        a) 2 read ports per instruction (RV32I)
+        - 3-address encoding: rs1, rs2 fields in every format (I-type uses imm, rs2 = 0x0)
+        - Instruction may needs 0–2 GPR reads (e.g. ADD/BEQ/SW use both; ADDI/LW use rs1 only)
+
+        b) multiply by 2 for dual-issue as lanes → 4 read ports total
+        - Even lane: dedicated rs1 + rs2 ports (ALU / OP-IMM)
+        - Odd lane:  dedicated rs1 + rs2 ports (load/store / branch)
+        - Both lanes can read GPR in the same ID cycle regardless of even or odd
+         (e.g. even ADD + odd SW, even ADD + even SUB, odd BNE + odd BGE)
+
+    5) Scalar GPR write ports — 2 (dual-issue)
+        a) 2 write ports for dual-issues as lanes
+        - Both lanes can write GPR in the same WB cycle depending on PC-age(ignore older instruction)
+        - Lanes are differatiated at WB, dedicated even/odd WB with no adventage
+
+    6) structure Hazards, for immediate values
+        a) immediate instruction is decoded with r2 as zero register 
+
+            addi x2, x1, 0xaa
+            => even_rs1_addr = x1, even_rs2_addr = x0
+            * immediate value(0xaa) is not visible to the register file
+            * desintation register(x2) is not visible to the register file
+            * rd = rs1/rs2 is structually sounded with read/write port
+    
+        b) single instruction, read from the same register 
+
+            add x2, x1, x1
+            => even_rs1_addr = x1, even_rs2_addr = x1
+            * in this case even_rs1_data = even_rs2_data
+
+            Likewise: 
+            beq x2, x2, label 
+            => odd_rs1_addr = x2, odd_rs2_addr = x2
+            * always brench to label, since odd_rs1_data = odd_rs2_data
+
+        - rs1 = rs2 is structually sounded with 2 read ports
+
+        c) dual instruction, read from the same register
+        - structurally sounded with with 2 set of 2 read ports
+        
+        b) dual instruction write back odd/even_wdata lane write enable
+        - structurally sounded with 2 set of write port(independent ctrl signals)
+
+
+    7) data hazards, register read and write back
+        a) RAR (Read After Read) — dual instructions both read the same register
+
+            add x3, x3, x1 | bne x3, x2
+            => even_rs1_addr = x3, even_rs2_addr = x1
+            => odd_rs1_addr = x3, odd_rs2_addr = x2
+
+            * fundemental loop exit check routine
+            * in this case even_rs1_data = odd_rs1_data, structually true, but logically fault
+
+            Likewise: 
+            addi x3, x3, 0x0a | sub x3, x3, x1 
+            => even_rs1_addr = x3, even_rs2_addr = x1
+            => odd_rs1_addr = x3, odd_rs2_addr = x2
+            * fundemental loop count down starting from 0x0a
+            * lane are not differatiated yet, this is structurally llegal, but logically fault
+
+        b) Register RAW / WAR at GPR writeback (I0 = older, I1 = younger)
+        - register file: combinational read from regs[] only; writes commit to regs[] on negedge clk
+        - no WB bypass on GPR read ports; no falling-edge forward into EX operands
+        - RAW (Read After Write): in-flight rd not in regs[] — EX uses forward_unit MEM-stage
+          mux (mem0/mem1) only; otherwise stall until producer visible at MEM or committed in regs[]
+        - WAR (Write After Read): I0 reads old value from regs[] before I1 WB negedge commit
+        - WAW: both write same rd — both issue; register_file merges at WB (younger wpc wins, see c)
+
+        c) WAW (Write After Write) — dual instructions both write the same register
+
+            addi x2, x1, 0xaa | lw x2, 0x0(x2) 
+            => even_pc = 0x0, even_rd = x2, even_data = 0xaa
+            => odd_pc = 0x4, odd_rd = x2, odd_data = 0xbb, let 0x0(x2) = 0xbb
+            * retrive from memory by immediate pointer address
+
+        - Dispatch does not suppress either insn on same rd (JAL/JALR PC and other side
+          effects must still execute; skipping I0 is not equivalent to running then merging)
+        - Both I0 and I1 reach their lanes; register_file commits one value per rd at WB
+          negedge — younger insn wins via wpc when both write the same rd same cycle
+        - if Software expects 0xaa as an observable value, complier must space these instructions
+          outside the pair.
+
+Dispatch with Reorder Buffer: 
+
+    Concept:
+    *From the reading, the Reorder Buffer can be integrated into the Instruction Queue with
+    the addition of result field and state controls. Since, instruction are now only clear
+    on commit or flushed on wrong branch speculation, as in Reorder Buffer, the queue must 
+    compenstate for the longer instruction lifespan with larger entry size. We will refer 
+    this combined unit as the Reorder Buffer in the design*
+
+    1. Dual fetch and dispatch with pointers 
+    
+        Purpose: 
+        - address Reorder Buffer with three pointers: commit (head), read (body), and write (tail)
+        - pointers can warp around the buffer, as in a ring buffer, and advance to the next pair of
+        instructions without shifting entry
+
+        a. Write pointer
+            - enqueue pairs of instructions until the buffer is full to trigger an fetch stall
+            - Un-stall or re-enable write on empty buffer 
+        
+        b. Read Pointer
+            - enable pairs of instructions to be routed to the apporpriate reservation station based
+            on decoded lane select (not cleared from the buffer). 
+            - State 
+        
+            and updating instruction state (not cleared). 
+            - 
+        c. commit pointer
+            - clear pair of instruction that finish execution for the result to be visible to be
+            written to the register file.  
+
+    2. Reorder Buffer:
+
+        Purpose:
+        - instructions fetched are stored in the Reorder Buffer, then on the next clock cycle
+        routed by the decoded lane select (even or odd) to a dedicated Reservation Station
+        - maintained FIFO buffered orders of instruction to ensure the correct data flow 
+        - instructions are moved to next available slot in the Reservation Stations 
+        - Pipeline stall until the ROB is full; instructions already in the ROB can still
+        be issued from the ROB to the reservation stations for execution
+
+        a. Field and control signal 
+
+            Entry fields (per ROB slot = rob_entry_t + result/state):
+            | field             | width | purpose                                                 |
+            |-------------------|-------|---------------------------------------------------------|
+            | valid             | 1     | slot occupied (between commit and write pointer)        |
+            | pc                | 32    | program order / flush target for this instruction       |
+            | lane_sel          | 1     | 0 = even RS, 1 = odd RS (routing on read)               |
+            | opcode/funct3/7   | 7/3/7 | decoded operation forwarded to the lane                 |
+            | rd                | 5     | architectural destination register                      |
+            | rs1 / rs2         | 5/5   | source register addresses                               |
+            | rs1_use / rs2_use | 1/1   | source operand required flags                           |
+            | imm               | 32    | sign-extended immediate                                 |
+            | rs1_data/rs2_data | 32/32 | captured operand values at dispatch                     |
+            | reg_write         | 1     | instruction commits a value to rd                       |
+            | result            | 32    | EX/MEM result captured in ROB, written to GPR on commit |
+            | state             | 3     | entry lifecycle + speculation (see state table)         |
+
+            State encoding (3-bit lifecycle codes):
+            | code | name             | meaning                                                    |
+            |------|------------------|------------------------------------------------------------|
+            | 000  | new, unread      | enqueued, not yet routed to a reservation station          |
+            | 001  | read             | routed to a RS, awaiting execute (non-spec)                |
+            | 010  | executed         | EX result captured in ROB, ready for in-order commit       |
+            | 100  | spec, unread     | speculative entry behind unresolved branch                 |
+            | 101  | spec, read       | speculative, routed to a RS                                |
+            | 110  | spec, executed   | speculative, result ready (commit blocked until branch OK) |
+
+            Lifecycle: new (000) -> read (001) -> executed (010) -> commit (freed).
+            Speculative variants (1xx) follow the same path behind an unresolved branch.
+
+            Control signals:
+            | signal        | dir | purpose                                                |
+            |---------------|-----|--------------------------------------------------------|
+            | flush         | in  | branch mispredict — squash spec entries, reset pointers|
+            | full          | out | no free slot for a pair -> stall fetch                 |
+            | empty         | out | nothing to issue                                       |
+            | count         | out | occupancy (commit..write distance)                     |
+            | set_complete  | in  | mark entry executed — capture result, advance to 010/110|
+
+        b. Branch Speculation
+            - speculative entries use lifecycle codes 100, 101, 110
+            - on correct resolve, clear speculation (100 -> 000, 101 -> 001, 110 -> 010)
+              so executed entries can commit in order
+            - on mispredict, flush every entry in 1xx and rewind the write pointer
+        c. Buffer Size:
+
+            Geometry:
+            - 16-entry ROB (ROB_DEPTH = 16, ROB_AW = 4)
+
+            Why 16 (capacity):
+            - at 2 issues/cycle it buffers ~8 cycles of fetch, enough to cover the front-end
+            (fetch/decode) refill latency on a stall so issue rarely starves; under the Reorder
+            Buffer model entries live until commit/flush, so the longer lifespan needs the
+            extra slots to avoid stalling fetch prematurely
+
+            Why 16 (speculation depth):
+            - depth IS the speculation depth: an entry only frees on commit, and a speculative
+            instruction cannot commit until its branch resolves in EX, so ROB depth caps how
+            many instructions may sit past unresolved branches
+            - sizing: required_depth ~ issue_width x (dispatch-to-resolve cycles) x branches_in_flight
+            - for this core: width 2, branch resolves ~2-3 cycles after dispatch, so ~4-6 entries
+            pile up behind one unresolved branch; 16 / 2 = 8 cycles of runway covers that plus a
+            second in-flight branch (nested speculation) and commit-bandwidth hiccups
+            - trade-off: deeper buffer = deeper speculation (more ILP across branches) at the cost
+            of area and a larger flush penalty (mispredict discards up to 16 / ~8 cycles of work);
+            an 8-deep ROB halves this to ~4 cycles / 1 branch
+
+            Why 16 (power of two):
+            - ROB_AW = 4 indexes it exactly and the write/read pointers wrap for free
+            (no compare/subtract), which a 12- or 20-entry depth would not
+
+    3. Register Rename:
+
+        Purpose:
+        - Renamed is performed as instructions is moved from the Reorder Buffer to the desired 
+        reservation stations
+        - Instruction's desintation address is renamed or mapped to the associated address 
+        of the same instruction that is in the Reorder Buffer.
+        - Instruction's operand address is renamed based on matching register address stored 
+        in the Reorder Buffer or the value is fetch directly if available.
+
+        a. Eliminated WAR cause by false dependency:
+
+            Before Rename:
+                pc0         lw  r3, 0x00(r1)        
+                pc1         sub r1, r4, r5  
+
+            After Rename: let r1 @ pc0 = p5, r1 @ pc1 = p6, 
+                pc0         lw  r3, 0x00(p5)
+                pc1         sub p6, r4, r5
+
+            - Instruction at pc0 must read the old value even if instruction at pc1 forward
+            the result, thus any writes does not affect earlier instructions reading the same register.  
+            - In the case that instruction at pc1 may finsih execution earlier than pc0, instruction
+            result from pc1 will visibily not be forwarded because the renamed value does not match
+
+        b. Eliminated WAW hazards cause by writing to the same desintation:
+
+            Before Rename: 
+                pc0         add  r1, r2, r3       
+                pc1         lw   r1, 0x00(r5)     
+                ...
+                pc0 + 4     sub  r2, r3, r1       
+                pc1 + 4     and  r4, r5, r1  
+
+            After Rename: let r1 @ pc0 = p5, r1 @ pc1 = r6
+                pc0         add  p5, r2, r3       
+                pc1         lw   p6, 0x00(r5)     
+                ...
+                pc0 + 4     sub  p2, r3, p6
+                pc1 + 4     and  p3, r5, p6     
+
+            - Since both instruction at pc0 and pc1 write to the same desintation register, the register
+            will only take the last renamed tag's value or the yongest in-order result of the execution (i1)
+            - In the case that instructions at pc0 may finish execution earlier than pc1, instruction 
+            result from pc0 will visibily not be forwarded because the renamed value does not match 
+
+Reservation Station with Renaming 
+
+    Instruction with renamed register is move to the Reservation Station to handle anti-dependency 
+    (WAW, WAR). Instruction can be dispatch out-of-order from the Reservation station to the execution units 
+    in order to reduce RAW dependency stalls. 
+    
+    1. Out-of-Order Execution 
+    2. Reservation Station:
+        - tagged by renamed desintation address, oprand values or 
+
+        a. Reduce stall of RAW dependency by allowing out-of-order execution:
+
+        b. Account for extra memory stage operation:
+            - loads and stores require a two-step execution process; address compute and value
+             to be store/load
+		    - load or store reservation states buffer address computes, awaits values to be 
+            stored or loaded
+
+    1) Lane map:
+    - Even lane: OP, OP-IMM (ALU)
+    - Odd lane:  LOAD, STORE, BRANCH, JAL, JALR, LUI, AUIPC
+
+    3) structure hazard - Same instruction type need the same lanes even\even or odd\odd
+
+        a) Clean pair:
+            addi x1,x5,0x2c | lw x2,0x00(x5)
+            => I0 even, I1 odd → lane check passes
+
+        - no conflict with dual lanes, even and odd lanes 
+        - no stall
+
+        b) Lane conflict: I0 and I1 need the same even lane 
+
+            add x1,x2,x3 | sub x4,x5,x6
+            => both I0, I1 need LANE_EVEN 
+
+            likewise:
+
+            lw x1, 0x00(x2) | beq x2, x3, label
+
+            or 
+
+            lw x1, 0x00(x3) | lw x2, 0x00(x3)
+            => both I0, I1 need LANE_ODD 
+
+        - duplicated resources, 2 sets of ports to execute the same type of instruction in Parallel
+        - two even lanes and two odd lanes, 4 sets of output port in total with individual enable
+
+            I0 is even type         => ev0_[port]
+            I1 is also even type    => ev1_[port]    
+
+            I0 is odd type          => od0_[port]
+            I1 is also odd type     => od1_[port]
+
+        - no stall
+
+    4) data hazard - register focus (I0 = older, I1 = younger)
+
+        a) RAR (Read After Read) no semantic conflict, dual GPR read ports
+        - dual read in register file(7a) and dual read from memory cache
+
+        b) WAR (Write After Read), I0 must see pre-write value (anti-dependency)
+        - resolve by pipeline staging
+
+        c) WAW (Write After Write), same memory word (same rd handled at WB — §4.c)
+        - resolve at write back, wback only the youngest instruction
+
+        d) RAW (Read After Write): I1 reads rs1/rs2 that equals an in-flight rd
+        - reader needs the writer's new value; 
+
+        d.1) 1 stall required - skipping memory access stage 
+
+            Even then Even — intra-dependent
+            addi x5, x4, x3 | xor x7, x6, x5
+            => I0 rd = x5, I1 rs2 = x5
+
+            Even then odd — inter-dependent
+            addi x5,x5,0x01 | brne x6, x5, label
+            => I0 rd = x5, I1 rs2 = x5
+
+        - hazard unit / scoreboard at ID→EX: detect I1 rs1/rs2 == I0 rd (I0 reg_write, rd != x0)
+        - same cycle: issue I0 only; buffer I1 in dispatch; stall_id=1 for full wait
+        - replay I1 when wait_cnt reaches 1 (init wait_cnt = stall_cycles + 1)
+        - no same-bundle EX forward; forward_unit WB bypass only for cross-bundle cases (see §6)
+
+        d.2) 2 stall required - read/write to memory 
+
+            Odd then even - inter-dependent
+            lw x2,0x00(x5) | addi x1,x2,0x2c
+            => I0 rd = x2, I1 rs1 = x2
+
+            Odd then odd - intra-dependent
+            lw x2,0x00(x5) | lw x5,0x00(x2)
+            => I0 rd = x2, I1 rs1 = x2
+
+        - load data is not available until WB; I1 buffered with stall_remain=2
+        - full dispatch stall until counter expires, then replay buffered I1
+        - stall required for all cases of load from memory is the first instruction
+
+    5) control hazard - 
+            
+        Odd then even - no stall branch instruction
+            brne x5,x6,label | addi x6 
+
+    -) Scoreboard (issue gate at ID→EX) 
+
+        Purpose:
+        - Central in-order issue gate for GPR RAW hazards
+        - Same-bundle RAW (d.1): single-issue I0, buffer I1, stall_remain=1
+        - Load-use (d.2): buffer I1, stall_remain=2 (I0 opcode == load)
+        - stall_id asserted only by dispatch (GPR RAW / I1 buffer wait); no external stall inputs
+
+        I1 buffer node — single entry (i1_buffer_node_t in id_ex_dispatch.sv):
+        - Holds at most one suppressed I1 from the current fetch pair
+        - Latch on set_i1_hold: full ID bundle + producer_rd + bundle PC tags + wait_cnt
+        - wait_cnt init = i1_stall_cycles+1 (ALU:2, load:3); decrements while >1; replay at 1
+        - Clear on issue_i1_from_hold or flush
+
+        Module ports (scoreboard.sv):
+        - ID pair: i0_reg_write/rd/opcode; i1 rs1/rs2 use+addr (no valid — gated in dispatch)
+        - Buffer: buf_valid, issue_i1_from_hold (from dispatch wait_cnt)
+        - suppress_bundle_raw
+        - Outputs: issue_i0, issue_i1, stall_id, set_i1_hold, i1_stall_cycles
+
+        Hazard ownership (id_ex_dispatch vs scoreboard):
+
+        scoreboard.sv — GPR register RAW only (§4.d):
+        - d.1 same-bundle (1 stall): partial I0, buffer I1, wait_cnt-based replay
+        - d.2 load-use (2 stall): buffer I1, wait_cnt init 3
+
+        id_ex_dispatch — checked at dispatch, not in scoreboard:
+        - Memory RAW/WAR (Cache §4): same eff. addr (rs1+imm); single-issue I0; hold I1;
+          2-stall in-order replay when I0 mem op completes; memory_cache sees ordered ports only
+        - GPR WAW: no dispatch check; register_file wpc merge at WB (§4.c)
+        - Memory WAW (§4.c, Cache §6): kill I0 store at issue (od0 mem_en=0)
+          (reg_write=0 / mem_en=0) — redundant write never executes
+
+        Other:
+        - EX operand mux: forward_unit WB stage only (wb0/wb1); no falling-edge forward
+        - memory_cache: cache_busy status only; L1 miss stall folded into dispatch when integrated
+
+    -) Stall methods
+
+        Default: global front-end stall. Same-bundle RAW uses partial I0 issue on capture cycle.
+
+        a) Partial issue + buffer — one fetch pair only
+            - Same-bundle RAW: issue I0; buffer I1 with stall_remain (1 or 2); full stall until replay
+            - Cross-bundle lane run-ahead not supported
+
+            Example — even|even RAW (§4.d.1):
+                addi x5, x4, x3 | xor x7, x6, x5
+                c0: issue ev0 (addi); buffer xor; stall_id=1; wait_cnt=2
+                c1: wait_cnt→1 (stall)
+                c2: replay xor on ev1
+
+            Example — even|odd RAW:
+                addi x5, x5, 1 | bne x6, x5, label
+                c0: issue ev0; buffer branch; wait_cnt=2
+                c1–c2: stall then replay branch on od1
+
+        b) Global stall_id — IF/ID bubble until dispatch can proceed
+            - while buf_q.valid && wait_cnt > 1: full stall
+            - load-use (§4.d.2), memory RAW/WAR (Cache §4); future L1 miss handled inside dispatch
+            - stall_id && !issue_i0 && !issue_i1 → hold EX registers
+
+            Example — load-use (§4.d.2):
+                lw x2, 0(x5) | addi x1, x2, 0x2c
+                c0: issue od0 (lw); buffer addi; stall_id=1; wait_cnt=3
+                c1–c2: stall (wait_cnt counts down)
+                c3: replay addi on ev1
+
+            Example — memory RAW (Cache §4):
+                sw x6, 0(x5) | lw x7, 0(x5)
+                c0: issue od0 (sw); hold lw in dispatch; stall_id=1
+                c1–N: stall until store completes → replay lw on od1
+
+        c) Back-end per-slot freeze (optional, inactive)
+            - ex_mem stall_od0/od1, ex_mem_wb stall_i0/i1 — not used; dispatch owns stall_id
+
+        | Situation                      | Method                          |
+        |--------------------------------|---------------------------------|
+        | Same-bundle RAW (d.1)          | (a) partial issue + I1 buffer     |
+        | Load-use / mem order / L1 miss | (b) global stall_id (dispatch)  |
+        | Cross-bundle independent lanes | not supported                   |
+
+        Signals: stall_id (dispatch out); issue_i0/i1, set_i1_hold, issue_i1_from_hold
+        
+Forwarding with Reservation Buffer
+
+    Instructions are stored in reservation buffer for Out-of-Order execution by selecting and
+    executing instruction without dependency. Instruction with RAW dependency are flagged and 
+    reserved until the dependeny resources is available to be forwarded. 
+
+    forward_unit muxes EX rs operands from:
+        a) ID/EX GPR operand (combinational read of regs[] — stale if producer still in flight)
+        b) WB stage wb0/wb1: ex_mem_wb retire candidates
+        - youngest PC wins when wb0 and wb1 both match the same rs
+        - after WB negedge commit, the next ID read sees the new value in regs[] (no forward needed)
+        - does not resolve same-bundle I0→I1 RAW; scoreboard stalls that case (d.1)
+        - same-bundle GPR WAW: both issue; younger wpc wins at register_file WB
+        - same-bundle memory WAW: I0 store suppressed at dispatch (od0 off) — §4.c, Cache §6
+
+Execution Flow and Design:
+
+    1) Dual Issues, odd/even lanes
+        a) even lanes executes scaler operation(R-type, I-type)
+        b) odd lanes executes branch and memory access operation(B-type, S-type, U-type)
+
+    2) Duplicate execution resources (port-based EX)
+        a) Avoid stall-based lane arbitration by duplicating excution units on the same lane
+        b) Dispatch both I0, I1 assign to even/odd lane to the (2) copy of execution unit 
+        c) Removes I0, I1 same type structural hazards at the cost of more hardware
+
+    3) Instruction - Integer Computational 
+
+        a) Integer computational instructions are either encoded as register-immediate operations using the I-type
+        format or as register-register operations using the R-type format. 
+
+        b) The destination is register rd for both register-immediate and register-register instructions. 
+        
+        c) No integer computational instructions cause arithmetic exceptions.
+
+        d) No special overflow-detecting arithmetic instructions, simple branch patterns can detect overflow cheaply, without extra hardware.
+
+            add   t0, t1, t2
+            bltu  t0, t1, overflow -> raise software expection
+
+        complier decided whether overflow must be checked, inserting overflow branch instruction
+
+
+    4) Even lane at EX/WB (skips MEM)
+
+        1) even-lane ALU → ex_mem_wb EX bank (ev0/ev1); odd-lane → MEM bank (od0/od1)
+        2) ex_mem_wb: 4-port enable merge → push0/push1 retire candidates
+        3) ex_mem_wb retire merge → GPR i0/i1 write ports (2 per cycle, register_file wpc merge)
+
+Cache Memory Design:
+
+    1) Byte addressing — 8-bits per address(same as intruction cache) as standard RV32I data memory map   
+    - Address N and N+1 are adjacent bytes
+    - Effective address: mem_addr = rs1 + imm (byte offset from decode, same unit as PC)
+    - Load/store offsets: sign-ext only (no imm_align4); use 4-byte-aligned addresses in software(complier)
+
+        lw x5 0(x10) - correct align
+        lw x5 1(x10) - miss align
+        lw x5 2(x10) - miss align
+        lw x5 3(x10) - miss align
+        lw x5 4(x10) - correct allign
+
+    2) LW / SW (32-bit) — mem_besel selects which bytes out of a 32-bit word will be write/read at the mem_addr
+
+    - write and read in little-endian
+
+    write/read data  |  in memory
+    0xddccbbaa =>       0x00000 : aa  
+                        0x00001 : bb 
+                        0x00010 : cc 
+                        0x00011 : dd
+
+    3) RAR (Read After Read) — dual-issue read same memory word
+    - structurally sound with dual read ports
+
+        lw x5, 0(x6) | lw x7, 0(x6)
+        => same eff. addr; I0 read may be suppressed if only I1's result is architecturally needed
+
+    - disable redundant I0 mem port at dispatch when appropriate
+
+    4) Memory WAR / RAW — same eff. addr, load/store ordering (2 stall, held at dispatch)
+
+        a) WAR (Write After Read) — I0 read, I1 write, same memory word (anti-dependency)
+
+            lw x7, 0(x5) | sw x6, 0(x5)
+            => I0 load must read memory before I1 store overwrites the word
+
+        - dispatch: detect same eff. addr; single-issue I0; hold I1 (2-stall in-order path)
+        - replay I1 after I0 load completes; memory_cache assumes ordered requests only
+
+        b) RAW (Read After Write) — I0 write, I1 read, same memory word (true dependency)
+
+            sw x6, 0(x5) | lw x7, 0(x5)
+            => I1 load depends on the value I0 store writes to the word
+        
+        - dispatch: detect same eff. addr; single-issue I0; hold I1 (2-stall in-order path)
+        - replay I1 after I0 store completes; memory_cache assumes ordered requests only
+
+    - Detect at dispatch (eff. addr match: rs1+imm, same 32-bit word)
+    - In-order pipeline: issue I0 only; hold I1 in dispatch (same single-entry hold as §4.d)
+    - 2 stall cycles until I0 memory op completes (store visible / load data returned)
+    - Then replay I1 — memory_cache receives ordered requests only; no RAW/WAR logic in cache
+    - Same-bundle memory WAW: kill I0 write at issue (see c, Cache §6) — not stalled, suppressed
+
+    6) WAW (Write After Write) — dual-issue write same memory word
+
+        sw x6, 0(x5) | sw x7, 0(x5)
+        => same eff. addr; I1 (younger) is the architecturally visible store
+
+    - checked at dispatch (id_ex_dispatch): kill I0 store at issue (od0 mem_en=0)
+    - only I1 store reaches memory_cache; no dual write to the same word in one cycle
+
+    7) L1 cache miss
+    - stall to fetch the data in lower cache levels  
+
+Branch State Look Up
+
+    a) State transition map
+            FSM (input pc_sctrl on each transition):
+
+                    pc_sctrl=0
+                +----------------------+
+                |                      |
+                v                      |
+            +-------+  pc_sctrl=1  +-------+
+            |  00   |------------->|  01   |
+            |no take|              |no take|
+            +---+---+              +---+---+
+                ^                      |
+                | pc_sctrl=0           | pc_sctrl=1
+                |                      v
+            +---+---+  pc_sctrl=1  +-------+
+            |  10   |<-------------|  11   |
+            | take  |              | take  |
+            +-------+              +-------+
+                |                      ^
+                | pc_sctrl=0           | pc_sctrl=1
+                +----------------------+
+
+            Transition summary (next_state = f(state, pc_sctrl)):
+                00 + 0 -> 00     00 + 1 -> 01
+                01 + 0 -> 00     01 + 1 -> 11
+                10 + 0 -> 00     10 + 1 -> 11
+                11 + 0 -> 10     11 + 1 -> 11
+
+Memory hierarchy (on-chip SRAM budget):
+
+    Planned cache sizes (byte-addressed, 8 bits per address):
+    - two L2 data cache total (largest): 2^17 bytes = (2 * 64) KiB total
+    - L1 data cache:           2^15 bytes =  32 KiB
+    - Instruction cache (I$):  2^15 bytes =  32 KiB  (budget line; see I$ detail below)
+
+Writback and Retire from Reorder Buffer 
+
+The Register Alias Table (RAT) and the Reorder Buffer (ROB) work together during register
+ renaming and speculative execution, but they serve fundamentally different roles and 
+ operate at different points in the pipeline.
+ 
+ 
+  During the rename stage, the RAT is used to
+  translate architectural source registers into their current physical register mappings 
+  and to allocate a new physical register for any destination register.
+  
+   At the same time,
+   a new entry is created in the ROB for each instruction. That ROB entry records the 
+   architectural destination register, the newly assigned physical register, and the 
+   previous physical register that is being replaced. 
+   
+   After this point, the RAT is 
+   immediately updated to reflect the newest speculative mapping, meaning later 
+   instructions will read the updated physical register even if earlier ones have not 
+   executed yet.
+
+As execution proceeds out of order, functional units operate only on physical registers,
+ and when an instruction finishes, it writes its result back and marks its corresponding 
+ ROB entry as complete. The ROB does not execute instructions; instead, it tracks 
+ completion status and preserves program order. Finally, at the commit stage, the ROB 
+ retires instructions strictly in order. When the head of the ROB is ready, it updates 
+ the architectural state by confirming the mapping in the RAT is now committed and 
+ frees the old physical register stored in the ROB entry. This interaction ensures 
+ that even though execution happens out of order, architectural state updates remain 
+ precise and in-order, with the RAT handling fast speculative mapping and the ROB 
+ enforcing correctness and recovery.
+
+Verification (Yosys via WSL):
+
+    See scripts/README.md (run_yosys.ps1 commands, log layout).
+    TB layout and logging: tb/README.md
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
+
+    a) 128-bit vector width; 8 vector registers v0-v7 (separate from scalar x0-x31)
+
+    b) Lane modes: 16x8-bit, 8x16-bit, 4x32-bit packed integer ops
+
+    c) Even lane: VADD, VSUB, VAND, VOR, VXOR (128-bit SIMD ALU)
+
+    d) Odd lane: VLD128, VST128 (16-byte aligned vector load/store)
+
+    e) Dual-issue example: vector ALU (even) + vector/scalar load (odd) in same cycle
+

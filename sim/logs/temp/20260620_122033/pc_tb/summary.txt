@@ -1,3 +1,0 @@
-top:    pc_tb
-time:   20260617_143527
-result: 7 passed, 0 failed - OK

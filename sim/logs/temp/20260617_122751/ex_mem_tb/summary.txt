@@ -1,3 +1,0 @@
-top:    ex_mem_tb
-time:   20260617_121153
-result: 10 passed, 0 failed - OK

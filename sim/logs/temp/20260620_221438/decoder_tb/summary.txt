@@ -1,3 +1,0 @@
-top:    decoder_tb
-time:   20260620_221332
-result: 32 passed, 0 failed - OK

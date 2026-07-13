@@ -1,13 +1,11 @@
-# Architecture documentation
+# Architecture docs
 
-Living outline: [../../project_outline.txt](../../project_outline.txt)
+Main outline: [../../project_outline.txt](../../project_outline.txt).
 
-Deliverable per spec §16:
+Topics covered there and in spec §16:
 
-- 5-stage pipeline overview
-- Dual-issue even/odd partitioning
-- **128-bit SIMD datapath** (even lane) and vector LSU (odd lane)
-- Scalar GPR (32×32) and vector VR (8×128) register files
-- Hazard handling (data, control, dual-issue, scalar/vector)
-- Register file port plan — [register_file_ports.md](register_file_ports.md)
-- Memory interface (scalar + 16-byte vector accesses)
+- 5-stage pipeline, dual-issue even/odd split
+- Scalar GPR (32×32); vector VR (8×128) planned
+- Hazards: RAW, control, dual-issue conflicts
+- Register port plan: [register_file_ports.md](register_file_ports.md)
+- Memory: scalar words + 16-byte vector accesses (planned)

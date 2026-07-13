@@ -1,31 +1,38 @@
-# RTL source
+# RTL
 
-SystemVerilog modules organized by pipeline stage. See [../project_outline.txt](../project_outline.txt) §5 for the stage map.
+SystemVerilog by pipeline stage. Stage map: [../project_outline.txt](../project_outline.txt).
 
-## Active / in progress
+## Pipeline stages
 
-| Stage | Modules |
-|-------|---------|
-| Common | `common/rv_dis_pkg.sv` |
-| Decode | `s2_decode/s2_decode_struct.sv`, `decode_mod/decoder.sv`, `decode_mod/register_file.sv`, `decode_mod/decode_pkg.sv` |
-| IF/ID | `s2_decode/if_id.sv` (optional pipeline slice; not in decode structure) |
-| Branch | `s2_decode/branch_mod/state_buffer.sv` |
-| Fetch | `s1_fetch/s1_fetch_struct.sv`, `s1_fetch/core/pc.sv`, `s1_fetch/core/instruction_cache.sv`, `s1_fetch/branch/target_buffer.sv` |
-| Dispatch | `s3_execution/id_ex_dispatch.sv`, `dispatch_funct/scoreboard.sv` |
-| Execute | `s3_execution/s3_execute_struct.sv`, `core/forward_unit.sv`, `core/even_lane.sv`, `core/odd_lane.sv` |
-| EX/MEM | `s4_memory/ex_mem.sv` |
-| Memory | `s4_memory/s4_memory_struct.sv`, `core/memory_cache.sv` |
-| MEM/WB | `s5_wback/ex_mem_wb.sv` (4 lane → 2 GPR write ports) |
-| Top | `top/risc_dis_unit.sv` (fetch + ID through MEM/WB) |
+| Stage | Directory | Role |
+|-------|-----------|------|
+| S1 Fetch | `s1_fetch/` | PC, instruction cache, branch target buffer |
+| S2 Decode | `s2_decode/` | IF/ID, dual decoder, GPR |
+| S3 Execute / Dispatch | `s3_dispatch/` | ROB, rename/route, branch speculate, ID/DP |
+| S4 Memory | `s4_memory/` | EX/MEM (`ex_mem`), L1 data cache |
+| S5 Writeback | `s5_wback/` or `s6_wback/` | EX/MEM/WB merge (`ex_mem_wb`), retire |
 
-## Deferred
+## Modules
 
-- `rtl/issue_dispatch/` — superseded by scoreboard inside `id_ex_dispatch`
-- `rtl/core/` — `spu_lite_cpu` top
-- 128-bit SIMD vector RF and execution units
+| Area | Files |
+|------|-------|
+| Packages | `package/rv_dis_pkg.sv`, `package/cache_pkg.sv` |
+| Fetch | `s1_fetch/fetch_core_struct.sv`, `pc.sv`, `core/instruction_cache.sv`, `target_buffer.sv` |
+| Decode | `s2_decode/decode_core_struct.sv`, `if_id.sv`, `core/decoder.sv`, `register_file.sv`, `state_buffer.sv` |
+| Dispatch / EX | `s3_dispatch/dispatch_core_struct.sv`, `id_dp.sv`, `core_mod/reorder_buffer.sv`, `rename_dispatch.sv`, `branch_speculate.sv` |
+| Memory | `s4_memory/ex_mem.sv`, `core/memory_cache.sv` |
+| Writeback | `s6_wback/ex_mem_wb.sv` |
+| Top | `top/risc_dis_unit.sv` |
+
+`*_struct.sv` / `*_core_struct.sv` files hold bundled port types per stage.
+
+## Not implemented
+
+- 128-bit SIMD vector RF and execution
+- Register rename, reorder buffer, OoO RS issue (`core/forward_funct/reserved_buffer.sv` stub)
+- `s2_decode/core/target_predict.sv` — stub, not wired in top
 
 ## Conventions
 
-- One module per file; packages in `*_pkg.sv`
-- Unit TBs in `sim/tb/<stage>/` with matching file lists under `sim/filelists/`
-- Pipeline registers live under stage folders (`s4_memory`, `s5_wback`), not a separate `sx_registers/` tree
+- One module per `.sv` file; shared types in `package/`
+- TBs in `tb/<stage>/`; file lists live in `run_yosys.ps1` `Get-TbSources`
