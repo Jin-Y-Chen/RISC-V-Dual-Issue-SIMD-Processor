@@ -4,7 +4,7 @@
 // Upstream: id_dp (ID/DP register). Downstream: dp_ex (DP/EX register) -> reservation stations.
 //
 //   reorder_buffer   — add / read / update / clear
-//   branch_speculate — combo NEW vs SPEC_NEW / br_inflight_next (count in this struct)
+//   branch_speculate — per-insn speculative? (SPEC_NEW vs NEW); parent holds br_inflight
 //   rename_dispatch  — operand forward + route to ev0/ev1/od0/od1
 //
 // Entry lifecycle (rob_state_t):
@@ -136,7 +136,7 @@ module dispatch_core_struct (
   wire [ROB_AW-1:0] commit_idx1 = rob_commit_ptr[ROB_AW-1:0] + 1'b1;
 
   // -------------------------------------------------------------------------
-  // Branch speculation — SPEC_NEW vs NEW on add (combo); count registered here
+  // Branch speculation — is I0/I1 speculative on allocate? (count registered below)
   // -------------------------------------------------------------------------
   logic     spec_i0;
   logic     spec_i1;
@@ -144,6 +144,12 @@ module dispatch_core_struct (
   rob_ptr_t br_inflight_next;
 
   assign br_inflight = br_inflight_q;
+
+  // Intermediate reads — XSim rejects .field select on a function-call return.
+  rob_data_t cmt0_data;
+  rob_data_t cmt1_data;
+  assign cmt0_data = rob_cache_data_read(rob_bank[commit_idx0], '0);
+  assign cmt1_data = rob_cache_data_read(rob_bank[commit_idx1], '0);
 
   // Combo only — br_inflight register lives below (uses clk/rst_n/enable/flush).
   branch_speculate u_branch_speculate (
@@ -154,8 +160,8 @@ module dispatch_core_struct (
     .i1_opcode        (i1_opcode_dp),
     .clear_en         (commit_en),
     .clear_count      (commit_count),
-    .cmt0_opcode      (rob_cache_data_read(rob_bank[commit_idx0], '0).packet.opcode),
-    .cmt1_opcode      (rob_cache_data_read(rob_bank[commit_idx1], '0).packet.opcode),
+    .cmt0_opcode      (cmt0_data.packet.opcode),
+    .cmt1_opcode      (cmt1_data.packet.opcode),
     .br_inflight      (br_inflight_q),
     .spec_i0          (spec_i0),
     .spec_i1          (spec_i1),

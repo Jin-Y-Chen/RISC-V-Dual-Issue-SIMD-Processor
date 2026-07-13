@@ -1,15 +1,23 @@
 `timescale 1ns / 1ps
 
-// S2 decode — dual decoder, GPR, branch state buffer, and per-lane target_predict.
+// S2 decode structure — dual decoder + GPR + state_buffer + per-lane target_predict.
+// IF/ID supplies instr/PC/pc_target, slot valid, and speculation enables.
+// GPR WB is wen/rd/wdata only (no PC): same-rd WAW always prefers I1 (ROB owns age).
+// Nested-speculation freeze (i0/i1_spec_stall) is produced by target_predict for PC.
 import rv_dis_pkg::*;
 
 module s2_decode_struct (
   // external controls
   input  logic        clk,
   input  logic        rst_n,
-  input  logic        enable,
 
-  // IF/ID inputs
+  // IF/ID controls (slot valid + speculation flags from if_id)
+  input  logic        i0_valid_id,
+  input  logic        i1_valid_id,
+  input  logic        spec0_en,
+  input  logic        spec1_en,
+
+  // IF/ID data
   input  instr_t      i0_instr,
   input  instr_t      i1_instr,
   input  word_t       i0_pc,
@@ -17,17 +25,15 @@ module s2_decode_struct (
   input  word_t       i0_pc_target,
   input  word_t       i1_pc_target,
 
-  // GPR writeback
+  // GPR writeback (I1 wins same-rd dual WB; no PC compare)
   input  logic        i0_wen,
   input  logic        i1_wen,
   input  gpr_addr_t   i0_rd,
   input  word_t       i0_wdata,
-  input  word_t       i0_wpc,
   input  gpr_addr_t   i1_rd,
   input  word_t       i1_wdata,
-  input  word_t       i1_wpc,
 
-  // branch-state writeback (MEM resolve → state_LUT in top)
+  // branch-state writeback (MEM resolve → state_buffer train)
   input  logic        i0_br_valid_wb,
   input  logic        i1_br_valid_wb,
   input  word_t       i0_br_pc_wb,
@@ -71,29 +77,36 @@ module s2_decode_struct (
   output logic        i1_rs2_use,
   output logic        i1_reg_write,
 
-  // branch predict outputs
+  // branch predict outputs (spec_stall → fetch PC)
   output br_state_t   i0_target_state,
   output br_state_t   i1_target_state,
   output word_t       i0_pc_predict,
   output word_t       i1_pc_predict,
-  output logic        i0_set_target,
-  output logic        i1_set_target,
+  output logic        i0_predict_taken,
+  output logic        i1_predict_taken,
   output logic        i0_tp_wb_valid,
-  output logic        i1_tp_wb_valid
+  output logic        i1_tp_wb_valid,
+  output logic        i0_spec_stall,
+  output logic        i1_spec_stall
 );
 
-  // -------------------------------------------------------------------------
-  // Decoders
-  // -------------------------------------------------------------------------
   logic [4:0] rf_i0_rs1_addr;
   logic [4:0] rf_i0_rs2_addr;
   logic [4:0] rf_i1_rs1_addr;
   logic [4:0] rf_i1_rs2_addr;
 
+  // Slot must be IF/ID-valid and decoder-legal before target_predict runs.
+  logic i0_pc_valid;
+  logic i1_pc_valid;
+
+  assign i0_pc_valid = i0_valid_id && i0_valid;
+  assign i1_pc_valid = i1_valid_id && i1_valid;
+
+  // -------------------------------------------------------------------------
+  // Decoders
+  // -------------------------------------------------------------------------
   decoder u_dec_i0 (
-    // input data
     .instr     (i0_instr),
-    // output data
     .lane_sel  (i0_lane_sel),
     .brch_en   (i0_brch_en),
     .jump_en   (i0_jump_en),
@@ -104,7 +117,6 @@ module s2_decode_struct (
     .rs1       (rf_i0_rs1_addr),
     .rs2       (rf_i0_rs2_addr),
     .imm       (i0_imm),
-    // output controls
     .valid     (i0_valid),
     .rs1_use   (i0_rs1_use),
     .rs2_use   (i0_rs2_use),
@@ -112,9 +124,7 @@ module s2_decode_struct (
   );
 
   decoder u_dec_i1 (
-    // input data
     .instr     (i1_instr),
-    // output data
     .lane_sel  (i1_lane_sel),
     .brch_en   (i1_brch_en),
     .jump_en   (i1_jump_en),
@@ -125,7 +135,6 @@ module s2_decode_struct (
     .rs1       (rf_i1_rs1_addr),
     .rs2       (rf_i1_rs2_addr),
     .imm       (i1_imm),
-    // output controls
     .valid     (i1_valid),
     .rs1_use   (i1_rs1_use),
     .rs2_use   (i1_rs2_use),
@@ -141,17 +150,14 @@ module s2_decode_struct (
   // Register file
   // -------------------------------------------------------------------------
   register_file u_regfile (
-    // external controls
     .clk          (clk),
     .rst_n        (rst_n),
-    // internal controls
     .i0_rs1_use   (i0_rs1_use),
     .i0_rs2_use   (i0_rs2_use),
     .i1_rs1_use   (i1_rs1_use),
     .i1_rs2_use   (i1_rs2_use),
     .i0_valid_wb  (i0_wen),
     .i1_valid_wb  (i1_wen),
-    // input data
     .i0_rs1_addr  (rf_i0_rs1_addr),
     .i0_rs2_addr  (rf_i0_rs2_addr),
     .i1_rs1_addr  (rf_i1_rs1_addr),
@@ -160,9 +166,6 @@ module s2_decode_struct (
     .i1_rd        (i1_rd),
     .i0_data_wb   (i0_wdata),
     .i1_data_wb   (i1_wdata),
-    .i0_pc_wb     (i0_wpc),
-    .i1_pc_wb     (i1_wpc),
-    // output data
     .i0_rs1_data  (i0_rs1_data),
     .i0_rs2_data  (i0_rs2_data),
     .i1_rs1_data  (i1_rs1_data),
@@ -190,29 +193,33 @@ module s2_decode_struct (
   );
 
   target_predict u_target_predict_i0 (
-    .pc_valid    (i0_valid),
-    .brnch_en    (i0_brch_en),
-    .jump_en     (i0_jump_en),
-    .pc          (i0_pc),
-    .target_state(i0_target_state),
-    .imm         (i0_imm),
-    .pc_target   (i0_pc_target),
-    .set_target  (i0_set_target),
-    .wb_valid    (i0_tp_wb_valid),
-    .pc_predict  (i0_pc_predict)
+    .pc_valid       (i0_pc_valid),
+    .brnch_en       (i0_brch_en),
+    .jump_en        (i0_jump_en),
+    .spec_n         (spec0_en),
+    .pc             (i0_pc),
+    .target_state   (i0_target_state),
+    .imm            (i0_imm),
+    .pc_target      (i0_pc_target),
+    .pc_predict     (i0_pc_predict),
+    .predict_taken  (i0_predict_taken),
+    .wb_valid       (i0_tp_wb_valid),
+    .spec_stall     (i0_spec_stall)
   );
 
   target_predict u_target_predict_i1 (
-    .pc_valid    (i1_valid),
-    .brnch_en    (i1_brch_en),
-    .jump_en     (i1_jump_en),
-    .pc          (i1_pc),
-    .target_state(i1_target_state),
-    .imm         (i1_imm),
-    .pc_target   (i1_pc_target),
-    .set_target  (i1_set_target),
-    .wb_valid    (i1_tp_wb_valid),
-    .pc_predict  (i1_pc_predict)
+    .pc_valid       (i1_pc_valid),
+    .brnch_en       (i1_brch_en),
+    .jump_en        (i1_jump_en),
+    .spec_n         (spec1_en),
+    .pc             (i1_pc),
+    .target_state   (i1_target_state),
+    .imm            (i1_imm),
+    .pc_target      (i1_pc_target),
+    .pc_predict     (i1_pc_predict),
+    .predict_taken  (i1_predict_taken),
+    .wb_valid       (i1_tp_wb_valid),
+    .spec_stall     (i1_spec_stall)
   );
 
 endmodule

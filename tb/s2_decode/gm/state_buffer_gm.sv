@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv
-// Bank replica + same-cycle WB bypass; miss/!brch_en => DEFAULT_STATE; train on posedge.
+// Bank replica + same-cycle WB bypass; miss/!brch_en => DEFAULT_STATE; train on negedge.
 import rv_dis_pkg::*;
 import cache_pkg::*;
 
@@ -71,7 +71,7 @@ module state_buffer_gm #(
   assign i0_target_state = i0_brch_en ? raw_state0 : DEFAULT_STATE;
   assign i1_target_state = i1_brch_en ? raw_state1 : DEFAULT_STATE;
 
-  always @(posedge clk or negedge rst_n) begin
+  always @(negedge clk or negedge rst_n) begin
     if (!rst_n) begin
       for (int s = 0; s < SETS; s++)
         for (int w = 0; w < WAYS; w++)

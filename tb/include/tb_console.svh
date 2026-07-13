@@ -119,9 +119,18 @@ task automatic tb_field_lane(
   input logic got,
   input logic exp
 );
-  tb_field_line(label,
-                got ? "ODD (1)" : "EVEN (0)",
-                exp ? "ODD (1)" : "EVEN (0)");
+  string got_s;
+  string exp_s;
+  // Avoid string ternaries - XSim can FATAL on them as task args.
+  if (got)
+    got_s = "ODD (1)";
+  else
+    got_s = "EVEN (0)";
+  if (exp)
+    exp_s = "ODD (1)";
+  else
+    exp_s = "EVEN (0)";
+  tb_field_line(label, got_s, exp_s);
 endtask
 
 task automatic tb_report_open(input bit pass, input string name, input string detail);

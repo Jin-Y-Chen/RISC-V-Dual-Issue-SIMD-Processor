@@ -61,9 +61,11 @@ tb/s2_decode/decoder_tb.sv
 tb/s2_decode/if_id_tb.sv
 tb/s2_decode/register_file_tb.sv
 tb/s2_decode/state_buffer_tb.sv
+tb/s2_decode/decode_core_struct_tb.sv
 tb/s3_execute/even_lane_tb.sv
 tb/s3_execute/odd_lane_tb.sv
 tb/s3_execute/id_ex_dispatch_tb.sv
 tb/s4_memory/memory_cache_tb.sv
 tb/s4_memory/ex_mem_tb.sv
 tb/s5_wback/ex_mem_wb_tb.sv
+tb/top/risc_dis_unit_tb.sv

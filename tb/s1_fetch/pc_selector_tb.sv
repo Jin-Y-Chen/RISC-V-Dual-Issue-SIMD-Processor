@@ -2,22 +2,23 @@
 
 `include "../include/tb_console.svh"
 
-// pc_selector_tb - exhaustive 5-bit control sweep; reference = gm/pc_selector_gm.sv.
-// Each vector applies inputs on posedge clk.
+// pc_selector_tb - exhaustive 6-bit control sweep; reference = gm/pc_selector_gm.sv.
+// ctrl = {spec0_in, spec1_in, i0_pred, i1_pred, i0_rec, i1_rec}
 module pc_selector_tb;
 
-  localparam int CTRL_BITS  = 5;
+  localparam int CTRL_BITS  = 6;
   localparam int N_VECTORS  = 1 << CTRL_BITS;
-  localparam int CLK_PERIOD = 10;  // TB-only pacing clock (DUT is combinational)
+  localparam int CLK_PERIOD = 10;
 
   localparam logic [31:0] PC0_IN = 32'h0000_1000;
   localparam logic [31:0] PC1_IN = 32'h0000_1004;
   localparam logic [31:0] TGT0   = 32'h0000_2000;
   localparam logic [31:0] TGT1   = 32'h0000_3000;
-  localparam logic [31:0] EXEC0 = 32'h0000_4000;
-  localparam logic [31:0] EXEC1 = 32'h0000_5000;
+  localparam logic [31:0] EXEC0  = 32'h0000_4000;
+  localparam logic [31:0] EXEC1  = 32'h0000_5000;
 
-  logic        is_spec;
+  logic        spec0_in;
+  logic        spec1_in;
   logic        i0_pred_taken;
   logic        i1_pred_taken;
   logic        i0_brch_recover;
@@ -28,25 +29,26 @@ module pc_selector_tb;
   logic [31:0] i1_pc_target;
   logic [31:0] i0_pc_execute;
   logic [31:0] i1_pc_execute;
-  logic        stall;
   logic        mode;
-  logic        spec0_en;
+  logic        spec0_out;
+  logic        spec1_out;
   logic [31:0] pc0_out;
   logic [31:0] pc1_out;
 
-  logic        ref_stall;
   logic        ref_mode;
-  logic        ref_spec0_en;
+  logic        ref_spec0_out;
+  logic        ref_spec1_out;
   logic [31:0] ref_pc0_out;
   logic [31:0] ref_pc1_out;
 
-  logic        clk;  // testbench pacing only - not connected to DUT/GM
+  logic        clk;
 
   int pass_cnt;
   int fail_cnt;
 
   pc_selector dut (
-    .is_spec         (is_spec),
+    .spec0_in        (spec0_in),
+    .spec1_in        (spec1_in),
     .i0_pred_taken   (i0_pred_taken),
     .i1_pred_taken   (i1_pred_taken),
     .i0_brch_recover (i0_brch_recover),
@@ -57,15 +59,16 @@ module pc_selector_tb;
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .stall           (stall),
     .mode            (mode),
-    .spec0_en        (spec0_en),
+    .spec0_out       (spec0_out),
+    .spec1_out       (spec1_out),
     .pc0_out         (pc0_out),
     .pc1_out         (pc1_out)
   );
 
   pc_selector_gm u_pc_selector_gm (
-    .is_spec         (is_spec),
+    .spec0_in        (spec0_in),
+    .spec1_in        (spec1_in),
     .i0_pred_taken   (i0_pred_taken),
     .i1_pred_taken   (i1_pred_taken),
     .i0_brch_recover (i0_brch_recover),
@@ -76,9 +79,9 @@ module pc_selector_tb;
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .stall           (ref_stall),
     .mode            (ref_mode),
-    .spec0_en        (ref_spec0_en),
+    .spec0_out       (ref_spec0_out),
+    .spec1_out       (ref_spec1_out),
     .pc0_out         (ref_pc0_out),
     .pc1_out         (ref_pc1_out)
   );
@@ -91,7 +94,8 @@ module pc_selector_tb;
     string detail;
 
     @(posedge clk);
-    is_spec         = ctrl[4];
+    spec0_in        = ctrl[5];
+    spec1_in        = ctrl[4];
     i0_pred_taken   = ctrl[3];
     i1_pred_taken   = ctrl[2];
     i0_brch_recover = ctrl[1];
@@ -104,13 +108,15 @@ module pc_selector_tb;
     i1_pc_execute   = EXEC1;
     #0;
 
-    pass = (stall === ref_stall) && (mode === ref_mode) && (spec0_en === ref_spec0_en)
+    pass = (mode === ref_mode)
+        && (spec0_out === ref_spec0_out) && (spec1_out === ref_spec1_out)
         && (pc0_out === ref_pc0_out) && (pc1_out === ref_pc1_out);
 
-    detail = $sformatf("ctrl=%05b", ctrl[4:0]);
+    detail = $sformatf("ctrl=%06b", ctrl[5:0]);
     tb_report_open(pass, $sformatf("ctrl_%02x", ctrl), detail);
     tb_log_section("inputs");
-    tb_field_in_bit("is_spec",         is_spec);
+    tb_field_in_bit("spec0_in",        spec0_in);
+    tb_field_in_bit("spec1_in",        spec1_in);
     tb_field_in_bit("i0_pred_taken",   i0_pred_taken);
     tb_field_in_bit("i1_pred_taken",   i1_pred_taken);
     tb_field_in_bit("i0_brch_recover", i0_brch_recover);
@@ -119,15 +125,15 @@ module pc_selector_tb;
     tb_field_in_u32("pc1_in",          pc1_in);
     tb_field_in_u32("i0_pc_target",    i0_pc_target);
     tb_field_in_u32("i1_pc_target",    i1_pc_target);
-    tb_field_in_u32("i0_pc_execute",    i0_pc_execute);
-    tb_field_in_u32("i1_pc_execute",    i1_pc_execute);
+    tb_field_in_u32("i0_pc_execute",   i0_pc_execute);
+    tb_field_in_u32("i1_pc_execute",   i1_pc_execute);
     $display("");
     tb_log_section("check");
-    tb_field_bit("stall",    stall,    ref_stall);
-    tb_field_bit("mode",     mode,     ref_mode);
-    tb_field_bit("spec0_en", spec0_en, ref_spec0_en);
-    tb_field_u32("pc0_out",  pc0_out,  ref_pc0_out);
-    tb_field_u32("pc1_out",  pc1_out,  ref_pc1_out);
+    tb_field_bit("mode",      mode,      ref_mode);
+    tb_field_bit("spec0_out", spec0_out, ref_spec0_out);
+    tb_field_bit("spec1_out", spec1_out, ref_spec1_out);
+    tb_field_u32("pc0_out",   pc0_out,   ref_pc0_out);
+    tb_field_u32("pc1_out",   pc1_out,   ref_pc1_out);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -137,7 +143,7 @@ module pc_selector_tb;
 
     pass_cnt = 0;
     fail_cnt = 0;
-    tb_banner("pc_selector_tb: DUT vs pc_selector_gm.sv (32 vectors)");
+    tb_banner("pc_selector_tb: DUT vs pc_selector_gm.sv (64 vectors)");
 
     for (ctrl = 0; ctrl < N_VECTORS; ctrl++)
       check_vector(ctrl);

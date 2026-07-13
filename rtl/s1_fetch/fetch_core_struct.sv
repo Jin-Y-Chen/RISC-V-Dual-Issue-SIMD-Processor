@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 
 // S1 fetch structure — PC + instruction cache + branch target buffer (dual-issue pair).
+// Speculation: per-lane registered flags (spec0/spec1) loop through pc <-> pc_selector.
+// Nested-speculation freeze comes from decode target_predict (spec*_stall), not pc_selector.
 import rv_dis_pkg::*;
 
 module s1_fetch_struct #(
@@ -10,18 +12,21 @@ module s1_fetch_struct #(
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,
+
   // internal controls
   input  logic        dispatch_stall,
+  input  logic        spec0_stall,
+  input  logic        spec1_stall,
   input  logic        i0_pred_taken,
   input  logic        i1_pred_taken,
   input  logic        i0_brch_recover,
   input  logic        i1_brch_recover,
+  input  logic        i0_valid_wb,
+  input  logic        i1_valid_wb,
 
   // input data
   input  word_t         i0_pc_execute,
   input  word_t         i1_pc_execute,
-  input  logic          i0_valid_wb,
-  input  logic          i1_valid_wb,
   input  word_t         i0_pc_wb,
   input  word_t         i1_pc_wb,
   input  word_t         i0_pc_target_wb,
@@ -33,17 +38,25 @@ module s1_fetch_struct #(
   output word_t         i0_pc_target,
   output word_t         i1_pc_target,
   output instr_t        instr0,
-  output instr_t        instr1
+  output instr_t        instr1,
+
+  // output controls
+  output logic          spec0_en,
+  output logic          spec1_en,
+  output logic          i0_valid,
+  output logic          i1_valid
 );
 
-  logic  is_spec;
-  logic  fetch_stall;
   logic  mode;
-  logic  spec0_en;
-  logic  i0_btb_valid;
-  logic  i1_btb_valid;
+  logic  spec0;
+  logic  spec1;
+  logic  spec0_next;
+  logic  spec1_next;
   word_t pc0_next;
   word_t pc1_next;
+
+  assign spec0_en = spec0_next;
+  assign spec1_en = spec1_next;
 
   pc #(
     .RESET_PC(RESET_PC)
@@ -51,15 +64,18 @@ module s1_fetch_struct #(
     .clk             (clk),
     .rst_n           (rst_n),
     .enable          (enable),
-    .fetch_stall     (fetch_stall),
     .dispatch_stall  (dispatch_stall),
+    .spec0_stall     (spec0_stall),
+    .spec1_stall     (spec1_stall),
     .mode            (mode),
-    .spec0_en        (spec0_en),
+    .spec0_in        (spec0_next),
+    .spec1_in        (spec1_next),
     .pc0_in          (pc0_next),
     .pc1_in          (pc1_next),
-    .is_spec         (is_spec),
     .pc0_out         (pc0),
-    .pc1_out         (pc1)
+    .pc1_out         (pc1),
+    .spec0_out       (spec0),
+    .spec1_out       (spec1)
   );
 
   instruction_cache u_icache (
@@ -82,14 +98,15 @@ module s1_fetch_struct #(
     .i1_pc_wb        (i1_pc_wb),
     .i0_pc_target_wb (i0_pc_target_wb),
     .i1_pc_target_wb (i1_pc_target_wb),
-    .i0_valid        (i0_btb_valid),
-    .i1_valid        (i1_btb_valid),
+    .i0_valid        (i0_valid),
+    .i1_valid        (i1_valid),
     .i0_pc_target    (i0_pc_target),
     .i1_pc_target    (i1_pc_target)
   );
 
   pc_selector u_pc_sel (
-    .is_spec         (is_spec),
+    .spec0_in        (spec0),
+    .spec1_in        (spec1),
     .i0_pred_taken   (i0_pred_taken),
     .i1_pred_taken   (i1_pred_taken),
     .i0_brch_recover (i0_brch_recover),
@@ -100,9 +117,9 @@ module s1_fetch_struct #(
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .stall           (fetch_stall),
     .mode            (mode),
-    .spec0_en        (spec0_en),
+    .spec0_out       (spec0_next),
+    .spec1_out       (spec1_next),
     .pc0_out         (pc0_next),
     .pc1_out         (pc1_next)
   );

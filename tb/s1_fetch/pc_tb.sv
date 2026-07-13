@@ -2,9 +2,8 @@
 
 `include "../include/tb_console.svh"
 
-// pc_tb - exhaustive control sweep; reference = gm/pc_gm.sv (64-entry LUT).
-// Each vector applies inputs on posedge clk.
-// No CASE_FILE - not file-driven; remove legacy CASE_FILE Vivado sim generic if set.
+// pc_tb - exhaustive control sweep; reference = gm/pc_gm.sv.
+// ctrl = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, mode}
 module pc_tb;
 
   localparam int          CLK_PERIOD  = 10;
@@ -17,11 +16,14 @@ module pc_tb;
   logic        clk;
   logic        rst_n;
   logic        enable;
-  logic        fetch_stall;
   logic        dispatch_stall;
+  logic        spec0_stall;
+  logic        spec1_stall;
   logic        mode;
-  logic        spec0_en;
-  logic        is_spec;
+  logic        spec0_in;
+  logic        spec1_in;
+  logic        spec0_out;
+  logic        spec1_out;
   logic [31:0] pc0_in;
   logic [31:0] pc1_in;
   logic [31:0] pc0;
@@ -29,7 +31,8 @@ module pc_tb;
 
   logic [31:0] ref_pc0;
   logic [31:0] ref_pc1;
-  logic        ref_is_spec;
+  logic        ref_spec0_out;
+  logic        ref_spec1_out;
 
   int pass_cnt;
   int fail_cnt;
@@ -40,15 +43,18 @@ module pc_tb;
     .clk             (clk),
     .rst_n           (rst_n),
     .enable          (enable),
-    .fetch_stall     (fetch_stall),
     .dispatch_stall  (dispatch_stall),
+    .spec0_stall     (spec0_stall),
+    .spec1_stall     (spec1_stall),
     .mode            (mode),
-    .spec0_en        (spec0_en),
+    .spec0_in        (spec0_in),
+    .spec1_in        (spec1_in),
     .pc0_in          (pc0_in),
     .pc1_in          (pc1_in),
-    .is_spec         (is_spec),
     .pc0_out         (pc0),
-    .pc1_out         (pc1)
+    .pc1_out         (pc1),
+    .spec0_out       (spec0_out),
+    .spec1_out       (spec1_out)
   );
 
   pc_gm #(
@@ -57,15 +63,18 @@ module pc_tb;
     .clk            (clk),
     .rst_n          (rst_n),
     .enable         (enable),
-    .fetch_stall    (fetch_stall),
     .dispatch_stall (dispatch_stall),
+    .spec0_stall    (spec0_stall),
+    .spec1_stall    (spec1_stall),
     .mode           (mode),
-    .spec0_en       (spec0_en),
+    .spec0_in       (spec0_in),
+    .spec1_in       (spec1_in),
     .pc0_in         (pc0_in),
     .pc1_in         (pc1_in),
     .pc0_out        (ref_pc0),
     .pc1_out        (ref_pc1),
-    .is_spec        (ref_is_spec)
+    .spec0_out      (ref_spec0_out),
+    .spec1_out      (ref_spec1_out)
   );
 
   initial clk = 1'b0;
@@ -77,41 +86,49 @@ module pc_tb;
     @(posedge clk);
     rst_n          = 1'b0;
     enable         = 1'b0;
-    fetch_stall    = 1'b0;
     dispatch_stall = 1'b0;
+    spec0_stall    = 1'b0;
+    spec1_stall    = 1'b0;
     mode           = 1'b0;
-    spec0_en       = 1'b0;
+    spec0_in       = 1'b0;
+    spec1_in       = 1'b0;
     pc0_in         = PC0_IN;
     pc1_in         = PC1_IN;
     #0;
 
     @(posedge clk);
-    rst_n          = ctrl[CTRL_BITS-1];
-    enable         = ctrl[CTRL_BITS-2];
-    fetch_stall    = ctrl[CTRL_BITS-3];
-    dispatch_stall = ctrl[CTRL_BITS-4];
-    mode           = ctrl[CTRL_BITS-5];
-    spec0_en       = ctrl[0];
+    rst_n          = ctrl[5];
+    enable         = ctrl[4];
+    dispatch_stall = ctrl[3];
+    spec0_stall    = ctrl[2];
+    spec1_stall    = ctrl[1];
+    mode           = ctrl[0];
+    spec0_in       = ctrl[0];
+    spec1_in       = ~ctrl[0];
     #0;
 
-    pass = (pc0 === ref_pc0) && (pc1 === ref_pc1) && (is_spec === ref_is_spec);
+    pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
+        && (spec0_out === ref_spec0_out) && (spec1_out === ref_spec1_out);
 
     tb_report_open(pass, $sformatf("ctrl_%02x", ctrl),
                    $sformatf("ctrl=%0b", ctrl));
     tb_log_section("inputs");
     tb_field_in_bit("rst_n",          rst_n);
     tb_field_in_bit("enable",         enable);
-    tb_field_in_bit("fetch_stall",    fetch_stall);
     tb_field_in_bit("dispatch_stall", dispatch_stall);
+    tb_field_in_bit("spec0_stall",    spec0_stall);
+    tb_field_in_bit("spec1_stall",    spec1_stall);
     tb_field_in_bit("mode",           mode);
-    tb_field_in_bit("spec0_en",       spec0_en);
+    tb_field_in_bit("spec0_in",       spec0_in);
+    tb_field_in_bit("spec1_in",       spec1_in);
     tb_field_in_u32("pc0_in",         pc0_in);
     tb_field_in_u32("pc1_in",         pc1_in);
     $display("");
     tb_log_section("check");
-    tb_field_bit("is_spec", is_spec, ref_is_spec);
-    tb_field_u32("pc0_out", pc0, ref_pc0);
-    tb_field_u32("pc1_out", pc1, ref_pc1);
+    tb_field_bit("spec0_out", spec0_out, ref_spec0_out);
+    tb_field_bit("spec1_out", spec1_out, ref_spec1_out);
+    tb_field_u32("pc0_out",   pc0,       ref_pc0);
+    tb_field_u32("pc1_out",   pc1,       ref_pc1);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask

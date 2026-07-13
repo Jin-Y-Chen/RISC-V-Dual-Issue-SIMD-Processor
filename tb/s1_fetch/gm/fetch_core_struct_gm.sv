@@ -12,6 +12,8 @@ module fetch_core_struct_gm #(
   input  logic  rst_n,
   input  logic  enable,
   input  logic  dispatch_stall,
+  input  logic  spec0_stall,
+  input  logic  spec1_stall,
   input  logic  i0_pred_taken,
   input  logic  i1_pred_taken,
   input  logic  i0_brch_recover,
@@ -32,10 +34,11 @@ module fetch_core_struct_gm #(
   output instr_t instr1
 );
 
-  logic        fetch_stall;
   logic        mode;
-  logic        spec0_en;
-  logic        is_spec;
+  logic        spec0;
+  logic        spec1;
+  logic        spec0_next;
+  logic        spec1_next;
   logic        i0_btb_valid;
   logic        i1_btb_valid;
   word_t       pc0_next;
@@ -47,15 +50,18 @@ module fetch_core_struct_gm #(
     .clk            (clk),
     .rst_n          (rst_n),
     .enable         (enable),
-    .fetch_stall    (fetch_stall),
     .dispatch_stall (dispatch_stall),
+    .spec0_stall    (spec0_stall),
+    .spec1_stall    (spec1_stall),
     .mode           (mode),
-    .spec0_en       (spec0_en),
+    .spec0_in       (spec0_next),
+    .spec1_in       (spec1_next),
     .pc0_in         (pc0_next),
     .pc1_in         (pc1_next),
     .pc0_out        (pc0),
     .pc1_out        (pc1),
-    .is_spec        (is_spec)
+    .spec0_out      (spec0),
+    .spec1_out      (spec1)
   );
 
   instruction_cache_gm u_icache_gm (
@@ -83,7 +89,8 @@ module fetch_core_struct_gm #(
   );
 
   pc_selector_gm u_pc_sel_gm (
-    .is_spec         (is_spec),
+    .spec0_in        (spec0),
+    .spec1_in        (spec1),
     .i0_pred_taken   (i0_pred_taken),
     .i1_pred_taken   (i1_pred_taken),
     .i0_brch_recover (i0_brch_recover),
@@ -94,9 +101,9 @@ module fetch_core_struct_gm #(
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .stall           (fetch_stall),
     .mode            (mode),
-    .spec0_en        (spec0_en),
+    .spec0_out       (spec0_next),
+    .spec1_out       (spec1_next),
     .pc0_out         (pc0_next),
     .pc1_out         (pc1_next)
   );

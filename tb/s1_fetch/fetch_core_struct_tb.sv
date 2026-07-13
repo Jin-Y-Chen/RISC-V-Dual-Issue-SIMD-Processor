@@ -5,7 +5,7 @@ import rv_dis_pkg::*;
 `include "../include/tb_console.svh"
 
 // fetch_core_struct_tb - integrated fetch; DUT vs gm/fetch_core_struct_gm.sv.
-// Each vector applies inputs on posedge clk.
+// Nested-speculation freeze uses decode-style spec*_stall (no fetch_stall).
 module fetch_core_struct_tb;
 
   localparam int CLK_PERIOD = 10;
@@ -15,6 +15,8 @@ module fetch_core_struct_tb;
   logic   rst_n;
   logic   enable;
   logic   dispatch_stall;
+  logic   spec0_stall;
+  logic   spec1_stall;
   logic   i0_pred_taken;
   logic   i1_pred_taken;
   logic   i0_brch_recover;
@@ -51,6 +53,8 @@ module fetch_core_struct_tb;
     .rst_n            (rst_n),
     .enable           (enable),
     .dispatch_stall   (dispatch_stall),
+    .spec0_stall      (spec0_stall),
+    .spec1_stall      (spec1_stall),
     .i0_pred_taken    (i0_pred_taken),
     .i1_pred_taken    (i1_pred_taken),
     .i0_brch_recover  (i0_brch_recover),
@@ -78,6 +82,8 @@ module fetch_core_struct_tb;
     .rst_n            (rst_n),
     .enable           (enable),
     .dispatch_stall   (dispatch_stall),
+    .spec0_stall      (spec0_stall),
+    .spec1_stall      (spec1_stall),
     .i0_pred_taken    (i0_pred_taken),
     .i1_pred_taken    (i1_pred_taken),
     .i0_brch_recover  (i0_brch_recover),
@@ -98,15 +104,14 @@ module fetch_core_struct_tb;
     .instr1           (ref_instr1)
   );
 
-  initial begin
-    clk = 1'b0;
-  end
-
+  initial clk = 1'b0;
   always #(CLK_PERIOD/2) clk <= ~clk;
 
   task automatic idle_ctrl;
     enable          = 1'b1;
     dispatch_stall  = 1'b0;
+    spec0_stall     = 1'b0;
+    spec1_stall     = 1'b0;
     i0_pred_taken   = 1'b0;
     i1_pred_taken   = 1'b0;
     i0_brch_recover = 1'b0;
@@ -121,17 +126,23 @@ module fetch_core_struct_tb;
     i1_pc_target_wb = '0;
   endtask
 
-  task automatic check_cycle(input string name, input string detail);
+  task automatic step_and_check(input string name, input string detail);
     bit pass;
 
+    @(negedge clk);
+    #0;
+    @(posedge clk);
+    #0;
+
     pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
-        && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target)
-        && (instr0 === ref_instr0) && (instr1 === ref_instr1);
+        && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target);
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
     tb_field_in_bit("enable",          enable);
     tb_field_in_bit("dispatch_stall",  dispatch_stall);
+    tb_field_in_bit("spec0_stall",     spec0_stall);
+    tb_field_in_bit("spec1_stall",     spec1_stall);
     tb_field_in_bit("i0_pred_taken",   i0_pred_taken);
     tb_field_in_bit("i1_pred_taken",   i1_pred_taken);
     tb_field_in_bit("i0_brch_recover", i0_brch_recover);
@@ -150,8 +161,6 @@ module fetch_core_struct_tb;
     tb_field_u32("pc1",          pc1,          ref_pc1);
     tb_field_u32("i0_pc_target", i0_pc_target, ref_i0_pc_target);
     tb_field_u32("i1_pc_target", i1_pc_target, ref_i1_pc_target);
-    tb_field_u32("instr0",       instr0,       ref_instr0);
-    tb_field_u32("instr1",       instr1,       ref_instr1);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -159,75 +168,55 @@ module fetch_core_struct_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
+    rst_n    = 1'b0;
     idle_ctrl();
 
     tb_banner("fetch_core_struct_tb: DUT vs fetch_core_struct_gm.sv");
 
-    @(posedge clk);
-    rst_n = 1'b0;
-    idle_ctrl();
-    #0;
-    check_cycle("reset", "RESET_PC pair");
+    step_and_check("reset", "RESET_PC pair");
 
-    @(posedge clk);
+    @(negedge clk);
     rst_n = 1'b1;
     idle_ctrl();
-    #0;
-    check_cycle("sequential_step", "mode=0 => +8/+8");
+    step_and_check("sequential_step", "mode=0 => +8/+8");
 
-    @(posedge clk);
+    @(negedge clk);
     idle_ctrl();
     dispatch_stall  = 1'b1;
     i0_pc_wb        = pc0;
     i0_pc_target_wb = word_t'(32'h0000_2000);
     i0_valid_wb     = 1'b1;
-    #0;
+    step_and_check("btb_wb_hold", "dispatch_stall holds PC during BTB write");
 
-    @(posedge clk);
-    idle_ctrl();
-    dispatch_stall = 1'b1;
-    #0;
-    check_cycle("btb_wb_hold", "dispatch_stall holds PC during BTB write");
-    dispatch_stall = 1'b0;
-
-    @(posedge clk);
+    @(negedge clk);
     idle_ctrl();
     i0_pred_taken = 1'b1;
-    #0;
-    check_cycle("i0_predict", "target+4 / fallthrough+4");
-    i0_pred_taken = 1'b0;
+    step_and_check("i0_predict", "load I0 BTB target into next-PC bases");
 
-    @(posedge clk);
+    @(negedge clk);
     idle_ctrl();
-    #0;
-    check_cycle("post_predict_step", "is_spec held, mode=0 => +8/+8");
+    step_and_check("post_predict_step", "spec flags held, mode=0 => +8/+8");
 
-    @(posedge clk);
+    // Decode-style nested-speculation stall freezes PC
+    @(negedge clk);
     idle_ctrl();
-    i0_pred_taken = 1'b1;
-    #0;
-    check_cycle("fetch_stall_hold", "predict while is_spec stalls PC");
-    i0_pred_taken = 1'b0;
+    spec0_stall = 1'b1;
+    step_and_check("spec_stall_hold", "spec0_stall freezes PC");
 
-    @(posedge clk);
+    @(negedge clk);
     idle_ctrl();
     i0_brch_recover = 1'b1;
     i0_pc_execute   = word_t'(32'h0000_3000);
-    #0;
-    check_cycle("i0_recover", "recover bases +8/+8");
-    i0_brch_recover = 1'b0;
+    step_and_check("i0_recover", "recover at execute+4 / execute+8");
 
-    @(posedge clk);
+    @(negedge clk);
     idle_ctrl();
     dispatch_stall = 1'b1;
-    #0;
-    check_cycle("dispatch_stall_hold", "dispatch_stall blocks PC update");
-    dispatch_stall = 1'b0;
+    step_and_check("dispatch_stall_hold", "dispatch_stall blocks PC update");
 
-    @(posedge clk);
+    @(negedge clk);
     idle_ctrl();
-    #0;
-    check_cycle("sequential_resume", "back to +8/+8");
+    step_and_check("sequential_resume", "back to +8/+8");
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

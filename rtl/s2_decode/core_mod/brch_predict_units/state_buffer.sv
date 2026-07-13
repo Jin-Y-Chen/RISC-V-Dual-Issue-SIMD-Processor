@@ -2,7 +2,7 @@
 
 // Branch state buffer — registered storage with same-cycle WB read bypass.
 // 8192 entries over 32 KiB I$ (PC[14:2]); 512 sets x 16 ways.
-// Miss (valid=0) => DEFAULT_STATE (weakly taken).
+// Miss (valid=0) => DEFAULT_STATE (weakly taken). Bank trains on negedge clk.
 import rv_dis_pkg::*;
 import cache_pkg::*;
 
@@ -101,7 +101,8 @@ module state_buffer #(
 
   integer s;
   integer w;
-  always @(posedge clk or negedge rst_n) begin
+  // Training commits on negedge clk (same as BTB / register_file).
+  always @(negedge clk or negedge rst_n) begin
     if (!rst_n) begin
       for (s = 0; s < SETS; s = s + 1) begin
         for (w = 0; w < WAYS; w = w + 1) begin

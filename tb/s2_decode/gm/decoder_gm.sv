@@ -45,7 +45,7 @@ module decoder_gm (
   localparam logic [2:0] IMM_R0    = 3'd7;
 
   function automatic gm_opc_row_t opc_lut(input opcode_t opc);
-    unique case (opc)
+    case (opc)
       //                lane brch jump rs1  rs2  regw imm
       OPC_OP:     opc_lut = '{1'b0, 1'b0, 1'b0, 1'b1, 1'b1, 1'b1, IMM_R0};
       OPC_OP_IMM: opc_lut = '{1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b1, IMM_OPIMM};
@@ -62,7 +62,7 @@ module decoder_gm (
 
   // Legality LUT - LOAD/STORE/BRANCH gated by funct3; others always legal if opcode known.
   function automatic logic legal_lut(input opcode_t opc, input funct3_t f3);
-    unique case (opc)
+    case (opc)
       OPC_OP, OPC_OP_IMM, OPC_JAL, OPC_JALR, OPC_LUI, OPC_AUIPC:
         legal_lut = 1'b1;
       OPC_LOAD:   legal_lut = (f3 == F3_LW);
@@ -74,7 +74,7 @@ module decoder_gm (
   endfunction
 
   function automatic word_t imm_lut(input logic [2:0] sel, input instr_t insn);
-    unique case (sel)
+    case (sel)
       IMM_I:     imm_lut = sign_extend(insn[31:20]);
       IMM_S:     imm_lut = {{20{insn[31]}}, insn[31:25], insn[11:7]};
       IMM_B:     imm_lut = imm_align4({{19{insn[31]}}, insn[31], insn[7],
@@ -101,7 +101,7 @@ module decoder_gm (
                   ? 3'd0 : f3_raw;
 
   always_comb begin
-    unique case (opc_raw)
+    case (opc_raw)
       OPC_OP: funct7 = instr[31:25];
       OPC_OP_IMM: begin
         if (f3_raw == F3_SLL || f3_raw == F3_SRL_SRA)

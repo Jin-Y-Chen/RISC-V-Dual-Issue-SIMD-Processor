@@ -2,7 +2,9 @@
 
 import rv_dis_pkg::*;
 
-// PC unit — pc0/pc1 from pc0_in/pc1_in; mode=1 => +4/+4, mode=0 => +8/+8.
+// PC unit — registered dual-issue addresses + per-lane speculation flags.
+// mode=0 => +8/+8 sequential; mode=1 => +4/+4 split streams from pc_selector.
+// Stall sources: dispatch back-pressure and decode nested-speculation (spec*_stall).
 module pc #(
   parameter word_t RESET_PC = RESET_PC_INIT
 ) (
@@ -12,19 +14,24 @@ module pc #(
   input  logic          enable,
 
   // internal controls
-  input  logic          fetch_stall,
-  input  logic          dispatch_stall, 
+  input  logic          dispatch_stall,
+  input  logic          spec0_stall,
+  input  logic          spec1_stall,
   input  logic          mode,
-  input  logic          spec0_en,
+  input  logic          spec0_in,
+  input  logic          spec1_in,
 
   // input data
   input  logic [31:0]   pc0_in,
   input  logic [31:0]   pc1_in,
 
   // output data
-  output logic          is_spec,
   output logic [31:0]   pc0_out,
-  output logic [31:0]   pc1_out
+  output logic [31:0]   pc1_out,
+
+  // output controls — registered speculation (fed back to pc_selector)
+  output logic          spec0_out,
+  output logic          spec1_out
 );
 
   logic [31:0] pc0_next, pc1_next;
@@ -35,7 +42,7 @@ module pc #(
     return {imm[31:2], 2'b00};
   endfunction
 
-  assign stall = fetch_stall | dispatch_stall;
+  assign stall = dispatch_stall | spec0_stall | spec1_stall;
   assign pc0_a = imm_align4(pc0_in);
   assign pc1_a = imm_align4(pc1_in);
 
@@ -56,13 +63,15 @@ module pc #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      pc0_out <= RESET_PC;
-      pc1_out <= RESET_PC + 32'd4;
-      is_spec <= 1'b0;
+      pc0_out   <= RESET_PC;
+      pc1_out   <= RESET_PC + 32'd4;
+      spec0_out <= 1'b0;
+      spec1_out <= 1'b0;
     end else if (enable && !stall) begin
-      pc0_out <= pc0_next;
-      pc1_out <= pc1_next;
-      is_spec <= spec0_en;
+      pc0_out   <= pc0_next;
+      pc1_out   <= pc1_next;
+      spec0_out <= spec0_in;
+      spec1_out <= spec1_in;
     end
   end
 

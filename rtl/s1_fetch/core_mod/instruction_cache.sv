@@ -31,7 +31,6 @@ module instruction_cache #(
   localparam integer WAY_AW    = (WAYS <= 1) ? 0 : $clog2(WAYS);
   localparam integer SET_AW    = INDEX_W - WAY_AW;
   localparam integer SETS      = (1 << INDEX_W) / WAYS;
-  localparam integer BYTES_PER_ENTRY = DATA_W / ADDR_UNIT_BITS;  // ILEN/8 = 4
   localparam [31:0]  MISS_DATA = 32'h0000_0000;
 
   // bank[set][way] = {valid, instr[31:0]} — one RV32I word per cell

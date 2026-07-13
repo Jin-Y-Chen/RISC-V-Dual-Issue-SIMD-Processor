@@ -11,9 +11,6 @@ module decoder (
   input  instr_t      instr,
 
   // output data
-  output logic        lane_sel,
-  output logic        brch_en,
-  output logic        jump_en,
   output opcode_t     opcode,
   output funct3_t     funct3,
   output funct7_t     funct7,
@@ -26,7 +23,11 @@ module decoder (
   output logic        valid,     // 1 when insn is legal for RV-DIS scalar decode
   output logic        rs1_use,
   output logic        rs2_use,
+  output logic        lane_sel,
+  output logic        brch_en,
+  output logic        jump_en,
   output logic        reg_write
+
 );
 
   opcode_t    opcode_raw;
