@@ -78,11 +78,11 @@ module register_file_tb;
   word_t       ref_i1_rs2_data;
 
   logic        i0_valid_wb;
-  logic [4:0]  i0_rd;
+  logic [4:0]  i0_rd_addr;
   word_t       i0_data_wb;
 
   logic        i1_valid_wb;
-  logic [4:0]  i1_rd;
+  logic [4:0]  i1_rd_addr;
   word_t       i1_data_wb;
 
   int pass_cnt;
@@ -103,8 +103,8 @@ module register_file_tb;
     .i0_rs2_addr (i0_rs2_addr),
     .i1_rs1_addr (i1_rs1_addr),
     .i1_rs2_addr (i1_rs2_addr),
-    .i0_rd       (i0_rd),
-    .i1_rd       (i1_rd),
+    .i0_rd_addr       (i0_rd_addr),
+    .i1_rd_addr       (i1_rd_addr),
     .i0_data_wb  (i0_data_wb),
     .i1_data_wb  (i1_data_wb),
     .i0_rs1_data (ref_i0_rs1_data),
@@ -123,8 +123,8 @@ module register_file_tb;
   task automatic clear_writes;
     i0_valid_wb   = 1'b0;
     i1_valid_wb    = 1'b0;
-    i0_rd    = 5'd0;
-    i1_rd     = 5'd0;
+    i0_rd_addr    = 5'd0;
+    i1_rd_addr     = 5'd0;
     i0_data_wb = '0;
     i1_data_wb  = '0;
   endtask
@@ -191,10 +191,10 @@ module register_file_tb;
     input word_t        o_wdata
   );
     i0_valid_wb   = e_wen;
-    i0_rd    = e_rd;
+    i0_rd_addr    = e_rd;
     i0_data_wb = e_wdata;
     i1_valid_wb    = o_wen;
-    i1_rd     = o_rd;
+    i1_rd_addr     = o_rd;
     i1_data_wb  = o_wdata;
   endtask
 
@@ -233,10 +233,10 @@ module register_file_tb;
     input word_t       exp_o_rs1_data,
     input word_t       exp_o_rs2_data,
     input logic       exp_i0_valid_wb,
-    input logic [4:0] exp_i0_rd,
+    input logic [4:0] exp_i0_rd_addr,
     input word_t       exp_i0_data_wb,
     input logic       exp_i1_valid_wb,
-    input logic [4:0] exp_i1_rd,
+    input logic [4:0] exp_i1_rd_addr,
     input word_t       exp_i1_data_wb
   );
     bit pass;
@@ -245,9 +245,9 @@ module register_file_tb;
            (i1_rs1_addr  === exp_o_rs1_addr)  && (i1_rs2_addr  === exp_o_rs2_addr)  &&
            (i0_rs1_data === ref_i0_rs1_data) && (i0_rs2_data === ref_i0_rs2_data) &&
            (i1_rs1_data  === ref_i1_rs1_data)  && (i1_rs2_data  === ref_i1_rs2_data)  &&
-           (i0_valid_wb      === exp_i0_valid_wb)    && (i0_rd       === exp_i0_rd)    &&
+           (i0_valid_wb      === exp_i0_valid_wb)    && (i0_rd_addr       === exp_i0_rd_addr)    &&
            (i0_data_wb    === exp_i0_data_wb)  &&
-           (i1_valid_wb       === exp_i1_valid_wb)     && (i1_rd        === exp_i1_rd)     &&
+           (i1_valid_wb       === exp_i1_valid_wb)     && (i1_rd_addr        === exp_i1_rd_addr)     &&
            (i1_data_wb     === exp_i1_data_wb) &&
            // Keep legacy literals referenced so call sites stay valid under lint.
            (exp_e_rs1_data === exp_e_rs1_data) && (exp_e_rs2_data === exp_e_rs2_data) &&
@@ -269,10 +269,10 @@ module register_file_tb;
     tb_field_u32 ("i1_rs2_data",  i1_rs2_data,  ref_i1_rs2_data);
     $display("  write ports WB");
     tb_field_bit ("i0_valid_wb",      i0_valid_wb,      exp_i0_valid_wb);
-    tb_field_xreg("i0_rd",       i0_rd,       exp_i0_rd);
+    tb_field_xreg("i0_rd_addr",       i0_rd_addr,       exp_i0_rd_addr);
     tb_field_u32 ("i0_data_wb",    i0_data_wb,    exp_i0_data_wb);
     tb_field_bit ("i1_valid_wb",       i1_valid_wb,       exp_i1_valid_wb);
-    tb_field_xreg("i1_rd",        i1_rd,        exp_i1_rd);
+    tb_field_xreg("i1_rd_addr",        i1_rd_addr,        exp_i1_rd_addr);
     tb_field_u32 ("i1_data_wb",     i1_data_wb,     exp_i1_data_wb);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;

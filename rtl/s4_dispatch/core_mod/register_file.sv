@@ -26,8 +26,8 @@ module register_file (
   input  gpr_addr_t   i0_rs2_addr,
   input  gpr_addr_t   i1_rs1_addr,
   input  gpr_addr_t   i1_rs2_addr,
-  input  gpr_addr_t   i0_rd,
-  input  gpr_addr_t   i1_rd,
+  input  gpr_addr_t   i0_rd_addr,
+  input  gpr_addr_t   i1_rd_addr,
   input  word_t       i0_data_wb,
   input  word_t       i1_data_wb,
 
@@ -45,9 +45,9 @@ module register_file (
   logic i1_wr;
   logic same_rd;
 
-  assign i0_wr   = i0_valid_wb && (i0_rd != 5'd0);
-  assign i1_wr   = i1_valid_wb && (i1_rd != 5'd0);
-  assign same_rd = i0_wr && i1_wr && (i0_rd == i1_rd);
+  assign i0_wr   = i0_valid_wb && (i0_rd_addr != 5'd0);
+  assign i1_wr   = i1_valid_wb && (i1_rd_addr != 5'd0);
+  assign same_rd = i0_wr && i1_wr && (i0_rd_addr == i1_rd_addr);
 
   function automatic word_t rf_array_read(input logic [4:0] addr);
     if (addr == 5'd0)
@@ -65,8 +65,8 @@ module register_file (
       rf_read_port = '0;
     else begin
       stored = rf_array_read(addr);
-      i0_byp = i0_wr && (i0_rd == addr);
-      i1_byp = i1_wr && (i1_rd == addr);
+      i0_byp = i0_wr && (i0_rd_addr == addr);
+      i1_byp = i1_wr && (i1_rd_addr == addr);
 
       // Dual same-rd bypass: I1 is always younger in the dual-issue pair.
       if (i0_byp && i1_byp)
@@ -97,9 +97,9 @@ module register_file (
     end else begin
       // Same-rd dual WB: commit I1 only (I0 suppressed).
       if (i0_wr && !same_rd)
-        regs[i0_rd] <= i0_data_wb;
+        regs[i0_rd_addr] <= i0_data_wb;
       if (i1_wr)
-        regs[i1_rd] <= i1_data_wb;
+        regs[i1_rd_addr] <= i1_data_wb;
     end
   end
 

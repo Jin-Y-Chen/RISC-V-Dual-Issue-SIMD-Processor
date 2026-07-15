@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 
 // PC unit — registered dual-issue addresses + per-lane speculation flags.
-// mode=0 => +8/+8 sequential; mode=1 => +4/+4 split streams from pc_selector.
+// mode is local: spec0_in ^ spec1_in => +4/+4 split; else +8/+8.
 // Stall sources: dispatch back-pressure and decode nested-speculation (spec*_stall).
 module pc #(
   parameter word_t RESET_PC = RESET_PC_INIT
@@ -17,7 +17,6 @@ module pc #(
   input  logic          dispatch_stall,
   input  logic          spec0_stall,
   input  logic          spec1_stall,
-  input  logic          mode,
   input  logic          spec0_in,
   input  logic          spec1_in,
 
@@ -36,13 +35,16 @@ module pc #(
 
   logic [31:0] pc0_next, pc1_next;
   logic [31:0] pc0_a, pc1_a;
-  logic stall;
+  logic        stall;
+  logic        mode;
 
   function automatic logic [31:0] imm_align4(input logic [31:0] imm);
     return {imm[31:2], 2'b00};
   endfunction
 
   assign stall = dispatch_stall | spec0_stall | spec1_stall;
+  // Exactly one next-spec lane => advance each stream by +4; else +8.
+  assign mode  = spec0_in ^ spec1_in;
   assign pc0_a = imm_align4(pc0_in);
   assign pc1_a = imm_align4(pc1_in);
 

@@ -27,8 +27,12 @@ module instruction_cache_tb;
   logic [31:0] pc1;
   logic [31:0] instr0;
   logic [31:0] instr1;
+  logic        i0_valid;
+  logic        i1_valid;
   instr_t      ref_instr0;
   instr_t      ref_instr1;
+  logic        ref_i0_valid;
+  logic        ref_i1_valid;
 
   imem_prog_entry_t prog [256];
   int               prog_len;
@@ -40,19 +44,23 @@ module instruction_cache_tb;
     .INDEX_W(INDEX_W),
     .WAYS   (WAYS)
   ) dut (
-    .clk    (clk),
-    .rst_n  (rst_n),
-    .pc0    (pc0),
-    .pc1    (pc1),
-    .instr0 (instr0),
-    .instr1 (instr1)
+    .clk      (clk),
+    .rst_n    (rst_n),
+    .pc0      (pc0),
+    .pc1      (pc1),
+    .instr0   (instr0),
+    .instr1   (instr1),
+    .i0_valid (i0_valid),
+    .i1_valid (i1_valid)
   );
 
   instruction_cache_gm u_icache_gm (
-    .pc0    (pc0),
-    .pc1    (pc1),
-    .instr0 (ref_instr0),
-    .instr1 (ref_instr1)
+    .pc0      (pc0),
+    .pc1      (pc1),
+    .instr0   (ref_instr0),
+    .instr1   (ref_instr1),
+    .i0_valid (ref_i0_valid),
+    .i1_valid (ref_i1_valid)
   );
 
   function automatic logic [$clog2(SETS)-1:0] idx_set(input word_t pc);
@@ -99,7 +107,8 @@ module instruction_cache_tb;
     input string detail
   );
     bit pass;
-    pass = (instr0 === 32'h0) && (instr1 === 32'h0);
+    pass = (instr0 === 32'h0) && (instr1 === 32'h0)
+        && (i0_valid === 1'b0) && (i1_valid === 1'b0);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
     tb_field_in_u32("pc0", pc0);
@@ -108,6 +117,8 @@ module instruction_cache_tb;
     tb_log_section("check");
     tb_field_u32("instr0", instr0, 32'h0);
     tb_field_u32("instr1", instr1, 32'h0);
+    tb_field_bit("i0_valid", i0_valid, 1'b0);
+    tb_field_bit("i1_valid", i1_valid, 1'b0);
     $display("[note] gm image ref instr0=0x%08h instr1=0x%08h (not compared on miss)",
              ref_instr0, ref_instr1);
     tb_report_close(pass);
@@ -119,7 +130,8 @@ module instruction_cache_tb;
     input string  detail
   );
     bit pass;
-    pass = (instr0 === ref_instr0) && (instr1 === ref_instr1);
+    pass = (instr0 === ref_instr0) && (instr1 === ref_instr1)
+        && (i0_valid === ref_i0_valid) && (i1_valid === ref_i1_valid);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
     tb_field_in_u32("pc0", pc0);
@@ -128,6 +140,8 @@ module instruction_cache_tb;
     tb_log_section("check");
     tb_field_u32("instr0", instr0, ref_instr0);
     tb_field_u32("instr1", instr1, ref_instr1);
+    tb_field_bit("i0_valid", i0_valid, ref_i0_valid);
+    tb_field_bit("i1_valid", i1_valid, ref_i1_valid);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask

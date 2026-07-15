@@ -1,9 +1,10 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s1_fetch/core_mod/pc.sv
-// Exhaustive 6-bit control LUT for advance/hold; spec flags pass through on ADV.
+// Exhaustive control LUT for advance/hold; spec flags pass through on ADV.
 //
-// ctrl[5:0] = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, mode}
+// ctrl[6:0] = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, spec0_in, spec1_in}
+// mode = spec0_in ^ spec1_in  => ADV4 else ADV8
 
 module pc_gm #(
   parameter logic [31:0] RESET_PC = 32'h0000_0000
@@ -14,7 +15,6 @@ module pc_gm #(
   input  logic        dispatch_stall,
   input  logic        spec0_stall,
   input  logic        spec1_stall,
-  input  logic        mode,
   input  logic        spec0_in,
   input  logic        spec1_in,
   input  logic [31:0] pc0_in,
@@ -49,12 +49,15 @@ module pc_gm #(
     end
   endfunction
 
-  logic [5:0]  ctrl;
+  logic        mode;
+  logic [6:0]  ctrl;
   gm_op_e      lut_op;
   logic [31:0] aligned_pc0;
   logic [31:0] aligned_pc1;
 
-  assign ctrl        = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, mode};
+  assign mode        = spec0_in ^ spec1_in;
+  assign ctrl        = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall,
+                        spec0_in, spec1_in};
   assign lut_op      = gm_op(rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, mode);
   assign aligned_pc0 = pc0_in & ~32'd3;
   assign aligned_pc1 = pc1_in & ~32'd3;

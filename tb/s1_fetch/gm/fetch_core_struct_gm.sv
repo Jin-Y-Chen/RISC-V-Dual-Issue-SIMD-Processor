@@ -31,44 +31,52 @@ module fetch_core_struct_gm #(
   output word_t i0_pc_target,
   output word_t i1_pc_target,
   output instr_t instr0,
-  output instr_t instr1
+  output instr_t instr1,
+  output logic  spec0_en,
+  output logic  spec1_en
 );
 
-  logic        mode;
-  logic        spec0;
-  logic        spec1;
-  logic        spec0_next;
-  logic        spec1_next;
-  logic        i0_btb_valid;
-  logic        i1_btb_valid;
-  word_t       pc0_next;
-  word_t       pc1_next;
+  logic  spec0;
+  logic  spec1;
+  logic  spec0_next;
+  logic  spec1_next;
+  logic  i0_btb_valid;
+  logic  i1_btb_valid;
+  word_t pc0_next;
+  word_t pc1_next;
+
+  assign spec0_en = spec0_next;
+  assign spec1_en = spec1_next;
 
   pc_gm #(
     .RESET_PC(RESET_PC)
   ) u_pc_gm (
-    .clk            (clk),
-    .rst_n          (rst_n),
-    .enable         (enable),
-    .dispatch_stall (dispatch_stall),
-    .spec0_stall    (spec0_stall),
-    .spec1_stall    (spec1_stall),
-    .mode           (mode),
-    .spec0_in       (spec0_next),
-    .spec1_in       (spec1_next),
-    .pc0_in         (pc0_next),
-    .pc1_in         (pc1_next),
-    .pc0_out        (pc0),
-    .pc1_out        (pc1),
-    .spec0_out      (spec0),
-    .spec1_out      (spec1)
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .enable          (enable),
+    .dispatch_stall  (dispatch_stall),
+    .spec0_stall     (spec0_stall),
+    .spec1_stall     (spec1_stall),
+    .spec0_in        (spec0_next),
+    .spec1_in        (spec1_next),
+    .pc0_in          (pc0_next),
+    .pc1_in          (pc1_next),
+    .pc0_out         (pc0),
+    .pc1_out         (pc1),
+    .spec0_out       (spec0),
+    .spec1_out       (spec1)
   );
 
+  logic i0_icache_valid;
+  logic i1_icache_valid;
+
   instruction_cache_gm u_icache_gm (
-    .pc0    (pc0),
-    .pc1    (pc1),
-    .instr0 (instr0),
-    .instr1 (instr1)
+    .pc0      (pc0),
+    .pc1      (pc1),
+    .instr0   (instr0),
+    .instr1   (instr1),
+    .i0_valid (i0_icache_valid),
+    .i1_valid (i1_icache_valid)
   );
 
   target_buffer_gm u_target_gm (
@@ -101,7 +109,6 @@ module fetch_core_struct_gm #(
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .mode            (mode),
     .spec0_out       (spec0_next),
     .spec1_out       (spec1_next),
     .pc0_out         (pc0_next),

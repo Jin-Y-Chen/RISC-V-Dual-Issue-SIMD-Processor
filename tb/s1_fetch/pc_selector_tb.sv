@@ -29,13 +29,11 @@ module pc_selector_tb;
   logic [31:0] i1_pc_target;
   logic [31:0] i0_pc_execute;
   logic [31:0] i1_pc_execute;
-  logic        mode;
   logic        spec0_out;
   logic        spec1_out;
   logic [31:0] pc0_out;
   logic [31:0] pc1_out;
 
-  logic        ref_mode;
   logic        ref_spec0_out;
   logic        ref_spec1_out;
   logic [31:0] ref_pc0_out;
@@ -59,7 +57,6 @@ module pc_selector_tb;
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .mode            (mode),
     .spec0_out       (spec0_out),
     .spec1_out       (spec1_out),
     .pc0_out         (pc0_out),
@@ -79,7 +76,6 @@ module pc_selector_tb;
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .mode            (ref_mode),
     .spec0_out       (ref_spec0_out),
     .spec1_out       (ref_spec1_out),
     .pc0_out         (ref_pc0_out),
@@ -108,8 +104,7 @@ module pc_selector_tb;
     i1_pc_execute   = EXEC1;
     #0;
 
-    pass = (mode === ref_mode)
-        && (spec0_out === ref_spec0_out) && (spec1_out === ref_spec1_out)
+    pass = (spec0_out === ref_spec0_out) && (spec1_out === ref_spec1_out)
         && (pc0_out === ref_pc0_out) && (pc1_out === ref_pc1_out);
 
     detail = $sformatf("ctrl=%06b", ctrl[5:0]);
@@ -129,7 +124,6 @@ module pc_selector_tb;
     tb_field_in_u32("i1_pc_execute",   i1_pc_execute);
     $display("");
     tb_log_section("check");
-    tb_field_bit("mode",      mode,      ref_mode);
     tb_field_bit("spec0_out", spec0_out, ref_spec0_out);
     tb_field_bit("spec1_out", spec1_out, ref_spec1_out);
     tb_field_u32("pc0_out",   pc0_out,   ref_pc0_out);
@@ -143,7 +137,7 @@ module pc_selector_tb;
 
     pass_cnt = 0;
     fail_cnt = 0;
-    tb_banner("pc_selector_tb: DUT vs pc_selector_gm.sv (64 vectors)");
+    tb_banner($sformatf("pc_selector_tb: DUT vs pc_selector_gm.sv (%0d vectors)", N_VECTORS));
 
     for (ctrl = 0; ctrl < N_VECTORS; ctrl++)
       check_vector(ctrl);

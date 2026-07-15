@@ -3,11 +3,11 @@
 `include "../include/tb_console.svh"
 
 // pc_tb - exhaustive control sweep; reference = gm/pc_gm.sv.
-// ctrl = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, mode}
+// ctrl = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, spec0_in, spec1_in}
 module pc_tb;
 
   localparam int          CLK_PERIOD  = 10;
-  localparam int          CTRL_BITS   = 6;
+  localparam int          CTRL_BITS   = 7;
   localparam int          N_VECTORS   = (1 << CTRL_BITS);
   localparam logic [31:0] TB_RESET_PC = 32'h0000_0000;
   localparam logic [31:0] PC0_IN      = 32'h0000_1000;
@@ -19,7 +19,6 @@ module pc_tb;
   logic        dispatch_stall;
   logic        spec0_stall;
   logic        spec1_stall;
-  logic        mode;
   logic        spec0_in;
   logic        spec1_in;
   logic        spec0_out;
@@ -46,7 +45,6 @@ module pc_tb;
     .dispatch_stall  (dispatch_stall),
     .spec0_stall     (spec0_stall),
     .spec1_stall     (spec1_stall),
-    .mode            (mode),
     .spec0_in        (spec0_in),
     .spec1_in        (spec1_in),
     .pc0_in          (pc0_in),
@@ -66,7 +64,6 @@ module pc_tb;
     .dispatch_stall (dispatch_stall),
     .spec0_stall    (spec0_stall),
     .spec1_stall    (spec1_stall),
-    .mode           (mode),
     .spec0_in       (spec0_in),
     .spec1_in       (spec1_in),
     .pc0_in         (pc0_in),
@@ -89,7 +86,6 @@ module pc_tb;
     dispatch_stall = 1'b0;
     spec0_stall    = 1'b0;
     spec1_stall    = 1'b0;
-    mode           = 1'b0;
     spec0_in       = 1'b0;
     spec1_in       = 1'b0;
     pc0_in         = PC0_IN;
@@ -97,14 +93,13 @@ module pc_tb;
     #0;
 
     @(posedge clk);
-    rst_n          = ctrl[5];
-    enable         = ctrl[4];
-    dispatch_stall = ctrl[3];
-    spec0_stall    = ctrl[2];
-    spec1_stall    = ctrl[1];
-    mode           = ctrl[0];
-    spec0_in       = ctrl[0];
-    spec1_in       = ~ctrl[0];
+    rst_n          = ctrl[6];
+    enable         = ctrl[5];
+    dispatch_stall = ctrl[4];
+    spec0_stall    = ctrl[3];
+    spec1_stall    = ctrl[2];
+    spec0_in       = ctrl[1];
+    spec1_in       = ctrl[0];
     #0;
 
     pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
@@ -118,7 +113,6 @@ module pc_tb;
     tb_field_in_bit("dispatch_stall", dispatch_stall);
     tb_field_in_bit("spec0_stall",    spec0_stall);
     tb_field_in_bit("spec1_stall",    spec1_stall);
-    tb_field_in_bit("mode",           mode);
     tb_field_in_bit("spec0_in",       spec0_in);
     tb_field_in_bit("spec1_in",       spec1_in);
     tb_field_in_u32("pc0_in",         pc0_in);

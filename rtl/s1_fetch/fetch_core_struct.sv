@@ -2,7 +2,8 @@
 
 // S1 fetch structure — PC + instruction cache + branch target buffer (dual-issue pair).
 // Speculation: per-lane registered flags (spec0/spec1) loop through pc <-> pc_selector.
-// Nested-speculation freeze comes from decode target_predict (spec*_stall), not pc_selector.
+// Mode (+4/+4 vs +8/+8) is computed inside pc from spec0_in ^ spec1_in.
+// Nested-speculation freeze comes from decode target_predict (spec*_stall).
 import rv_dis_pkg::*;
 
 module s1_fetch_struct #(
@@ -44,19 +45,24 @@ module s1_fetch_struct #(
   output logic          spec0_en,
   output logic          spec1_en,
   output logic          i0_valid,
-  output logic          i1_valid
+  output logic          i1_valid,
+  output logic          i0_target_valid,
+  output logic          i1_target_valid
 );
 
-  logic  mode;
   logic  spec0;
   logic  spec1;
   logic  spec0_next;
   logic  spec1_next;
+  logic  i0_btb_valid;
+  logic  i1_btb_valid;
   word_t pc0_next;
   word_t pc1_next;
 
-  assign spec0_en = spec0_next;
-  assign spec1_en = spec1_next;
+  assign spec0_en        = spec0_next;
+  assign spec1_en        = spec1_next;
+  assign i0_target_valid = i0_btb_valid;
+  assign i1_target_valid = i1_btb_valid;
 
   pc #(
     .RESET_PC(RESET_PC)
@@ -67,7 +73,6 @@ module s1_fetch_struct #(
     .dispatch_stall  (dispatch_stall),
     .spec0_stall     (spec0_stall),
     .spec1_stall     (spec1_stall),
-    .mode            (mode),
     .spec0_in        (spec0_next),
     .spec1_in        (spec1_next),
     .pc0_in          (pc0_next),
@@ -79,12 +84,14 @@ module s1_fetch_struct #(
   );
 
   instruction_cache u_icache (
-    .clk    (clk),
-    .rst_n  (rst_n),
-    .pc0    (pc0),
-    .pc1    (pc1),
-    .instr0 (instr0),
-    .instr1 (instr1)
+    .clk      (clk),
+    .rst_n    (rst_n),
+    .pc0      (pc0),
+    .pc1      (pc1),
+    .instr0   (instr0),
+    .instr1   (instr1),
+    .i0_valid (i0_valid),
+    .i1_valid (i1_valid)
   );
 
   target_buffer u_target (
@@ -98,8 +105,8 @@ module s1_fetch_struct #(
     .i1_pc_wb        (i1_pc_wb),
     .i0_pc_target_wb (i0_pc_target_wb),
     .i1_pc_target_wb (i1_pc_target_wb),
-    .i0_valid        (i0_valid),
-    .i1_valid        (i1_valid),
+    .i0_valid        (i0_btb_valid),
+    .i1_valid        (i1_btb_valid),
     .i0_pc_target    (i0_pc_target),
     .i1_pc_target    (i1_pc_target)
   );
@@ -117,7 +124,6 @@ module s1_fetch_struct #(
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .mode            (mode),
     .spec0_out       (spec0_next),
     .spec1_out       (spec1_next),
     .pc0_out         (pc0_next),

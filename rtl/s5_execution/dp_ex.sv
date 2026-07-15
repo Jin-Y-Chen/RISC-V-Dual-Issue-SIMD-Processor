@@ -19,7 +19,7 @@ module dp_ex (
   input  opcode_t     ev0_opcode_disp,
   input  funct3_t     ev0_funct3_disp,
   input  funct7_t     ev0_funct7_disp,
-  input  gpr_addr_t   ev0_rd_disp,
+  input  gpr_addr_t   ev0_rd_addr_disp,
   input  gpr_addr_t   ev0_rs1_addr_disp,
   input  gpr_addr_t   ev0_rs2_addr_disp,
   input  word_t       ev0_imm_disp,
@@ -31,7 +31,7 @@ module dp_ex (
   input  opcode_t     ev1_opcode_disp,
   input  funct3_t     ev1_funct3_disp,
   input  funct7_t     ev1_funct7_disp,
-  input  gpr_addr_t   ev1_rd_disp,
+  input  gpr_addr_t   ev1_rd_addr_disp,
   input  gpr_addr_t   ev1_rs1_addr_disp,
   input  gpr_addr_t   ev1_rs2_addr_disp,
   input  word_t       ev1_imm_disp,
@@ -42,7 +42,7 @@ module dp_ex (
   input  logic        od0_enable_disp,
   input  opcode_t     od0_opcode_disp,
   input  funct3_t     od0_funct3_disp,
-  input  gpr_addr_t   od0_rd_disp,
+  input  gpr_addr_t   od0_rd_addr_disp,
   input  gpr_addr_t   od0_rs1_addr_disp,
   input  gpr_addr_t   od0_rs2_addr_disp,
   input  word_t       od0_imm_disp,
@@ -53,7 +53,7 @@ module dp_ex (
   input  logic        od1_enable_disp,
   input  opcode_t     od1_opcode_disp,
   input  funct3_t     od1_funct3_disp,
-  input  gpr_addr_t   od1_rd_disp,
+  input  gpr_addr_t   od1_rd_addr_disp,
   input  gpr_addr_t   od1_rs1_addr_disp,
   input  gpr_addr_t   od1_rs2_addr_disp,
   input  word_t       od1_imm_disp,
@@ -70,7 +70,7 @@ module dp_ex (
   output opcode_t     ev0_opcode_ex,
   output funct3_t     ev0_funct3_ex,
   output funct7_t     ev0_funct7_ex,
-  output gpr_addr_t   ev0_rd_ex,
+  output gpr_addr_t   ev0_rd_addr_ex,
   output gpr_addr_t   ev0_rs1_addr_ex,
   output gpr_addr_t   ev0_rs2_addr_ex,
   output word_t       ev0_imm_ex,
@@ -82,7 +82,7 @@ module dp_ex (
   output opcode_t     ev1_opcode_ex,
   output funct3_t     ev1_funct3_ex,
   output funct7_t     ev1_funct7_ex,
-  output gpr_addr_t   ev1_rd_ex,
+  output gpr_addr_t   ev1_rd_addr_ex,
   output gpr_addr_t   ev1_rs1_addr_ex,
   output gpr_addr_t   ev1_rs2_addr_ex,
   output word_t       ev1_imm_ex,
@@ -93,7 +93,7 @@ module dp_ex (
   output logic        od0_enable_ex,
   output opcode_t     od0_opcode_ex,
   output funct3_t     od0_funct3_ex,
-  output gpr_addr_t   od0_rd_ex,
+  output gpr_addr_t   od0_rd_addr_ex,
   output gpr_addr_t   od0_rs1_addr_ex,
   output gpr_addr_t   od0_rs2_addr_ex,
   output word_t       od0_imm_ex,
@@ -104,7 +104,7 @@ module dp_ex (
   output logic        od1_enable_ex,
   output opcode_t     od1_opcode_ex,
   output funct3_t     od1_funct3_ex,
-  output gpr_addr_t   od1_rd_ex,
+  output gpr_addr_t   od1_rd_addr_ex,
   output gpr_addr_t   od1_rs1_addr_ex,
   output gpr_addr_t   od1_rs2_addr_ex,
   output word_t       od1_imm_ex,
@@ -123,7 +123,7 @@ module dp_ex (
       ev0_opcode_ex   <= '0;
       ev0_funct3_ex   <= '0;
       ev0_funct7_ex   <= '0;
-      ev0_rd_ex       <= '0;
+      ev0_rd_addr_ex       <= '0;
       ev0_rs1_addr_ex <= '0;
       ev0_rs2_addr_ex <= '0;
       ev0_imm_ex      <= '0;
@@ -134,7 +134,7 @@ module dp_ex (
       ev1_opcode_ex   <= '0;
       ev1_funct3_ex   <= '0;
       ev1_funct7_ex   <= '0;
-      ev1_rd_ex       <= '0;
+      ev1_rd_addr_ex       <= '0;
       ev1_rs1_addr_ex <= '0;
       ev1_rs2_addr_ex <= '0;
       ev1_imm_ex      <= '0;
@@ -144,7 +144,7 @@ module dp_ex (
       od0_enable_ex   <= 1'b0;
       od0_opcode_ex   <= '0;
       od0_funct3_ex   <= '0;
-      od0_rd_ex       <= '0;
+      od0_rd_addr_ex       <= '0;
       od0_rs1_addr_ex <= '0;
       od0_rs2_addr_ex <= '0;
       od0_imm_ex      <= '0;
@@ -154,7 +154,7 @@ module dp_ex (
       od1_enable_ex   <= 1'b0;
       od1_opcode_ex   <= '0;
       od1_funct3_ex   <= '0;
-      od1_rd_ex       <= '0;
+      od1_rd_addr_ex       <= '0;
       od1_rs1_addr_ex <= '0;
       od1_rs2_addr_ex <= '0;
       od1_imm_ex      <= '0;
@@ -170,7 +170,7 @@ module dp_ex (
       ev0_opcode_ex   <= '0;
       ev0_funct3_ex   <= '0;
       ev0_funct7_ex   <= '0;
-      ev0_rd_ex       <= '0;
+      ev0_rd_addr_ex       <= '0;
       ev0_rs1_addr_ex <= '0;
       ev0_rs2_addr_ex <= '0;
       ev0_imm_ex      <= '0;
@@ -181,7 +181,7 @@ module dp_ex (
       ev1_opcode_ex   <= '0;
       ev1_funct3_ex   <= '0;
       ev1_funct7_ex   <= '0;
-      ev1_rd_ex       <= '0;
+      ev1_rd_addr_ex       <= '0;
       ev1_rs1_addr_ex <= '0;
       ev1_rs2_addr_ex <= '0;
       ev1_imm_ex      <= '0;
@@ -191,7 +191,7 @@ module dp_ex (
       od0_enable_ex   <= 1'b0;
       od0_opcode_ex   <= '0;
       od0_funct3_ex   <= '0;
-      od0_rd_ex       <= '0;
+      od0_rd_addr_ex       <= '0;
       od0_rs1_addr_ex <= '0;
       od0_rs2_addr_ex <= '0;
       od0_imm_ex      <= '0;
@@ -201,7 +201,7 @@ module dp_ex (
       od1_enable_ex   <= 1'b0;
       od1_opcode_ex   <= '0;
       od1_funct3_ex   <= '0;
-      od1_rd_ex       <= '0;
+      od1_rd_addr_ex       <= '0;
       od1_rs1_addr_ex <= '0;
       od1_rs2_addr_ex <= '0;
       od1_imm_ex      <= '0;
@@ -217,7 +217,7 @@ module dp_ex (
       ev0_opcode_ex   <= ev0_opcode_disp;
       ev0_funct3_ex   <= ev0_funct3_disp;
       ev0_funct7_ex   <= ev0_funct7_disp;
-      ev0_rd_ex       <= ev0_rd_disp;
+      ev0_rd_addr_ex       <= ev0_rd_addr_disp;
       ev0_rs1_addr_ex <= ev0_rs1_addr_disp;
       ev0_rs2_addr_ex <= ev0_rs2_addr_disp;
       ev0_imm_ex      <= ev0_imm_disp;
@@ -228,7 +228,7 @@ module dp_ex (
       ev1_opcode_ex   <= ev1_opcode_disp;
       ev1_funct3_ex   <= ev1_funct3_disp;
       ev1_funct7_ex   <= ev1_funct7_disp;
-      ev1_rd_ex       <= ev1_rd_disp;
+      ev1_rd_addr_ex       <= ev1_rd_addr_disp;
       ev1_rs1_addr_ex <= ev1_rs1_addr_disp;
       ev1_rs2_addr_ex <= ev1_rs2_addr_disp;
       ev1_imm_ex      <= ev1_imm_disp;
@@ -238,7 +238,7 @@ module dp_ex (
       od0_enable_ex   <= od0_enable_disp;
       od0_opcode_ex   <= od0_opcode_disp;
       od0_funct3_ex   <= od0_funct3_disp;
-      od0_rd_ex       <= od0_rd_disp;
+      od0_rd_addr_ex       <= od0_rd_addr_disp;
       od0_rs1_addr_ex <= od0_rs1_addr_disp;
       od0_rs2_addr_ex <= od0_rs2_addr_disp;
       od0_imm_ex      <= od0_imm_disp;
@@ -248,7 +248,7 @@ module dp_ex (
       od1_enable_ex   <= od1_enable_disp;
       od1_opcode_ex   <= od1_opcode_disp;
       od1_funct3_ex   <= od1_funct3_disp;
-      od1_rd_ex       <= od1_rd_disp;
+      od1_rd_addr_ex       <= od1_rd_addr_disp;
       od1_rs1_addr_ex <= od1_rs1_addr_disp;
       od1_rs2_addr_ex <= od1_rs2_addr_disp;
       od1_imm_ex      <= od1_imm_disp;

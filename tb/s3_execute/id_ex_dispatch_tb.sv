@@ -71,7 +71,7 @@ module id_ex_dispatch_tb;
   logic [6:0]  ev0_opcode_ex;
   logic [2:0]  ev0_funct3_ex;
   logic [6:0]  ev0_funct7_ex;
-  logic [4:0]  ev0_rd_ex;
+  logic [4:0]  ev0_rd_addr_ex;
   logic [4:0]  ev0_rs1_addr_ex;
   logic [4:0]  ev0_rs2_addr_ex;
   logic [31:0] ev0_imm_ex;
@@ -83,7 +83,7 @@ module id_ex_dispatch_tb;
   logic [6:0]  ev1_opcode_ex;
   logic [2:0]  ev1_funct3_ex;
   logic [6:0]  ev1_funct7_ex;
-  logic [4:0]  ev1_rd_ex;
+  logic [4:0]  ev1_rd_addr_ex;
   logic [4:0]  ev1_rs1_addr_ex;
   logic [4:0]  ev1_rs2_addr_ex;
   logic [31:0] ev1_imm_ex;
@@ -94,7 +94,7 @@ module id_ex_dispatch_tb;
   logic        od0_enable_ex;
   logic [6:0]  od0_opcode_ex;
   logic [2:0]  od0_funct3_ex;
-  logic [4:0]  od0_rd_ex;
+  logic [4:0]  od0_rd_addr_ex;
   logic [4:0]  od0_rs1_addr_ex;
   logic [4:0]  od0_rs2_addr_ex;
   logic [31:0] od0_imm_ex;
@@ -105,7 +105,7 @@ module id_ex_dispatch_tb;
   logic        od1_enable_ex;
   logic [6:0]  od1_opcode_ex;
   logic [2:0]  od1_funct3_ex;
-  logic [4:0]  od1_rd_ex;
+  logic [4:0]  od1_rd_addr_ex;
   logic [4:0]  od1_rs1_addr_ex;
   logic [4:0]  od1_rs2_addr_ex;
   logic [31:0] od1_imm_ex;
@@ -164,7 +164,7 @@ module id_ex_dispatch_tb;
     .ev0_opcode_disp     (ev0_opcode_ex),
     .ev0_funct3_disp     (ev0_funct3_ex),
     .ev0_funct7_disp     (ev0_funct7_ex),
-    .ev0_rd_disp         (ev0_rd_ex),
+    .ev0_rd_addr_disp         (ev0_rd_addr_ex),
     .ev0_rs1_addr_disp   (ev0_rs1_addr_ex),
     .ev0_rs2_addr_disp   (ev0_rs2_addr_ex),
     .ev0_imm_disp        (ev0_imm_ex),
@@ -175,7 +175,7 @@ module id_ex_dispatch_tb;
     .ev1_opcode_disp     (ev1_opcode_ex),
     .ev1_funct3_disp     (ev1_funct3_ex),
     .ev1_funct7_disp     (ev1_funct7_ex),
-    .ev1_rd_disp         (ev1_rd_ex),
+    .ev1_rd_addr_disp         (ev1_rd_addr_ex),
     .ev1_rs1_addr_disp   (ev1_rs1_addr_ex),
     .ev1_rs2_addr_disp   (ev1_rs2_addr_ex),
     .ev1_imm_disp        (ev1_imm_ex),
@@ -185,7 +185,7 @@ module id_ex_dispatch_tb;
     .od0_enable_disp     (od0_enable_ex),
     .od0_opcode_disp     (od0_opcode_ex),
     .od0_funct3_disp     (od0_funct3_ex),
-    .od0_rd_disp         (od0_rd_ex),
+    .od0_rd_addr_disp         (od0_rd_addr_ex),
     .od0_rs1_addr_disp   (od0_rs1_addr_ex),
     .od0_rs2_addr_disp   (od0_rs2_addr_ex),
     .od0_imm_disp        (od0_imm_ex),
@@ -195,7 +195,7 @@ module id_ex_dispatch_tb;
     .od1_enable_disp     (od1_enable_ex),
     .od1_opcode_disp     (od1_opcode_ex),
     .od1_funct3_disp     (od1_funct3_ex),
-    .od1_rd_disp         (od1_rd_ex),
+    .od1_rd_addr_disp         (od1_rd_addr_ex),
     .od1_rs1_addr_disp   (od1_rs1_addr_ex),
     .od1_rs2_addr_disp   (od1_rs2_addr_ex),
     .od1_imm_disp        (od1_imm_ex),

@@ -32,6 +32,7 @@ module target_predict (
 
   assign decode_target   = word_t'({(pc + imm)[31:2], 2'b00});
   assign nest_spec_stall = spec_n && brnch_en;
+  // Jumps always taken; branches use state[1].
   assign pred_taken      = brnch_en && !spec_n && (jump_en | target_state[1]);
   assign pred_valid_wb   = brnch_en && !spec_n
                         && (!target_valid || (decode_target != pc_target));
