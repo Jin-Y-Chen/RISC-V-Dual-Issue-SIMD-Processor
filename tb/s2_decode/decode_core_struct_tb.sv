@@ -1,17 +1,17 @@
 `timescale 1ns / 1ps
 
-// Smoke elaborate of s2_decode_struct (port / child wiring check).
+// Decode struct smoke + nested-speculation stall vs br_map.
 import rv_dis_pkg::*;
+
+`include "../include/tb_console.svh"
 
 module decode_core_struct_tb;
   logic        clk;
   logic        rst_n;
-  logic        i0_valid_id, i1_valid_id, spec0_en, spec1_en;
+  logic        i0_valid_id, i1_valid_id;
+  br_map_t     br_map;
   instr_t      i0_instr, i1_instr;
   word_t       i0_pc, i1_pc, i0_pc_target, i1_pc_target;
-  logic        i0_wen, i1_wen;
-  gpr_addr_t   i0_rd, i1_rd;
-  word_t       i0_wdata, i1_wdata;
   logic        i0_br_valid_wb, i1_br_valid_wb;
   word_t       i0_br_pc_wb, i1_br_pc_wb;
   br_state_t   i0_target_state_wb, i1_target_state_wb;
@@ -22,8 +22,7 @@ module decode_core_struct_tb;
   funct7_t     i0_funct7, i1_funct7;
   gpr_addr_t   i0_rd_addr, i0_rs1_addr, i0_rs2_addr;
   gpr_addr_t   i1_rd_addr, i1_rs1_addr, i1_rs2_addr;
-  word_t       i0_imm, i0_rs1_data, i0_rs2_data;
-  word_t       i1_imm, i1_rs1_data, i1_rs2_data;
+  word_t       i0_imm, i1_imm;
   logic        i0_valid, i0_brch_en, i0_jump_en, i0_rs1_use, i0_rs2_use, i0_reg_write;
   logic        i1_valid, i1_brch_en, i1_jump_en, i1_rs1_use, i1_rs2_use, i1_reg_write;
   br_state_t   i0_target_state, i1_target_state;
@@ -32,28 +31,74 @@ module decode_core_struct_tb;
   logic        i0_tp_wb_valid, i1_tp_wb_valid;
   logic        i0_spec_stall, i1_spec_stall;
 
+  int pass_cnt, fail_cnt;
+
   s2_decode_struct dut (.*);
 
   initial clk = 0;
   always #5 clk = ~clk;
 
+  // JAL x0, 0 — always control-flow for nest stall checks
+  localparam instr_t JAL0 = 32'h0000006f;
+
+  task automatic expect_stall(
+    input string name,
+    input logic  exp_i0,
+    input logic  exp_i1
+  );
+    bit pass;
+    #1;
+    pass = (i0_spec_stall === exp_i0) && (i1_spec_stall === exp_i1);
+    tb_report_open(pass, name, $sformatf("br_map=%02b", br_map));
+    tb_field_bit("i0_spec_stall", i0_spec_stall, exp_i0);
+    tb_field_bit("i1_spec_stall", i1_spec_stall, exp_i1);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
+  endtask
+
   initial begin
+    pass_cnt = 0; fail_cnt = 0;
     rst_n = 0;
     i0_valid_id = 0; i1_valid_id = 0;
-    spec0_en = 0; spec1_en = 0;
+    br_map = BR_MAP_NONE;
     i0_instr = '0; i1_instr = '0;
     i0_pc = '0; i1_pc = '0;
     i0_pc_target = '0; i1_pc_target = '0;
-    i0_wen = 0; i1_wen = 0;
-    i0_rd = '0; i1_rd = '0;
-    i0_wdata = '0; i1_wdata = '0;
     i0_br_valid_wb = 0; i1_br_valid_wb = 0;
     i0_br_pc_wb = '0; i1_br_pc_wb = '0;
     i0_target_state_wb = '0; i1_target_state_wb = '0;
+
+    tb_banner("decode_core_struct_tb: br_map nested stall");
     repeat (2) @(posedge clk);
     rst_n = 1;
     @(posedge clk);
-    $display("OK decode_core_struct_tb elaborate/smoke");
+
+    // No speculation — branch decode should not nest-stall
+    br_map = BR_MAP_NONE;
+    i0_valid_id = 1; i1_valid_id = 1;
+    i0_instr = JAL0; i1_instr = JAL0;
+    i0_pc = 32'h100; i1_pc = 32'h104;
+    @(posedge clk);
+    expect_stall("none_no_nest", 1'b0, 1'b0);
+
+    // Already speculative on i0 — nested control-flow stalls i0 only
+    br_map = BR_MAP_I0;
+    @(posedge clk);
+    expect_stall("i0_map_nests_i0", 1'b1, 1'b0);
+
+    // Speculative on i1
+    br_map = BR_MAP_I1;
+    @(posedge clk);
+    expect_stall("i1_map_nests_i1", 1'b0, 1'b1);
+
+    // Both speculative
+    br_map = BR_MAP_BOTH;
+    @(posedge clk);
+    expect_stall("both_map_nests", 1'b1, 1'b1);
+
+    $display("");
+    tb_summary(pass_cnt, fail_cnt);
+    if (fail_cnt != 0) $error("decode_core_struct_tb: %0d failure(s)", fail_cnt);
     $finish;
   end
 endmodule

@@ -58,8 +58,7 @@ module risc_dis_unit #(
   logic [31:0] i1_pc_target_if;
   logic        i0_valid_if;
   logic        i1_valid_if;
-  logic        spec0_en_if;
-  logic        spec1_en_if;
+  br_map_t     br_map_if;
 
   logic [31:0] i0_instr_id;
   logic [31:0] i1_instr_id;
@@ -69,8 +68,7 @@ module risc_dis_unit #(
   logic [31:0] i1_pc_target_id;
   logic        i0_valid_id;
   logic        i1_valid_id;
-  logic        spec0_en_id;
-  logic        spec1_en_id;
+  br_map_t     br_map_id;
 
   // From decode target_predict — freezes PC on nested speculation (not dispatch_stall).
   logic        i0_spec_stall_dec;
@@ -111,8 +109,7 @@ module risc_dis_unit #(
     .instr0           (i0_instr_if),
     .instr1           (i1_instr_if),
     // output controls
-    .spec0_en         (spec0_en_if),
-    .spec1_en         (spec1_en_if),
+    .branch_map       (br_map_if),
     .i0_valid         (i0_valid_if),
     .i1_valid         (i1_valid_if)
   );
@@ -127,8 +124,7 @@ module risc_dis_unit #(
     .stall            (stall_id),
     .i0_valid_if      (i0_valid_if),
     .i1_valid_if      (i1_valid_if),
-    .spec0_en_if      (spec0_en_if),
-    .spec1_en_if      (spec1_en_if),
+    .br_map_if        (br_map_if),
     // input data
     .i0_instr_if      (i0_instr_if),
     .i1_instr_if      (i1_instr_if),
@@ -146,8 +142,7 @@ module risc_dis_unit #(
     // output controls
     .i0_valid_id      (i0_valid_id),
     .i1_valid_id      (i1_valid_id),
-    .spec0_en_id      (spec0_en_id),
-    .spec1_en_id      (spec1_en_id)
+    .br_map_id        (br_map_id)
   );
 
   // -------------------------------------------------------------------------
@@ -183,10 +178,15 @@ module risc_dis_unit #(
   logic        i1_rs2_use_dec;
   logic        i1_reg_write_dec;
 
+  // Operand data is not read in decode (RF is issue-stage); hold zeros into id_dp for now.
   word_t i0_rs1_data;
   word_t i0_rs2_data;
   word_t i1_rs1_data;
   word_t i1_rs2_data;
+  assign i0_rs1_data = '0;
+  assign i0_rs2_data = '0;
+  assign i1_rs1_data = '0;
+  assign i1_rs2_data = '0;
 
   word_t       i0_pc_predict_dec;
   word_t       i1_pc_predict_dec;
@@ -201,6 +201,7 @@ module risc_dis_unit #(
   br_state_t   i1_target_state_wb;
 
   // Nested branch/jump under unresolved speculation freezes PC via spec*_stall.
+  // Decode does not touch the GPR file — only addresses / use flags are produced.
   s2_decode_struct u_decode (
     // external controls
     .clk             (clk),
@@ -208,11 +209,7 @@ module risc_dis_unit #(
     // IF/ID controls
     .i0_valid_id     (i0_valid_id),
     .i1_valid_id     (i1_valid_id),
-    .spec0_en        (spec0_en_id),
-    .spec1_en        (spec1_en_id),
-    // GPR writeback
-    .i0_wen          (i0_reg_write_wb),
-    .i1_wen          (i1_reg_write_wb),
+    .br_map          (br_map_id),
     // IF/ID data
     .i0_instr        (i0_instr_id),
     .i1_instr        (i1_instr_id),
@@ -226,10 +223,6 @@ module risc_dis_unit #(
     .i1_br_pc_wb     (i1_btb_pc_wb),
     .i0_target_state_wb (i0_target_state_wb),
     .i1_target_state_wb (i1_target_state_wb),
-    .i0_rd           (i0_rd_addr_wb),
-    .i0_wdata        (i0_wdata_wb),
-    .i1_rd           (i1_rd_addr_wb),
-    .i1_wdata        (i1_wdata_wb),
     // output data
     .i0_lane_sel     (i0_lane_sel_dec),
     .i0_opcode       (i0_opcode_dec),
@@ -239,8 +232,6 @@ module risc_dis_unit #(
     .i0_rs1_addr     (i0_rs1_dec),
     .i0_rs2_addr     (i0_rs2_dec),
     .i0_imm          (i0_imm_dec),
-    .i0_rs1_data     (i0_rs1_data),
-    .i0_rs2_data     (i0_rs2_data),
     .i1_lane_sel     (i1_lane_sel_dec),
     .i1_opcode       (i1_opcode_dec),
     .i1_funct3       (i1_funct3_dec),
@@ -249,8 +240,6 @@ module risc_dis_unit #(
     .i1_rs1_addr     (i1_rs1_dec),
     .i1_rs2_addr     (i1_rs2_dec),
     .i1_imm          (i1_imm_dec),
-    .i1_rs1_data     (i1_rs1_data),
-    .i1_rs2_data     (i1_rs2_data),
     // output controls
     .i0_valid        (i0_valid_dec),
     .i0_brch_en      (i0_brch_en_dec),
@@ -405,7 +394,7 @@ module risc_dis_unit #(
     .i0_reg_write_id (i0_reg_write_dec),
     .i0_rs1_use_id   (i0_rs1_use_dec),
     .i0_rs2_use_id   (i0_rs2_use_dec),
-    .spec0_en_id     (spec0_en_id),
+    .spec0_en_id     (br_map_id[0]),
     .i0_state_id     (i0_target_state),
     // I1 controls in
     .i1_valid_id     (i1_valid_dec),
@@ -413,7 +402,7 @@ module risc_dis_unit #(
     .i1_reg_write_id (i1_reg_write_dec),
     .i1_rs1_use_id   (i1_rs1_use_dec),
     .i1_rs2_use_id   (i1_rs2_use_dec),
-    .spec1_en_id     (spec1_en_id),
+    .spec1_en_id     (br_map_id[1]),
     .i1_state_id     (i1_target_state),
     // I0 data in
     .i0_opcode_id    (i0_opcode_dec),

@@ -35,6 +35,8 @@ module fetch_core_struct_tb;
   word_t  i1_pc_target;
   instr_t instr0;
   instr_t instr1;
+  br_map_t branch_map;
+  logic    i0_valid, i1_valid;
 
   word_t  ref_pc0;
   word_t  ref_pc1;
@@ -42,6 +44,7 @@ module fetch_core_struct_tb;
   word_t  ref_i1_pc_target;
   instr_t ref_instr0;
   instr_t ref_instr1;
+  br_map_t ref_branch_map;
 
   int pass_cnt;
   int fail_cnt;
@@ -72,7 +75,10 @@ module fetch_core_struct_tb;
     .i0_pc_target     (i0_pc_target),
     .i1_pc_target     (i1_pc_target),
     .instr0           (instr0),
-    .instr1           (instr1)
+    .instr1           (instr1),
+    .branch_map       (branch_map),
+    .i0_valid         (i0_valid),
+    .i1_valid         (i1_valid)
   );
 
   fetch_core_struct_gm #(
@@ -101,7 +107,8 @@ module fetch_core_struct_tb;
     .i0_pc_target     (ref_i0_pc_target),
     .i1_pc_target     (ref_i1_pc_target),
     .instr0           (ref_instr0),
-    .instr1           (ref_instr1)
+    .instr1           (ref_instr1),
+    .branch_map       (ref_branch_map)
   );
 
   initial clk = 1'b0;
@@ -135,7 +142,8 @@ module fetch_core_struct_tb;
     #0;
 
     pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
-        && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target);
+        && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target)
+        && (branch_map === ref_branch_map);
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
@@ -161,6 +169,7 @@ module fetch_core_struct_tb;
     tb_field_u32("pc1",          pc1,          ref_pc1);
     tb_field_u32("i0_pc_target", i0_pc_target, ref_i0_pc_target);
     tb_field_u32("i1_pc_target", i1_pc_target, ref_i1_pc_target);
+    tb_field_u32("branch_map",   {30'b0, branch_map}, {30'b0, ref_branch_map});
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -173,12 +182,12 @@ module fetch_core_struct_tb;
 
     tb_banner("fetch_core_struct_tb: DUT vs fetch_core_struct_gm.sv");
 
-    step_and_check("reset", "RESET_PC pair");
+    step_and_check("reset", "RESET_PC pair, br_map=00");
 
     @(negedge clk);
     rst_n = 1'b1;
     idle_ctrl();
-    step_and_check("sequential_step", "mode=0 => +8/+8");
+    step_and_check("sequential_step", "br_map=00 => +8/+8");
 
     @(negedge clk);
     idle_ctrl();
@@ -191,11 +200,11 @@ module fetch_core_struct_tb;
     @(negedge clk);
     idle_ctrl();
     i0_pred_taken = 1'b1;
-    step_and_check("i0_predict", "load I0 BTB target into next-PC bases");
+    step_and_check("i0_predict", "br_map=01, I0 target into next-PC bases");
 
     @(negedge clk);
     idle_ctrl();
-    step_and_check("post_predict_step", "spec flags held, mode=0 => +8/+8");
+    step_and_check("post_predict_step", "sticky br_map=01 => +4/+4 split");
 
     // Decode-style nested-speculation stall freezes PC
     @(negedge clk);
@@ -207,7 +216,7 @@ module fetch_core_struct_tb;
     idle_ctrl();
     i0_brch_recover = 1'b1;
     i0_pc_execute   = word_t'(32'h0000_3000);
-    step_and_check("i0_recover", "recover at execute+4 / execute+8");
+    step_and_check("i0_recover", "recover clears br_map, execute+4/+8");
 
     @(negedge clk);
     idle_ctrl();
@@ -216,7 +225,7 @@ module fetch_core_struct_tb;
 
     @(negedge clk);
     idle_ctrl();
-    step_and_check("sequential_resume", "back to +8/+8");
+    step_and_check("sequential_resume", "br_map=00 => +8/+8");
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

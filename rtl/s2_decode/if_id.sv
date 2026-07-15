@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 
-// IF/ID pipeline register — dual-issue insn pair per cycle (project_outline decode stage).
-// An insn is in IF or ID, not both; this register is the boundary between those stages.
-// Latches insn/PC/target plus per-lane valid and speculation enables from fetch.
+// IF/ID pipeline register — dual-issue insn pair per cycle.
+// Latches insn/PC/target plus per-slot valid and branch_map from fetch.
 import rv_dis_pkg::*;
 
 module if_id (
@@ -16,8 +15,7 @@ module if_id (
   input  logic        stall,
   input  logic        i0_valid_if,
   input  logic        i1_valid_if,
-  input  logic        spec0_en_if,
-  input  logic        spec1_en_if,
+  input  br_map_t     br_map_if,
 
   // input data
   input  instr_t      i0_instr_if,
@@ -38,8 +36,7 @@ module if_id (
   // output controls
   output logic        i0_valid_id,
   output logic        i1_valid_id,
-  output logic        spec0_en_id,
-  output logic        spec1_en_id
+  output br_map_t     br_map_id
 );
 
   always_ff @(posedge clk or negedge rst_n) begin
@@ -52,8 +49,7 @@ module if_id (
       i1_pc_target_id <= '0;
       i0_valid_id     <= 1'b0;
       i1_valid_id     <= 1'b0;
-      spec0_en_id     <= 1'b0;
-      spec1_en_id     <= 1'b0;
+      br_map_id       <= BR_MAP_NONE;
     end else if (flush) begin
       i0_instr_id     <= '0;
       i1_instr_id     <= '0;
@@ -63,8 +59,7 @@ module if_id (
       i1_pc_target_id <= '0;
       i0_valid_id     <= 1'b0;
       i1_valid_id     <= 1'b0;
-      spec0_en_id     <= 1'b0;
-      spec1_en_id     <= 1'b0;
+      br_map_id       <= BR_MAP_NONE;
     end else if (enable && !stall) begin
       i0_instr_id     <= i0_instr_if;
       i1_instr_id     <= i1_instr_if;
@@ -74,8 +69,7 @@ module if_id (
       i1_pc_target_id <= i1_pc_target_if;
       i0_valid_id     <= i0_valid_if;
       i1_valid_id     <= i1_valid_if;
-      spec0_en_id     <= spec0_en_if;
-      spec1_en_id     <= spec1_en_if;
+      br_map_id       <= br_map_if;
     end
   end
 

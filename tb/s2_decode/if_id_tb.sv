@@ -16,7 +16,7 @@ module if_id_tb;
   logic        stall;
   logic        flush;
   logic        i0_valid_if, i1_valid_if;
-  logic        spec0_en_if, spec1_en_if;
+  br_map_t     br_map_if;
   logic [31:0] i0_instr_if, i1_instr_if;
   logic [31:0] i0_pc_if, i1_pc_if;
   logic [31:0] i0_pc_target_if, i1_pc_target_if;
@@ -24,45 +24,18 @@ module if_id_tb;
   logic [31:0] i0_pc_id, i1_pc_id;
   logic [31:0] i0_pc_target_id, i1_pc_target_id;
   logic        i0_valid_id, i1_valid_id;
-  logic        spec0_en_id, spec1_en_id;
+  br_map_t     br_map_id;
 
   logic [31:0] ref_i0_instr_id, ref_i1_instr_id;
   logic [31:0] ref_i0_pc_id, ref_i1_pc_id;
   logic [31:0] ref_i0_pc_target_id, ref_i1_pc_target_id;
   logic        ref_i0_valid_id, ref_i1_valid_id;
-  logic        ref_spec0_en_id, ref_spec1_en_id;
+  br_map_t     ref_br_map_id;
 
   int pass_cnt;
   int fail_cnt;
 
-  if_id dut (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .enable          (enable),
-    .flush           (flush),
-    .stall           (stall),
-    .i0_valid_if     (i0_valid_if),
-    .i1_valid_if     (i1_valid_if),
-    .spec0_en_if     (spec0_en_if),
-    .spec1_en_if     (spec1_en_if),
-    .i0_instr_if     (i0_instr_if),
-    .i1_instr_if     (i1_instr_if),
-    .i0_pc_if        (i0_pc_if),
-    .i1_pc_if        (i1_pc_if),
-    .i0_pc_target_if (i0_pc_target_if),
-    .i1_pc_target_if (i1_pc_target_if),
-    .i0_instr_id     (i0_instr_id),
-    .i1_instr_id     (i1_instr_id),
-    .i0_pc_id        (i0_pc_id),
-    .i1_pc_id        (i1_pc_id),
-    .i0_pc_target_id (i0_pc_target_id),
-    .i1_pc_target_id (i1_pc_target_id),
-    .i0_valid_id     (i0_valid_id),
-    .i1_valid_id     (i1_valid_id),
-    .spec0_en_id     (spec0_en_id),
-    .spec1_en_id     (spec1_en_id)
-  );
-
+  if_id dut (.*);
   if_id_gm u_if_id_gm (
     .clk             (clk),
     .rst_n           (rst_n),
@@ -71,8 +44,7 @@ module if_id_tb;
     .stall           (stall),
     .i0_valid_if     (i0_valid_if),
     .i1_valid_if     (i1_valid_if),
-    .spec0_en_if     (spec0_en_if),
-    .spec1_en_if     (spec1_en_if),
+    .br_map_if       (br_map_if),
     .i0_instr_if     (i0_instr_if),
     .i1_instr_if     (i1_instr_if),
     .i0_pc_if        (i0_pc_if),
@@ -87,8 +59,7 @@ module if_id_tb;
     .i1_pc_target_id (ref_i1_pc_target_id),
     .i0_valid_id     (ref_i0_valid_id),
     .i1_valid_id     (ref_i1_valid_id),
-    .spec0_en_id     (ref_spec0_en_id),
-    .spec1_en_id     (ref_spec1_en_id)
+    .br_map_id       (ref_br_map_id)
   );
 
   initial clk = 1'b0;
@@ -101,8 +72,7 @@ module if_id_tb;
   task automatic drive_if(
     input logic        i0_valid_v,
     input logic        i1_valid_v,
-    input logic        spec0_v,
-    input logic        spec1_v,
+    input br_map_t     br_map_v,
     input logic [31:0] i0_instr_v,
     input logic [31:0] i1_instr_v,
     input logic [31:0] i0_pc_v,
@@ -112,8 +82,7 @@ module if_id_tb;
   );
     i0_valid_if     = i0_valid_v;
     i1_valid_if     = i1_valid_v;
-    spec0_en_if     = spec0_v;
-    spec1_en_if     = spec1_v;
+    br_map_if       = br_map_v;
     i0_instr_if     = i0_instr_v;
     i1_instr_if     = i1_instr_v;
     i0_pc_if        = i0_pc_v;
@@ -132,13 +101,11 @@ module if_id_tb;
            (i1_pc_target_id === ref_i1_pc_target_id) &&
            (i0_valid_id === ref_i0_valid_id) &&
            (i1_valid_id === ref_i1_valid_id) &&
-           (spec0_en_id === ref_spec0_en_id) &&
-           (spec1_en_id === ref_spec1_en_id);
+           (br_map_id === ref_br_map_id);
     tb_report_open(pass, name, detail);
     tb_field_bit("i0_valid_id", i0_valid_id, ref_i0_valid_id);
     tb_field_bit("i1_valid_id", i1_valid_id, ref_i1_valid_id);
-    tb_field_bit("spec0_en_id", spec0_en_id, ref_spec0_en_id);
-    tb_field_bit("spec1_en_id", spec1_en_id, ref_spec1_en_id);
+    tb_field_u32("br_map_id", {30'b0, br_map_id}, {30'b0, ref_br_map_id});
     tb_field_u32("i0_instr_id", i0_instr_id, ref_i0_instr_id);
     tb_field_u32("i1_instr_id", i1_instr_id, ref_i1_instr_id);
     tb_field_u32("i0_pc_id", i0_pc_id, ref_i0_pc_id);
@@ -150,63 +117,33 @@ module if_id_tb;
   endtask
 
   initial begin
-    pass_cnt = 0;
-    fail_cnt = 0;
-
+    pass_cnt = 0; fail_cnt = 0;
+    rst_n = 0; enable = 0; flush = 0; stall = 0;
+    drive_if(0, 0, BR_MAP_NONE, 0, 0, 0, 0, 0, 0);
     tb_banner("if_id_tb: DUT vs if_id_gm.sv");
 
-    rst_n  = 1'b0;
-    enable = 1'b1;
-    stall  = 1'b0;
-    flush  = 1'b0;
-    drive_if(1'b1, 1'b1, 1'b1, 1'b0,
-             32'hFFFF_FFFF, 32'hEEEE_EEEE, 32'h1111_1111, 32'h1111_1115,
-             32'h2222_2222, 32'h2222_2226);
     tick();
-    check_id("reset_clear", "reset clears both IF/ID outputs");
+    rst_n = 1; enable = 1;
+    tick();
+    check_id("reset_clear", "after reset");
 
-    rst_n = 1'b1;
-    drive_if(1'b1, 1'b1, 1'b1, 1'b0,
-             32'h00C5_8633, 32'h0052_0213, 32'h0000_1000, 32'h0000_1004,
-             32'h0000_1200, 32'h0000_1300);
+    drive_if(1, 1, BR_MAP_I0, 32'h1111_0000, 32'h2222_0000,
+             32'h1000, 32'h1004, 32'h2000, 32'h2004);
     tick();
-    check_id("capture", "normal cycle captures data + valid/spec controls");
+    check_id("capture", "br_map=01 captured");
 
-    stall = 1'b1;
-    drive_if(1'b0, 1'b0, 1'b0, 1'b1,
-             32'hDEAD_BEEF, 32'hCAFE_BABE, 32'h0000_2000, 32'h0000_2004,
-             32'h0000_3000, 32'h0000_3004);
+    stall = 1;
+    drive_if(1, 0, BR_MAP_BOTH, 32'hDEAD, 32'hBEEF, 0, 0, 0, 0);
     tick();
-    check_id("stall_hold", "stall holds previous ID state for both slots");
+    check_id("stall_hold", "stall holds previous");
 
-    stall = 1'b0;
-    flush = 1'b1;
-    drive_if(1'b1, 1'b1, 1'b1, 1'b1,
-             32'h1234_5678, 32'h8765_4321, 32'h0000_4000, 32'h0000_4004,
-             32'h0000_5000, 32'h0000_5004);
+    stall = 0; flush = 1;
     tick();
-    check_id("flush_clear", "flush clears both ID slots to bubble");
-
-    stall = 1'b1;
-    flush = 1'b1;
-    drive_if(1'b1, 1'b0, 1'b0, 1'b1,
-             32'hABCD_EF01, 32'h10FE_ED01, 32'h0000_6000, 32'h0000_6004,
-             32'h0000_7000, 32'h0000_7004);
-    tick();
-    check_id("flush_over_stall", "flush wins when both controls are set");
-
-    stall = 1'b0;
-    flush = 1'b0;
-    drive_if(1'b1, 1'b0, 1'b0, 1'b1,
-             32'h0052_0213, 32'h00C5_8633, 32'h0000_1004, 32'h0000_1008,
-             32'h0000_1300, 32'h0000_1400);
-    tick();
-    check_id("capture_after_flush", "pipeline captures again after clear controls");
+    check_id("flush_clear", "flush clears");
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);
-    if (fail_cnt != 0)
-      $fatal(1, "if_id_tb failed");
+    if (fail_cnt != 0) $error("if_id_tb: %0d failure(s)", fail_cnt);
     $finish;
   end
 

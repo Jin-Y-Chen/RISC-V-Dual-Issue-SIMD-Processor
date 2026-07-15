@@ -4,14 +4,15 @@ import rv_dis_pkg::*;
 
 // Branch/jump target select + direction predict (project_outline Target_Predict).
 // Active when pc_valid && (brnch_en | jump_en) && !spec_stall.
-// Nested speculation: already speculative (spec_n) and another branch/jump =>
-// disable predict outputs and assert spec_stall so PC cannot speculate again.
+// Nested speculation: already speculative (this lane's br_map bit) and another
+// branch/jump => disable predict outputs and assert spec_stall.
 module target_predict (
   // input controls
   input  logic        pc_valid,
   input  logic        brnch_en,
   input  logic        jump_en,
-  input  logic        spec_n,
+  input  br_map_t     br_map,
+  input  logic        lane_is_i1,
 
   // input data
   input  word_t       pc,
@@ -33,24 +34,22 @@ module target_predict (
   endfunction
 
   logic  ctl_flow;
+  logic  already_spec;
   logic  branch_active;
   word_t decode_target;
   logic  use_decode_target;
 
-  assign ctl_flow = brnch_en | jump_en;
+  assign ctl_flow      = brnch_en | jump_en;
+  assign already_spec  = lane_is_i1 ? br_map[1] : br_map[0];
 
   // Stall PC when a control-flow insn arrives while this lane is already speculative.
-  assign spec_stall = spec_n && pc_valid && ctl_flow;
+  assign spec_stall = already_spec && pc_valid && ctl_flow;
 
-  // Disable predict / BTB-train while nested speculation is blocked.
   assign branch_active     = pc_valid && ctl_flow && !spec_stall;
   assign decode_target     = word_align4(pc + imm);
   assign use_decode_target = decode_target != pc_target;
 
-  // BTB train when decode target differs from the latched BTB entry.
-  assign wb_valid   = branch_active && use_decode_target;
-
-  // JAL/JALR always taken; conditional branches follow state[1].
+  assign wb_valid      = branch_active && use_decode_target;
   assign predict_taken = branch_active && (jump_en | target_state[1]);
 
   always_comb begin
