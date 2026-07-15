@@ -14,7 +14,7 @@ module decoder_tb;
   logic [6:0]  opcode;
   logic [2:0]  funct3;
   logic [6:0]  funct7;
-  logic [4:0]  rd, rs1, rs2;
+  logic [4:0]  rd_addr, rs1_addr, rs2_addr;
   logic [31:0] imm;
   logic        rs1_use, rs2_use, reg_write;
 
@@ -22,7 +22,7 @@ module decoder_tb;
   logic [6:0]  ref_opcode;
   logic [2:0]  ref_funct3;
   logic [6:0]  ref_funct7;
-  logic [4:0]  ref_rd, ref_rs1, ref_rs2;
+  logic [4:0]  ref_rd_addr, ref_rs1_addr, ref_rs2_addr;
   logic [31:0] ref_imm;
   logic        ref_rs1_use, ref_rs2_use, ref_reg_write;
 
@@ -38,9 +38,9 @@ module decoder_tb;
     .opcode    (opcode),
     .funct3    (funct3),
     .funct7    (funct7),
-    .rd        (rd),
-    .rs1       (rs1),
-    .rs2       (rs2),
+    .rd_addr   (rd_addr),
+    .rs1_addr  (rs1_addr),
+    .rs2_addr  (rs2_addr),
     .imm       (imm),
     .rs1_use   (rs1_use),
     .rs2_use   (rs2_use),
@@ -56,9 +56,9 @@ module decoder_tb;
     .opcode    (ref_opcode),
     .funct3    (ref_funct3),
     .funct7    (ref_funct7),
-    .rd        (ref_rd),
-    .rs1       (ref_rs1),
-    .rs2       (ref_rs2),
+    .rd_addr   (ref_rd_addr),
+    .rs1_addr  (ref_rs1_addr),
+    .rs2_addr  (ref_rs2_addr),
     .imm       (ref_imm),
     .rs1_use   (ref_rs1_use),
     .rs2_use   (ref_rs2_use),
@@ -70,8 +70,8 @@ module decoder_tb;
     pass = (valid === ref_valid) && (lane_sel === ref_lane_sel) &&
            (brch_en === ref_brch_en) && (jump_en === ref_jump_en) &&
            (opcode === ref_opcode) && (funct3 === ref_funct3) &&
-           (funct7 === ref_funct7) && (rd === ref_rd) &&
-           (rs1 === ref_rs1) && (rs2 === ref_rs2) && (imm === ref_imm) &&
+           (funct7 === ref_funct7) && (rd_addr === ref_rd_addr) &&
+           (rs1_addr === ref_rs1_addr) && (rs2_addr === ref_rs2_addr) && (imm === ref_imm) &&
            (rs1_use === ref_rs1_use) && (rs2_use === ref_rs2_use) &&
            (reg_write === ref_reg_write);
     tb_report_open(pass, name, detail);
@@ -82,9 +82,9 @@ module decoder_tb;
     tb_field_op7("opcode", opcode, ref_opcode);
     tb_field_f3("funct3", funct3, ref_funct3);
     tb_field_f7("funct7", funct7, ref_funct7);
-    tb_field_u5("rd", rd, ref_rd);
-    tb_field_u5("rs1", rs1, ref_rs1);
-    tb_field_u5("rs2", rs2, ref_rs2);
+    tb_field_u5("rd_addr", rd_addr, ref_rd_addr);
+    tb_field_u5("rs1_addr", rs1_addr, ref_rs1_addr);
+    tb_field_u5("rs2_addr", rs2_addr, ref_rs2_addr);
     tb_field_u32("imm", imm, ref_imm);
     tb_field_bit("rs1_use", rs1_use, ref_rs1_use);
     tb_field_bit("rs2_use", rs2_use, ref_rs2_use);

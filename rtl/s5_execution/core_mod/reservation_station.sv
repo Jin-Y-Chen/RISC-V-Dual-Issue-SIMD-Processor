@@ -30,7 +30,7 @@ module reservation_station #(
   input  opcode_t     s0_opcode_disp,
   input  funct3_t     s0_funct3_disp,
   input  funct7_t     s0_funct7_disp,
-  input  gpr_addr_t   s0_rd_disp,
+  input  gpr_addr_t   s0_rd_addr_disp,
   input  gpr_addr_t   s0_rs1_addr_disp,
   input  gpr_addr_t   s0_rs2_addr_disp,
   input  word_t       s0_imm_disp,
@@ -42,7 +42,7 @@ module reservation_station #(
   input  opcode_t     s1_opcode_disp,
   input  funct3_t     s1_funct3_disp,
   input  funct7_t     s1_funct7_disp,
-  input  gpr_addr_t   s1_rd_disp,
+  input  gpr_addr_t   s1_rd_addr_disp,
   input  gpr_addr_t   s1_rs1_addr_disp,
   input  gpr_addr_t   s1_rs2_addr_disp,
   input  word_t       s1_imm_disp,
@@ -73,7 +73,7 @@ module reservation_station #(
   output opcode_t     s0_opcode_ex,
   output funct3_t     s0_funct3_ex,
   output funct7_t     s0_funct7_ex,
-  output gpr_addr_t   s0_rd_ex,
+  output gpr_addr_t   s0_rd_addr_ex,
   output gpr_addr_t   s0_rs1_addr_ex,
   output gpr_addr_t   s0_rs2_addr_ex,
   output word_t       s0_imm_ex,
@@ -85,7 +85,7 @@ module reservation_station #(
   output opcode_t     s1_opcode_ex,
   output funct3_t     s1_funct3_ex,
   output funct7_t     s1_funct7_ex,
-  output gpr_addr_t   s1_rd_ex,
+  output gpr_addr_t   s1_rd_addr_ex,
   output gpr_addr_t   s1_rs1_addr_ex,
   output gpr_addr_t   s1_rs2_addr_ex,
   output word_t       s1_imm_ex,
@@ -132,12 +132,12 @@ module reservation_station #(
 
   always_comb begin
     s0_in_pkt = disp_packet(
-      s0_enable_disp, i0_reg_write_disp, s0_rd_disp, s0_opcode_disp, s0_funct3_disp, s0_funct7_disp,
+      s0_enable_disp, i0_reg_write_disp, s0_rd_addr_disp, s0_opcode_disp, s0_funct3_disp, s0_funct7_disp,
       s0_rs1_addr_disp, s0_rs2_addr_disp, s0_imm_disp,
       s0_rs1_data_disp, s0_rs2_data_disp, s0_pc_disp
     );
     s1_in_pkt = disp_packet(
-      s1_enable_disp, i1_reg_write_disp, s1_rd_disp, s1_opcode_disp, s1_funct3_disp, s1_funct7_disp,
+      s1_enable_disp, i1_reg_write_disp, s1_rd_addr_disp, s1_opcode_disp, s1_funct3_disp, s1_funct7_disp,
       s1_rs1_addr_disp, s1_rs2_addr_disp, s1_imm_disp,
       s1_rs1_data_disp, s1_rs2_data_disp, s1_pc_disp
     );
@@ -228,7 +228,7 @@ module reservation_station #(
   assign s0_opcode_ex   = s0_head.packet.opcode;
   assign s0_funct3_ex   = s0_head.packet.funct3;
   assign s0_funct7_ex   = s0_head.packet.funct7;
-  assign s0_rd_ex       = s0_head.renamed_tag;
+  assign s0_rd_addr_ex       = s0_head.renamed_tag;
   assign s0_rs1_addr_ex = s0_head.packet.rs1;
   assign s0_rs2_addr_ex = s0_head.packet.rs2;
   assign s0_imm_ex      = s0_head.packet.imm;
@@ -240,7 +240,7 @@ module reservation_station #(
   assign s1_opcode_ex   = s1_head.packet.opcode;
   assign s1_funct3_ex   = s1_head.packet.funct3;
   assign s1_funct7_ex   = s1_head.packet.funct7;
-  assign s1_rd_ex       = s1_head.renamed_tag;
+  assign s1_rd_addr_ex       = s1_head.renamed_tag;
   assign s1_rs1_addr_ex = s1_head.packet.rs1;
   assign s1_rs2_addr_ex = s1_head.packet.rs2;
   assign s1_imm_ex      = s1_head.packet.imm;

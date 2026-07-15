@@ -5,7 +5,7 @@ import cache_pkg::*;
 // Instruction cache — dual combinational fetch (see project_outline.txt I$).
 // 0) 32 KiB byte-addressed space; each entry = valid + ILEN=32 LE word (33b).
 // 1) 2-way set-assoc over PC[14:2]: INDEX_W=13, 4096 sets × 2 ways (4 B/entry).
-// 2) Combinational dual read; miss (valid=0) => 32'h0.
+// 2) Combinational dual read; miss => instr=32'h0 and i*_valid=0.
 // 3) Sequential miss/refill — not implemented.
 module instruction_cache #(
   parameter integer INDEX_W = PC_INDEX_AW,
@@ -22,7 +22,9 @@ module instruction_cache #(
 
   //output data
   output instr_t  instr0,
-  output instr_t  instr1
+  output instr_t  instr1,
+  output logic    i0_valid,
+  output logic    i1_valid
 );
 
   // -------------------------------------------------------------------------
@@ -55,8 +57,10 @@ module instruction_cache #(
   assign i0_entry = bank[i0_lookup_set][i0_lookup_way];
   assign i1_entry = bank[i1_lookup_set][i1_lookup_way];
 
-  assign instr0 = cache_way_read(i0_entry, MISS_DATA, DATA_W);
-  assign instr1 = cache_way_read(i1_entry, MISS_DATA, DATA_W);
+  assign instr0   = cache_way_read(i0_entry, MISS_DATA, DATA_W);
+  assign instr1   = cache_way_read(i1_entry, MISS_DATA, DATA_W);
+  assign i0_valid = i0_entry[DATA_W];
+  assign i1_valid = i1_entry[DATA_W];
 
   // Bank clear on reset; TB/external preload until section 3 miss/refill exists.
   integer s;

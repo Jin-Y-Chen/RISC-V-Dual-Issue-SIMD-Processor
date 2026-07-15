@@ -32,17 +32,17 @@ module rename_core_struct (
   input  opcode_t     i0_opcode_rn,
   input  funct3_t     i0_funct3_rn,
   input  funct7_t     i0_funct7_rn,
-  input  gpr_addr_t   i0_rd_rn,
-  input  gpr_addr_t   i0_rs1_rn,
-  input  gpr_addr_t   i0_rs2_rn,
+  input  gpr_addr_t   i0_rd_addr_rn,
+  input  gpr_addr_t   i0_rs1_addr_rn,
+  input  gpr_addr_t   i0_rs2_addr_rn,
   input  word_t       i0_imm_rn,
   input  word_t       i0_pc_rn,
   input  opcode_t     i1_opcode_rn,
   input  funct3_t     i1_funct3_rn,
   input  funct7_t     i1_funct7_rn,
-  input  gpr_addr_t   i1_rd_rn,
-  input  gpr_addr_t   i1_rs1_rn,
-  input  gpr_addr_t   i1_rs2_rn,
+  input  gpr_addr_t   i1_rd_addr_rn,
+  input  gpr_addr_t   i1_rs1_addr_rn,
+  input  gpr_addr_t   i1_rs2_addr_rn,
   input  word_t       i1_imm_rn,
   input  word_t       i1_pc_rn,
 
@@ -70,8 +70,8 @@ module rename_core_struct (
   output funct3_t     i1_funct3_disp,
   output funct7_t     i0_funct7_disp,
   output funct7_t     i1_funct7_disp,
-  output gpr_addr_t   i0_rd_disp,
-  output gpr_addr_t   i1_rd_disp,
+  output gpr_addr_t   i0_rd_addr_disp,
+  output gpr_addr_t   i1_rd_addr_disp,
   output prf_addr_t   i0_ps1_disp,
   output prf_addr_t   i0_ps2_disp,
   output prf_addr_t   i0_prd_disp,
@@ -90,8 +90,8 @@ module rename_core_struct (
   output logic        commit1_en,
   output logic        commit0_reg_write,
   output logic        commit1_reg_write,
-  output gpr_addr_t   commit0_rd,
-  output gpr_addr_t   commit1_rd,
+  output gpr_addr_t   commit0_rd_addr,
+  output gpr_addr_t   commit1_rd_addr,
   output prf_addr_t   commit0_prd,
   output prf_addr_t   commit1_prd,
   output word_t       commit0_result,
@@ -101,8 +101,8 @@ module rename_core_struct (
   // -------------------------------------------------------------------------
   // Rename request decode
   // -------------------------------------------------------------------------
-  wire i0_rd_wen = i0_valid_rn && i0_reg_write_rn && (i0_rd_rn != '0);
-  wire i1_rd_wen = i1_valid_rn && i1_reg_write_rn && (i1_rd_rn != '0);
+  wire i0_rd_wen = i0_valid_rn && i0_reg_write_rn && (i0_rd_addr_rn != '0);
+  wire i1_rd_wen = i1_valid_rn && i1_reg_write_rn && (i1_rd_addr_rn != '0);
   wire has_valid = i0_valid_rn || i1_valid_rn;
 
   wire fl_req0 = i0_rd_wen;
@@ -135,8 +135,8 @@ module rename_core_struct (
     i0_meta.opcode    = i0_opcode_rn;
     i0_meta.funct3    = i0_funct3_rn;
     i0_meta.funct7    = i0_funct7_rn;
-    i0_meta.rs1       = i0_rs1_rn;
-    i0_meta.rs2       = i0_rs2_rn;
+    i0_meta.rs1       = i0_rs1_addr_rn;
+    i0_meta.rs2       = i0_rs2_addr_rn;
     i0_meta.imm       = i0_imm_rn;
     i0_meta.pc        = i0_pc_rn;
 
@@ -146,8 +146,8 @@ module rename_core_struct (
     i1_meta.opcode    = i1_opcode_rn;
     i1_meta.funct3    = i1_funct3_rn;
     i1_meta.funct7    = i1_funct7_rn;
-    i1_meta.rs1       = i1_rs1_rn;
-    i1_meta.rs2       = i1_rs2_rn;
+    i1_meta.rs1       = i1_rs1_addr_rn;
+    i1_meta.rs2       = i1_rs2_addr_rn;
     i1_meta.imm       = i1_imm_rn;
     i1_meta.pc        = i1_pc_rn;
   end
@@ -157,7 +157,7 @@ module rename_core_struct (
   // -------------------------------------------------------------------------
   logic        cmt0_en, cmt1_en;
   logic        cmt0_reg_write, cmt1_reg_write;
-  gpr_addr_t   cmt0_rd, cmt1_rd;
+  gpr_addr_t   cmt0_rd_addr, cmt1_rd_addr;
   prf_addr_t   cmt0_prd, cmt1_prd;
   prf_addr_t   cmt0_prd_old, cmt1_prd_old;
   word_t       cmt0_result, cmt1_result;
@@ -203,26 +203,26 @@ module rename_core_struct (
     .i0_rs2_use      (i0_rs2_use_rn),
     .i1_rs1_use      (i1_rs1_use_rn),
     .i1_rs2_use      (i1_rs2_use_rn),
-    .i0_rs1_addr     (arch_addr_t'(i0_rs1_rn)),
-    .i0_rs2_addr     (arch_addr_t'(i0_rs2_rn)),
-    .i1_rs1_addr     (arch_addr_t'(i1_rs1_rn)),
-    .i1_rs2_addr     (arch_addr_t'(i1_rs2_rn)),
+    .i0_rs1_addr     (arch_addr_t'(i0_rs1_addr_rn)),
+    .i0_rs2_addr     (arch_addr_t'(i0_rs2_addr_rn)),
+    .i1_rs1_addr     (arch_addr_t'(i1_rs1_addr_rn)),
+    .i1_rs2_addr     (arch_addr_t'(i1_rs2_addr_rn)),
     .i0_ps1_tag      (i0_ps1),
     .i0_ps2_tag      (i0_ps2),
     .i1_ps1_tag      (i1_ps1),
     .i1_ps2_tag      (i1_ps2),
     .i0_rd_wen       (fl_alloc0),
     .i1_rd_wen       (fl_alloc1),
-    .i0_rd_addr      (arch_addr_t'(i0_rd_rn)),
-    .i1_rd_addr      (arch_addr_t'(i1_rd_rn)),
+    .i0_rd_addr      (arch_addr_t'(i0_rd_addr_rn)),
+    .i1_rd_addr      (arch_addr_t'(i1_rd_addr_rn)),
     .i0_prd_new_tag  (fl_alloc0_preg),
     .i1_prd_new_tag  (fl_alloc1_preg),
     .i0_prd_old_tag  (i0_prd_old),
     .i1_prd_old_tag  (i1_prd_old),
     .commit0_en      (fl_free0),
     .commit1_en      (fl_free1),
-    .commit0_rd      (arch_addr_t'(cmt0_rd)),
-    .commit1_rd      (arch_addr_t'(cmt1_rd)),
+    .commit0_rd_addr (arch_addr_t'(cmt0_rd_addr)),
+    .commit1_rd_addr (arch_addr_t'(cmt1_rd_addr)),
     .commit0_prd     (cmt0_prd),
     .commit1_prd     (cmt1_prd)
   );
@@ -246,8 +246,8 @@ module rename_core_struct (
     .alloc1_valid     (i1_valid_rn),
     .alloc0_reg_write (i0_rd_wen),
     .alloc1_reg_write (i1_rd_wen),
-    .alloc0_rd        (i0_rd_rn),
-    .alloc1_rd        (i1_rd_rn),
+    .alloc0_rd_addr   (i0_rd_addr_rn),
+    .alloc1_rd_addr   (i1_rd_addr_rn),
     .alloc0_prd       (i0_prd),
     .alloc1_prd       (i1_prd),
     .alloc0_prd_old   (i0_prd_old),
@@ -267,8 +267,8 @@ module rename_core_struct (
     .commit1_en       (cmt1_en),
     .commit0_reg_write(cmt0_reg_write),
     .commit1_reg_write(cmt1_reg_write),
-    .commit0_rd       (cmt0_rd),
-    .commit1_rd       (cmt1_rd),
+    .commit0_rd_addr  (cmt0_rd_addr),
+    .commit1_rd_addr  (cmt1_rd_addr),
     .commit0_prd      (cmt0_prd),
     .commit1_prd      (cmt1_prd),
     .commit0_prd_old  (cmt0_prd_old),
@@ -296,8 +296,8 @@ module rename_core_struct (
   assign i1_funct3_disp    = i1_funct3_rn;
   assign i0_funct7_disp    = i0_funct7_rn;
   assign i1_funct7_disp    = i1_funct7_rn;
-  assign i0_rd_disp        = i0_rd_rn;
-  assign i1_rd_disp        = i1_rd_rn;
+  assign i0_rd_addr_disp   = i0_rd_addr_rn;
+  assign i1_rd_addr_disp   = i1_rd_addr_rn;
   assign i0_ps1_disp       = i0_ps1;
   assign i0_ps2_disp       = i0_ps2;
   assign i0_prd_disp       = i0_prd;
@@ -315,8 +315,8 @@ module rename_core_struct (
   assign commit1_en        = cmt1_en;
   assign commit0_reg_write = cmt0_reg_write;
   assign commit1_reg_write = cmt1_reg_write;
-  assign commit0_rd        = cmt0_rd;
-  assign commit1_rd        = cmt1_rd;
+  assign commit0_rd_addr   = cmt0_rd_addr;
+  assign commit1_rd_addr   = cmt1_rd_addr;
   assign commit0_prd       = cmt0_prd;
   assign commit1_prd       = cmt1_prd;
   assign commit0_result    = cmt0_result;

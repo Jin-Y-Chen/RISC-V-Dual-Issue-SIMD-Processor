@@ -56,12 +56,12 @@ module ex_mem_wb_tb;
   logic [31:0] od1_wdata_mem;
 
   logic        push0_valid;
-  logic [4:0]  push0_rd;
+  logic [4:0]  push0_rd_addr;
   logic [31:0] push0_wdata;
   logic [31:0] push0_pc;
 
   logic        push1_valid;
-  logic [4:0]  push1_rd;
+  logic [4:0]  push1_rd_addr;
   logic [31:0] push1_wdata;
   logic [31:0] push1_pc;
 
@@ -148,11 +148,11 @@ module ex_mem_wb_tb;
   );
     bit pass;
     pass = (push0_valid === exp_valid) && (!exp_valid ||
-            ((push0_rd === exp_rd) && (push0_wdata === exp_wdata) && (push0_pc === exp_pc)));
+            ((push0_rd_addr === exp_rd) && (push0_wdata === exp_wdata) && (push0_pc === exp_pc)));
     tb_report_open(pass, name, detail);
     tb_field_bit("push0_valid", push0_valid, exp_valid);
     if (exp_valid) begin
-      tb_field_u5("push0_rd", push0_rd, exp_rd);
+      tb_field_u5("push0_rd_addr", push0_rd_addr, exp_rd);
       tb_field_u32("push0_wdata", push0_wdata, exp_wdata);
       tb_field_u32("push0_pc", push0_pc, exp_pc);
     end
@@ -169,11 +169,11 @@ module ex_mem_wb_tb;
   );
     bit pass;
     pass = (push1_valid === exp_valid) && (!exp_valid ||
-            (push1_rd === exp_rd && push1_wdata === exp_wdata));
+            (push1_rd_addr === exp_rd && push1_wdata === exp_wdata));
     tb_report_open(pass, name, detail);
     tb_field_bit("push1_valid", push1_valid, exp_valid);
     if (exp_valid) begin
-      tb_field_u5("push1_rd", push1_rd, exp_rd);
+      tb_field_u5("push1_rd_addr", push1_rd_addr, exp_rd);
       tb_field_u32("push1_wdata", push1_wdata, exp_wdata);
     end
     tb_report_close(pass);

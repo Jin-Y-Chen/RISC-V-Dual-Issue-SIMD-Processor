@@ -12,9 +12,9 @@ module decoder_gm (
   output opcode_t     opcode,
   output funct3_t     funct3,
   output funct7_t     funct7,
-  output gpr_addr_t   rd,
-  output gpr_addr_t   rs1,
-  output gpr_addr_t   rs2,
+  output gpr_addr_t   rd_addr,
+  output gpr_addr_t   rs1_addr,
+  output gpr_addr_t   rs2_addr,
   output word_t       imm,
   output logic        valid,
   output logic        rs1_use,
@@ -113,10 +113,10 @@ module decoder_gm (
     endcase
   end
 
-  assign rd  = (opc_raw == OPC_STORE || opc_raw == OPC_BRANCH) ? 5'd0 : instr[11:7];
-  assign rs1 = (opc_raw == OPC_LUI || opc_raw == OPC_AUIPC || opc_raw == OPC_JAL)
+  assign rd_addr  = (opc_raw == OPC_STORE || opc_raw == OPC_BRANCH) ? 5'd0 : instr[11:7];
+  assign rs1_addr = (opc_raw == OPC_LUI || opc_raw == OPC_AUIPC || opc_raw == OPC_JAL)
                ? 5'd0 : instr[19:15];
-  assign rs2 = row.rs2_use ? instr[24:20] : 5'd0;
+  assign rs2_addr = row.rs2_use ? instr[24:20] : 5'd0;
   assign imm = imm_lut(row.imm_sel, instr);
 
   assign lane_sel  = row.lane_sel;
@@ -125,7 +125,7 @@ module decoder_gm (
   assign jump_en   = valid && row.jump_en;
   assign rs1_use   = row.rs1_use;
   assign rs2_use   = row.rs2_use;
-  assign reg_write = (rd == 5'd0) ? 1'b0 :
+  assign reg_write = (rd_addr == 5'd0) ? 1'b0 :
                      (opc_raw == OPC_LOAD) ? (valid && row.reg_write_base) :
                      row.reg_write_base;
 

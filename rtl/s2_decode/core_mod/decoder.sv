@@ -14,9 +14,9 @@ module decoder (
   output opcode_t     opcode,
   output funct3_t     funct3,
   output funct7_t     funct7,
-  output gpr_addr_t   rd,
-  output gpr_addr_t   rs1,
-  output gpr_addr_t   rs2,
+  output gpr_addr_t   rd_addr,
+  output gpr_addr_t   rs1_addr,
+  output gpr_addr_t   rs2_addr,
   output word_t       imm,
 
   // output controls
@@ -38,9 +38,9 @@ module decoder (
   assign opcode     = opcode_raw;
   assign funct3     = decode_funct3_gpr(opcode_raw, instr);
   assign funct7     = decode_funct7_gpr(opcode_raw, funct3_raw, instr);
-  assign rd         = decode_rd_gpr(opcode_raw, instr);
-  assign rs1        = decode_rs1_gpr(opcode_raw, instr);
-  assign rs2        = decode_rs2_gpr(opcode_raw, instr);
+  assign rd_addr    = decode_rd_gpr(opcode_raw, instr);
+  assign rs1_addr   = decode_rs1_gpr(opcode_raw, instr);
+  assign rs2_addr   = decode_rs2_gpr(opcode_raw, instr);
   assign imm        = decode_imm(opcode_raw, funct3_raw, instr);
 
   assign lane_sel   = decode_lane_sel(opcode_raw);
@@ -49,6 +49,6 @@ module decoder (
   assign jump_en    = valid && decode_jump_en(opcode_raw);
   assign rs1_use    = decode_rs1_use(opcode_raw);
   assign rs2_use    = decode_rs2_use(opcode_raw);
-  assign reg_write  = decode_reg_write(opcode_raw, funct3_raw, rd);
+  assign reg_write  = decode_reg_write(opcode_raw, funct3_raw, rd_addr);
 
 endmodule

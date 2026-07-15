@@ -54,10 +54,10 @@ module ex_mem_wb (
   output word_t         ev1_pc_exwb,
   output word_t        od0_wdata_mem,
   output word_t        od1_wdata_mem,
-  output gpr_addr_t   push0_rd,
+  output gpr_addr_t   push0_rd_addr,
   output word_t        push0_wdata,
   output word_t         push0_pc,
-  output gpr_addr_t   push1_rd,
+  output gpr_addr_t   push1_rd_addr,
   output word_t        push1_wdata,
   output word_t         push1_pc
 );
@@ -139,12 +139,12 @@ module ex_mem_wb (
 
   // output controls/data — 4→2 retire merge (slot I0 then I1)
   assign push0_valid = enable && (ev0_reg_write_ex | od0_reg_write_mem);
-  assign push0_rd    = ev0_reg_write_ex ? ev0_rd_addr_ex : od0_rd_addr_mem;
+  assign push0_rd_addr    = ev0_reg_write_ex ? ev0_rd_addr_ex : od0_rd_addr_mem;
   assign push0_wdata = ev0_reg_write_ex ? ev0_wdata_ex   : od0_wdata_mem;
   assign push0_pc    = ev0_reg_write_ex ? ev0_pc_ex      : od0_pc_mem;
 
   assign push1_valid = enable && (ev1_reg_write_ex | od1_reg_write_mem);
-  assign push1_rd    = ev1_reg_write_ex ? ev1_rd_addr_ex : od1_rd_addr_mem;
+  assign push1_rd_addr    = ev1_reg_write_ex ? ev1_rd_addr_ex : od1_rd_addr_mem;
   assign push1_wdata = ev1_reg_write_ex ? ev1_wdata_ex   : od1_wdata_mem;
   assign push1_pc    = ev1_reg_write_ex ? ev1_pc_ex      : od1_pc_mem;
 

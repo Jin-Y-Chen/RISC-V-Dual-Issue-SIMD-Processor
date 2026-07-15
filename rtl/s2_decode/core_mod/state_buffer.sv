@@ -101,6 +101,7 @@ module state_buffer #(
 
   integer s;
   integer w;
+  // Training commits on negedge clk (same as BTB / register_file).
   always @(negedge clk or negedge rst_n) begin
     if (!rst_n) begin
       for (s = 0; s < SETS; s = s + 1) begin

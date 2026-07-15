@@ -1,7 +1,8 @@
 `timescale 1ns / 1ps
 
 // S1 fetch structure — PC + instruction cache + branch target buffer (dual-issue pair).
-// Speculation: registered branch_map loops through pc <-> pc_selector.
+// Speculation: per-lane registered flags (spec0/spec1) loop through pc <-> pc_selector.
+// Mode (+4/+4 vs +8/+8) is computed inside pc from spec0_in ^ spec1_in.
 // Nested-speculation freeze comes from decode target_predict (spec*_stall).
 import rv_dis_pkg::*;
 
@@ -41,17 +42,27 @@ module s1_fetch_struct #(
   output instr_t        instr1,
 
   // output controls
-  output br_map_t       branch_map,
+  output logic          spec0_en,
+  output logic          spec1_en,
   output logic          i0_valid,
-  output logic          i1_valid
+  output logic          i1_valid,
+  output logic          i0_target_valid,
+  output logic          i1_target_valid
 );
 
-  br_map_t branch_map_q;
-  br_map_t branch_map_next;
-  word_t   pc0_next;
-  word_t   pc1_next;
+  logic  spec0;
+  logic  spec1;
+  logic  spec0_next;
+  logic  spec1_next;
+  logic  i0_btb_valid;
+  logic  i1_btb_valid;
+  word_t pc0_next;
+  word_t pc1_next;
 
-  assign branch_map = branch_map_next;
+  assign spec0_en        = spec0_next;
+  assign spec1_en        = spec1_next;
+  assign i0_target_valid = i0_btb_valid;
+  assign i1_target_valid = i1_btb_valid;
 
   pc #(
     .RESET_PC(RESET_PC)
@@ -62,21 +73,25 @@ module s1_fetch_struct #(
     .dispatch_stall  (dispatch_stall),
     .spec0_stall     (spec0_stall),
     .spec1_stall     (spec1_stall),
-    .branch_map_in   (branch_map_next),
+    .spec0_in        (spec0_next),
+    .spec1_in        (spec1_next),
     .pc0_in          (pc0_next),
     .pc1_in          (pc1_next),
     .pc0_out         (pc0),
     .pc1_out         (pc1),
-    .branch_map_out  (branch_map_q)
+    .spec0_out       (spec0),
+    .spec1_out       (spec1)
   );
 
   instruction_cache u_icache (
-    .clk    (clk),
-    .rst_n  (rst_n),
-    .pc0    (pc0),
-    .pc1    (pc1),
-    .instr0 (instr0),
-    .instr1 (instr1)
+    .clk      (clk),
+    .rst_n    (rst_n),
+    .pc0      (pc0),
+    .pc1      (pc1),
+    .instr0   (instr0),
+    .instr1   (instr1),
+    .i0_valid (i0_valid),
+    .i1_valid (i1_valid)
   );
 
   target_buffer u_target (
@@ -90,14 +105,15 @@ module s1_fetch_struct #(
     .i1_pc_wb        (i1_pc_wb),
     .i0_pc_target_wb (i0_pc_target_wb),
     .i1_pc_target_wb (i1_pc_target_wb),
-    .i0_valid        (i0_valid),
-    .i1_valid        (i1_valid),
+    .i0_valid        (i0_btb_valid),
+    .i1_valid        (i1_btb_valid),
     .i0_pc_target    (i0_pc_target),
     .i1_pc_target    (i1_pc_target)
   );
 
   pc_selector u_pc_sel (
-    .branch_map_in   (branch_map_q),
+    .spec0_in        (spec0),
+    .spec1_in        (spec1),
     .i0_pred_taken   (i0_pred_taken),
     .i1_pred_taken   (i1_pred_taken),
     .i0_brch_recover (i0_brch_recover),
@@ -108,7 +124,8 @@ module s1_fetch_struct #(
     .i1_pc_target    (i1_pc_target),
     .i0_pc_execute   (i0_pc_execute),
     .i1_pc_execute   (i1_pc_execute),
-    .branch_map_out  (branch_map_next),
+    .spec0_out       (spec0_next),
+    .spec1_out       (spec1_next),
     .pc0_out         (pc0_next),
     .pc1_out         (pc1_next)
   );

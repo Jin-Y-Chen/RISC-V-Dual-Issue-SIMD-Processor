@@ -20,11 +20,21 @@ S1_Fetch:
 
         Instantiates pc, instruction_cache, target_buffer, and pc_selector.
         Registered pc0/pc1 feed I$ and BTB; BTB targets and execute recovery feed
-        pc_selector; selector next-PC / mode / per-lane spec flags feed pc.
+        pc_selector; selector pc0_out / pc1_out / per-lane spec flags feed pc.
+        Mode (+4/+4 vs +8/+8) is computed inside pc from spec0_in ^ spec1_in.
         Nested-speculation freeze enters as spec0_stall / spec1_stall from decode
         target_predict (not generated inside pc_selector). External predict/recover
-        and WB train ports stay at the struct boundary. BTB i0_valid / i1_valid are
-        available for hit visibility; predict-taken is driven from outside.
+        and WB train ports stay at the struct boundary. Struct i0_valid / i1_valid
+        come from the I$ entry valid bits (instruction present); BTB hit stays
+        internal. Predict-taken is driven from outside.
+
+        Per-lane speculation (design rule):
+            Speculative fetch is lane-owned. If I0 takes a branch, I0 follows the taken
+            path and holds spec0; if I1 takes a branch, I1 follows the taken path and
+            holds spec1. There is no forced remapping that always puts the taken stream
+            on I0 and fall-through on I1. That keeps IF/ID/decode spec0_en / spec1_en
+            aligned with which slot actually speculated (so a branch fetched in I1 does
+            not falsely mark I0 as speculative).
 
     Program Counter (PC):                                   [Verified - Done]   [Proof - TBD]
             Path: `rtl/s1_fetch/core_mod/pc.sv`
@@ -38,7 +48,6 @@ S1_Fetch:
             input  logic          dispatch_stall,
             input  logic          spec0_stall,
             input  logic          spec1_stall,
-            input  logic          mode,
             input  logic          spec0_in,
             input  logic          spec1_in,
 
@@ -57,13 +66,14 @@ S1_Fetch:
         0. Structure and Specification:
 
             The PC unit is a registered dual-issue address generator. It owns two 32-bit
-            byte addresses, pc0_out and pc1_out, for the even (I0) and odd (I1) fetch
-            lanes, plus two registered speculation flags (spec0_out / spec1_out) that
-            record whether each lane's last enabled update was under speculative control.
-            The module does not decode branches or read the BTB. It only (1) aligns
-            pc0_in / pc1_in to 4-byte boundaries, (2) adds a mode-selected increment when
-            enabled and not stalled, and (3) latches PCs and spec flags on the clock edge.
-            Bases, mode, and next spec bits come from pc_selector. Stall is
+            byte addresses, pc0_out and pc1_out, for the I0 and I1 fetch lanes, plus two
+            registered speculation flags (spec0_out / spec1_out) that record whether
+            each lane is currently on a speculative path. The flags are independent:
+            spec0 tracks I0; spec1 tracks I1. The module does not decode branches or
+            read the BTB. It only (1) aligns pc0_in / pc1_in to 4-byte boundaries,
+            (2) computes local mode from next-spec bits and adds the selected increment
+            when enabled and not stalled, and (3) latches PCs and spec flags on the
+            clock edge. Bases and next spec bits come from pc_selector. Stall is
             dispatch_stall | spec0_stall | spec1_stall (decode nested-speculation and
             dispatch back-pressure). On reset, pc0_out <= RESET_PC, pc1_out <= RESET_PC+4,
             and both spec flags clear.
@@ -71,22 +81,25 @@ S1_Fetch:
         1. Dual PC adder with mode selection:
 
             After alignment, pc0_a = {pc0_in[31:2], 2'b00} and pc1_a = {pc1_in[31:2], 2'b00}.
+            Local: mode = spec0_in ^ spec1_in (exactly one next-spec lane).
             When enable is high and neither stall is asserted, mode selects the increment:
 
             | mode | Name                  | pc0_next  | pc1_next  | Use case                                   |
             |------|-----------------------|-----------|-----------|--------------------------------------------|
             | 0    | sequential dual-issue | pc0_a + 8 | pc1_a + 8 | straight-line; next 8-byte bundle          |
-            | 1    | speculative / split   | pc0_a + 4 | pc1_a + 4 | divergent bases from pc_selector           |
+            | 1    | speculative / split   | pc0_a + 4 | pc1_a + 4 | each lane advances its own stream by +4    |
 
             If enable is low or dispatch_stall | spec0_stall | spec1_stall is high, PCs
             and spec flags hold; the pair does not move.
 
         2. Branch Speculation and Stalls Behavior:
 
-            Speculation is a cross-module contract. pc_selector drives pc0_in / pc1_in,
-            mode, and spec0_in / spec1_in; `pc.sv` latches and feeds spec0_out / spec1_out
+            Speculation is a cross-module contract. pc_selector drives pc0_in / pc1_in
+            and spec0_in / spec1_in; `pc.sv` latches and feeds spec0_out / spec1_out
             back to the selector. Nested-speculation stall is produced in decode
             target_predict and enters here as spec*_stall (not from pc_selector).
+            Because each flag is lane-local, decode nest-stall for lane N only trips
+            when that same lane's spec_n is already set.
 
             | Signal          | Direction      | Role                                                           |
             |-----------------|----------------|----------------------------------------------------------------|
@@ -94,9 +107,9 @@ S1_Fetch:
             | spec0_out/1_out | pc -> sel      | Registered flags; fed back for next-spec computation           |
             | spec0/1_stall   | decode -> pc   | Freeze PC when a branch/jump arrives while already speculative |
             | dispatch_stall  | dispatch -> pc | Freeze PC independently; holds PC and spec flags               |
-            | mode            | sel -> pc      | +8/+8 (0) vs +4/+4 (1)                                         |
+            | spec0/1_in      | sel -> pc      | Also form mode: XOR => +4/+4; equal => +8/+8                   |
 
-            On recovery, pc_selector clears both next-spec bits, sets mode=0, and reloads
+            On recovery, pc_selector clears both next-spec bits (mode=0) and reloads
             bases past the resolved branch (execute+4 / execute+8). Pipeline flush lives
             in decode/dispatch, not in `pc.sv`.
 
@@ -119,26 +132,32 @@ S1_Fetch:
             input  logic [31:0]   i0_pc_execute,
             input  logic [31:0]   i1_pc_execute,
 
-            // output data
-            output logic          mode,
+            // output controls
             output logic          spec0_out,
             output logic          spec1_out,
+
+            // PC bases → pc (pc0_in / pc1_in)
             output logic [31:0]   pc0_out,
             output logic [31:0]   pc1_out
 
         0. Structure and Specification:
 
             pc_selector is a purely combinational routing block among the registered PC
-            pair, BTB targets, and execute recovery. It does not increment addresses;
-            that is `pc.sv`'s job. Each cycle it drives aligned pc0_out / pc1_out as the
-            bases `pc.sv` will add to, plus mode and next-lane speculation flags.
-            It does not generate a fetch stall: nested speculation is blocked in decode
-            by target_predict (spec_stall -> pc.spec*_stall).
+            pair, BTB targets, and execute recovery. It does not apply the sequential
+            / split stride; that is `pc.sv`'s job (local mode from next-spec XOR).
+            Each cycle it drives aligned pc0_out / pc1_out as the bases `pc.sv` will
+            add to, plus next per-lane speculation flags. It does not generate a fetch
+            stall: nested speculation is blocked in decode by target_predict
+            (spec_stall -> pc.spec*_stall).
+
+            Taken vs fall-through is per predicting lane (not a fixed I0=taken /
+            I1=fall-through convention). A predict on I0 steers I0's base to the
+            target; a predict on I1 steers I1's base to the target.
 
         1. Dual PC Selection Priority without speculation:
 
             Default (no predict, no recovery): pc0_out = align(pc0_in),
-            pc1_out = align(pc1_in); `pc.sv` then applies mode=0 (+8/+8).
+            pc1_out = align(pc1_in); `pc.sv` then applies +8/+8 (mode=0).
 
             Predict mux (recovery overrides; see §4):
 
@@ -146,32 +165,38 @@ S1_Fetch:
             |---------------------|--------------------------|---------------------------------|
             | i0_pred && i1_pred  | align(i0_pc_target)      | align(i0_pc_target) + 4         |
             | i0_pred only        | align(i0_pc_target)      | align(pc1_in)                   |
-            | i1_pred only        | align(i1_pc_target)      | align(pc0_in)                   |
+            | i1_pred only        | align(pc0_in)            | align(i1_pc_target)             |
 
-        2. Mode and Control signals:
+            i1_pred-only: only pc1_out updates to the branch target (spec path stays on
+            I1); next-spec becomes asymmetric so `pc.sv` mode=1 (+4/+4). pc0_out is
+            left as align(pc0_in) — by the time predict feeds back, that registered pc0
+            is already the next-cycle base from the prior +8 advance, so I0 does not
+            need an extra +4 nudge here.
+
+        2. Control signals:
 
             | Output     | Asserted when                                         | Effect on `pc.sv`                 |
             |------------|-------------------------------------------------------|-----------------------------------|
-            | spec0_out  | (pred_any | spec0_in) && !recover_any                 | latched as spec0_out              |
-            | spec1_out  | (pred_any | spec1_in) && !recover_any                 | latched as spec1_out              |
-            | mode       | exactly one of i0_pred / i1_pred (XOR), !recover      | +4/+4; else +8/+8                 |
+            | spec0_out  | (i0_pred_taken | spec0_in) && !recover_any            | latched; forms mode via XOR      |
+            | spec1_out  | (i1_pred_taken | spec1_in) && !recover_any            | latched; forms mode via XOR      |
 
-            recover_any = i0_brch_recover | i1_brch_recover; pred_any = i0_pred | i1_pred.
-            Recovery clears both next-spec bits and mode.
+            recover_any = i0_brch_recover | i1_brch_recover.
+            Speculation is sticky per lane: only the predicting lane's flag ORs in;
+            the other lane is not forced speculative. Recovery clears both next-spec
+            bits so `pc.sv` mode goes to 0.
 
         3. Branch Speculation Behavior:
 
-            | i0_pred | i1_pred | mode | `pc.sv` increment | Notes                            |
-            |---------|---------|------|-------------------|----------------------------------|
-            | 0       | 0       | 0    | +8 / +8           | straight-line or recovery        |
-            | 1       | 0       | 1    | +4 / +4           | split streams                    |
-            | 0       | 1       | 1    | +4 / +4           | split streams                    |
-            | 1       | 1       | 0    | +8 / +8           | both taken; I0 target pair       |
+            | i0_pred | i1_pred | next-spec (ex. sticky 0) | pc mode | increment | Notes                         |
+            |---------|---------|--------------------------|---------|-----------|-------------------------------|
+            | 0       | 0       | 0 / 0                    | 0       | +8 / +8   | straight-line or recovery     |
+            | 1       | 0       | 1 / 0                    | 1       | +4 / +4   | I0 taken; I1 falls through    |
+            | 0       | 1       | 0 / 1                    | 1       | +4 / +4   | I1 taken; pc0 unchanged       |
+            | 1       | 1       | 1 / 1                    | 0       | +8 / +8   | both taken; I0 target pair    |
 
-            Any predict without recovery sets next-spec bits from pred_any | prior flags.
-            Nested branch/jump while speculative is stalled by decode target_predict
-            (spec_stall), which freezes `pc.sv` via spec*_stall; this module does not
-            assert a stall of its own.
+            Nested branch/jump while that lane is already speculative is stalled by
+            decode target_predict (spec_stall), which freezes `pc.sv` via spec*_stall;
+            this module does not assert a stall of its own.
 
         4. Branch Recovery Behavior:
 
@@ -182,7 +207,7 @@ S1_Fetch:
             | 1        | i0_brch_recover    | align(i0_pc_execute) + 4        | align(i0_pc_execute) + 8        |
             | 2        | i1_brch_recover    | align(i1_pc_execute) + 4        | align(i1_pc_execute) + 8        |
 
-            Recovery clears next-spec and mode so `pc.sv` resumes +8/+8 from the
+            Recovery clears next-spec (mode=0); `pc.sv` resumes +8/+8 from the
             post-branch pair on the next enabled update. Flush remains outside pc_selector.
 
     Instruction Cache (Instruction_Cache):                  [Verified - Done]   [Proof - TBD]
@@ -198,7 +223,9 @@ S1_Fetch:
 
             //output data
             output instr_t  instr0,
-            output instr_t  instr1
+            output instr_t  instr1,
+            output logic    i0_valid,
+            output logic    i1_valid
 
         0. Structure and Specification:
 
@@ -211,8 +238,8 @@ S1_Fetch:
             slots using PC[14:2]. Lookups are combinational; clk and rst_n clear the
             bank on reset. Until sequential miss/refill exists, simulation
             (instruction_cache_tb) or an external loader preloads valid entries. The
-            module exposes pc0/pc1 in and instr0/instr1 out and does not yet arbitrate
-            misses, refill, or coherence.
+            module exposes pc0/pc1 in, instr0/instr1, and i0_valid/i1_valid out and
+            does not yet arbitrate misses, refill, or coherence.
 
         1. 2-way Set-Associative Bank (4-byte instruction word per entry):
 
@@ -237,9 +264,8 @@ S1_Fetch:
             bank[i1_lookup_set][i1_lookup_way] from pc1. Each lookup is
             combinational through cache_way_read: if the selected entry's valid bit
             is set, instrN is the stored word; if valid=0 (cold miss), the default
-            data 32'h0 is returned. There is no fall-through PC-based default, so an
-            empty slot is indistinguishable from a real all-zero instruction unless
-            valid is set.
+            data 32'h0 is returned. i0_valid / i1_valid export that same entry valid
+            bit so a cold miss is distinct from a stored all-zero word.
 
             Because indexing is direct-mapped by PC set/way (not tag compare), each
             PC maps to exactly one bank location. Dual fetch therefore works for any
@@ -340,8 +366,8 @@ Intermediate Register (IF_ID):                              [Verified - TBD]    
             // internal controls
             input  logic        flush,
             input  logic        stall,
-            input  logic        i0_valid_if,
-            input  logic        i1_valid_if,
+            input  logic        i0_fetch_valid,
+            input  logic        i1_fetch_valid,
             input  logic        spec0_en_if,
             input  logic        spec1_en_if,
 
@@ -392,25 +418,26 @@ Intermediate Register (IF_ID):                              [Verified - TBD]    
             | i1_pc_if             | pc pc1_out            | i1_pc_id              |
             | i0_pc_target_if      | target_buffer I0      | i0_pc_target_id       |
             | i1_pc_target_if      | target_buffer I1      | i1_pc_target_id       |
-            | i0_valid_if          | fetch i0_valid        | i0_valid_id           |
-            | i1_valid_if          | fetch i1_valid        | i1_valid_id           |
-            | spec0_en_if          | fetch spec0_en        | spec0_en_id           |
-            | spec1_en_if          | fetch spec1_en        | spec1_en_id           |
+            | i0_fetch_valid       | I$ i0_valid           | CE + i0_valid_id      |
+            | i1_fetch_valid       | I$ i1_valid           | CE + i1_valid_id      |
+            | spec0_en_if          | fetch spec0_en        | spec0_en_id (if hit)  |
+            | spec1_en_if          | fetch spec1_en        | spec1_en_id (if hit)  |
 
-            There is no per-lane enable: I0 and I1 always advance as a pair when the
-            stage updates. After predict or recovery reroute, the pair may name divergent
-            streams; the register still captures whatever IF drove that cycle.
+            Per-lane clock enable: when enable && !stall, a lane clocks instr/PC/
+            pc_target/spec only if i*_fetch_valid=1 (instruction_cache hit). A miss,
+            reset, or flush writes an architectural NOP bubble: instr = INSTR_NOP
+            (addi x0, x0, 0 = 32'h0000_0013), PC/target = 0, valid = 0, spec = 0.
 
         2. Stalls and Flush control:
 
             Update priority in the always_ff block (highest wins on a clock edge):
 
-            | Priority | Condition        | ID register behavior              |
-            |----------|------------------|-----------------------------------|
-            | 1        | !rst_n           | all outputs cleared to zero       |
-            | 2        | flush            | bubble both lanes (clear to zero) |
-            | 3        | enable && !stall | capture current IF inputs         |
-            | 4        | otherwise        | hold previous ID state            |
+            | Priority | Condition        | ID register behavior                    |
+            |----------|------------------|-----------------------------------------|
+            | 1        | !rst_n           | both lanes -> INSTR_NOP bubble          |
+            | 2        | flush            | both lanes -> INSTR_NOP bubble          |
+            | 3        | enable && !stall | capture on hit; miss -> INSTR_NOP bubble|
+            | 4        | otherwise        | hold previous ID state                  |
 
             flush empties the stage on mispredict or redirect so decode does not consume
             stale instructions after fetch realigns. stall freezes without clearing. IF
@@ -422,13 +449,14 @@ S2_Decode:
     Decode Core Structure                                   [Verified - TBD]    [Proof - TBD]
         Path: `rtl/s2_decode/decode_core_struct.sv`
 
-        Instantiates dual decoder, register_file, state_buffer, and per-lane
-        target_predict. IF/ID supplies instr/PC/pc_target plus slot valid and
-        speculation enables; WB supplies GPR wen/rd/wdata (no PC — same-rd WAW
-        always prefers I1) and branch-state train ports into state_buffer.
-        Decoded fields, GPR read data, predict targets, and spec_stall feed
-        dispatch and fetch. Nested-speculation freeze is produced here
-        (i0/i1_spec_stall) and returned to PC.     
+        Instantiates dual decoder, state_buffer, and per-lane target_predict.
+        IF/ID supplies instr/PC/pc_target plus slot valid and speculation
+        enables; WB supplies branch-state train ports into state_buffer.
+        Decode does not access the register file — only rd/rs addresses,
+        use/write flags, immediates, predict targets, and spec_stall are
+        produced (GPR read/write belongs to the issue stage). Nested-
+        speculation freeze is produced here (i0/i1_spec_stall) and returned
+        to PC.
 
     Decoder:                                                [Verified - TBD]    [Proof - TBD]
             Path: `rtl/s2_decode/core_mod/decoder.sv`
@@ -491,10 +519,11 @@ S2_Decode:
             | I1   | u_dec_i1  | u_target_predict_i1 | i1_pc, i1_pc_target       | i1_target_state |
 
             Each decoder exports lane_sel, opcode bundle, imm, valid, brch_en, jump_en,
-            rs1_use/rs2_use, and reg_write. GPR read addresses feed register_file and
-            are re-exported as i0_rs1_addr / i0_rs2_addr and i1_rs1_addr / i1_rs2_addr
-            for dispatch. state_buffer also lives in decode_core_struct. Pairing legality
-            and which lane may fire are decided later in dispatch, not inside `decoder.sv`.
+            rs1_use/rs2_use, and reg_write. GPR read addresses are exported as
+            i0_rs1_addr / i0_rs2_addr and i1_rs1_addr / i1_rs2_addr for later stages
+            (issue RF); decode_core_struct does not instantiate register_file.
+            state_buffer also lives here. Pairing legality and which lane may fire
+            are decided later in dispatch, not inside `decoder.sv`.
 
         2. Instruction Lane Differentiation:
 
@@ -507,75 +536,8 @@ S2_Decode:
 
             Unknown opcodes default lane_sel=0 but valid=0 so dispatch can squash
             illegal slots. Supported branch compare subset: BEQ, BNE, BLT, BGE; memory:
-            LW, SW. rs1_use and rs2_use gate register-file read enables; reg_write
-            suppresses writes to x0.
-
-    Register File (Register_File):                          [Verified - TBD]    [Proof - TBD]
-            Path: `rtl/s2_decode/core_mod/register_file.sv`
-
-            // external controls
-            input  logic        clk,
-            input  logic        rst_n,
-
-            // internal controls
-            input  logic        i0_rs1_use,
-            input  logic        i0_rs2_use,
-            input  logic        i1_rs1_use,
-            input  logic        i1_rs2_use,
-            input  logic        i0_valid_wb,
-            input  logic        i1_valid_wb,
-
-            // input data
-            input  gpr_addr_t   i0_rs1_addr,
-            input  gpr_addr_t   i0_rs2_addr,
-            input  gpr_addr_t   i1_rs1_addr,
-            input  gpr_addr_t   i1_rs2_addr,
-            input  gpr_addr_t   i0_rd,
-            input  gpr_addr_t   i1_rd,
-            input  word_t       i0_data_wb,
-            input  word_t       i1_data_wb,
-
-            // output data
-            output word_t       i0_rs1_data,
-            output word_t       i0_rs2_data,
-            output word_t       i1_rs1_data,
-            output word_t       i1_rs2_data
-
-        0. Structure and Specification:
-
-            register_file is the dual-issue scalar GPR file for RV32I: four combinational
-            read ports (I0 rs1/rs2, I1
-            rs1/rs2) and two writeback ports (I0/I1). Physical storage is x1-x31;
-            x0 is not stored; reads of x0 always return zero and writes to x0 are
-            suppressed. Decode supplies rs1_use/rs2_use and addresses; writeback
-            supplies i0_valid_wb/i1_valid_wb, rd, and data. Same-cycle WAW to the
-            same rd always prefers I1 (in-order dual-issue; ROB owns age). There is no
-            enable; commits occur on the falling clock edge whenever a valid WB
-            targets a nonzero rd. clk/rst_n clear the array on reset.
-
-        1. Combinational Dual Read with Forwarding:
-
-            Each read port is independent. Forwarding and WAW merge rules:
-
-            | rs_use | Same-cycle WB to same rd?     | Read data source                          |
-            |--------|-------------------------------|-------------------------------------------|
-            | 0      | n/a                           | 0 (unused operand)                        |
-            | 1      | no                            | regs[addr]                                |
-            | 1      | yes (one WB)                  | WB data (bypass)                          |
-            | 1      | yes (both lanes, same rd)     | I1 WB data (always younger of the pair)   |
-
-            Cross-lane bypass is supported: an ID read on either lane can see the other
-            lane's pending WB when addresses match. Bypass is visible before the bank
-            updates on the falling write edge.
-
-        2. Sequential Falling-edge Dual Writeback:
-
-            Training commits on negedge clk when i0_valid_wb or i1_valid_wb is set and
-            rd != x0. Dual WB can update two distinct registers in one cycle. If both
-            lanes write the same rd, only I1 updates regs[]; the I0 commit is
-            suppressed. Forwarding on the read path still exposes the winning WB
-            value in that cycle before the falling edge. After the edge, subsequent
-            reads see the committed value from regs[].
+            LW, SW. rs1_use and rs2_use mark which source operands need a later
+            register-file read (issue stage); reg_write suppresses writes to x0.
 
     Branch State Buffer (State_Buffer):                     [Verified - TBD]    [Proof - TBD]
             Path: `rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv`
@@ -672,7 +634,7 @@ S2_Decode:
             Path: `rtl/s2_decode/core_mod/brch_predict_units/target_predict.sv`
 
             // input controls
-            input  logic        pc_valid,
+            input  logic        target_valid,
             input  logic        brnch_en,
             input  logic        jump_en,
             input  logic        spec_n,
@@ -684,9 +646,9 @@ S2_Decode:
             input  word_t       pc_target,
 
             // output controls
-            output logic        predict_taken,
-            output logic        wb_valid,
-            output logic        spec_stall,
+            output logic        pred_taken,
+            output logic        pred_valid_wb,
+            output logic        nest_spec_stall,
 
             // output data
             output word_t       pc_predict,
@@ -698,7 +660,7 @@ S2_Decode:
             the matching decoder. state_buffer lives in the same struct and feeds
             target_state into each instance; the IF/ID bundle supplies pc,
             pc_target, and per-lane speculation (spec_n). Active when
-            branch_active = pc_valid && (brnch_en | jump_en) && !spec_stall.
+            branch_active = (brnch_en | jump_en) && !nest_spec_stall.
 
             Nested speculation guard: if spec_n is set and the slot is a branch or
             jump, the module disables predict/train outputs and asserts spec_stall.
@@ -709,21 +671,21 @@ S2_Decode:
 
             | target_predict port | Wired from                         | Notes                         |
             |---------------------|------------------------------------|-------------------------------|
-            | pc_valid            | i0_valid_id && decoder valid       | legal occupied slot           |
             | brnch_en            | decoder brch_en                    | branch or jump                |
             | jump_en             | decoder jump_en                    | JAL / JALR only               |
             | spec_n              | IF/ID spec0_en                     | already speculative           |
             | imm                 | decoder imm                        | sign-extended                 |
             | pc                  | IF/ID i0_pc                        | insn address                  |
             | pc_target           | IF/ID i0_pc_target                 | BTB target from fetch         |
-            | target_state        | state_buffer i0_target_state       | 2-bit direction               |
-            | predict_taken       | -> i0_predict_taken (struct export)| predict taken                 |
-            | wb_valid            | -> i0_tp_wb_valid                  | BTB train request             |
-            | spec_stall          | -> i0_spec_stall                   | freeze PC via spec*_stall     |
+            | target_valid        | IF/ID i0_target_valid_id           | BTB entry hit                 |
+            | target_state        | state_buffer i0_brch_state         | 2-bit direction (default on miss) |
+            | pred_taken          | -> i0_pred_taken (struct export)   | predict taken                 |
+            | pred_valid_wb       | -> i0_pred_valid_wb                | BTB train request             |
+            | nest_spec_stall     | -> i0_nest_spec_stall              | freeze PC via spec*_stall     |
             | pc_predict          | -> i0_pc_predict                   | next speculation address      |
 
-            When branch_active is low, predict_taken and wb_valid deassert and pc_predict
-            passes pc through unchanged. When spec_stall is high, the same quiet
+            When branch_active is low, pred_taken and pred_valid_wb deassert and pc_predict
+            passes pc through unchanged. When nest_spec_stall is high, the same quiet
             outputs apply and PC is stalled via top.
 
         1. Two Target Predictors for Instruction Parallelism:
@@ -736,25 +698,26 @@ S2_Decode:
             lane can independently assert predict_taken, wb_valid, and a distinct
             pc_predict while the other lane is quiescent (non-branch) or active on a
             different PC. Throughput is two independent target-predict results per
-            cycle; pc_selector in fetch still arbitrates which lane's taken signal
-            (i0_pred_taken / i1_pred_taken, driven from predict_taken in top) wins when
-            both predict control flow in the same bundle.
+            cycle; pc_selector in fetch routes each lane's taken predict onto that
+            same lane's next-PC base (i0_pred_taken / i1_pred_taken from top) and sets
+            the matching sticky spec0 / spec1 flag — not a swap that always puts taken
+            on I0 and fall-through on I1.
 
         2. Branch Target Calculation and Comparison:
 
             decode_target = align4(pc + imm) = { (pc + imm)[31:2], 2'b00 }.
             use_decode_target = (decode_target != pc_target).
+            btb_miss = !target_valid.
 
-            | branch_active | use_decode_target | wb_valid | pc_predict     |
-            |---------------|-------------------|----------|----------------|
-            | 0             | n/a               | 0        | pc             |
-            | 1             | 1                 | 1        | decode_target  |
-            | 1             | 0                 | 0        | pc_target      |
+            | branch_active | condition                         | pred_valid_wb | pc_predict     |
+            |---------------|-----------------------------------|---------------|----------------|
+            | 0             | n/a                               | 0             | pc             |
+            | 1             | btb_miss                          | 1             | decode_target  |
+            | 1             | use_decode_target (stale BTB)     | 1             | decode_target  |
+            | 1             | hit && !stale                     | 0             | pc_target      |
 
-            wb_valid flags a BTB train when decode and the latched BTB entry disagree
-            (miss, cold entry, or stale target). i0_tp_wb_valid / i1_tp_wb_valid are
-            exported for the target_buffer train path; top captures them but fetch-side
-            gating from decode mismatch is still TBD.
+            pred_valid_wb flags a BTB train on BTB miss (target_valid=0) or
+            decode/BTB target mismatch. Direction state miss uses DEFAULT_STATE.
 
         3. Predication from 2-bit State and Control:
 
@@ -771,7 +734,7 @@ S2_Decode:
 
             | Condition                                      | spec_stall | Predict outputs      |
             |------------------------------------------------|------------|----------------------|
-            | spec_n && pc_valid && (brnch_en | jump_en)     | 1          | disabled (quiet)     |
+            | spec_n && (brnch_en | jump_en)                 | 1          | disabled (quiet)     |
             | otherwise                                      | 0          | normal branch_active |
 
             How the loop closes at the top of the core:
@@ -785,8 +748,8 @@ S2_Decode:
             speculative, it raises a spec stall into the PC unit, which freezes the
             program counter until recovery clears the outstanding speculation.
 
-Intermediate Register (ID_DP):
-            Path: `rtl/s3_dispatch/id_dp.sv`
+Intermediate Register (ID_RN):
+            Path: `rtl/s3_rename/id_rn.sv`
 
             // external controls
             input  logic        clk,
@@ -797,7 +760,7 @@ Intermediate Register (ID_DP):
             input  logic        flush,
             input  logic        stall,
 
-            // internal controls (I0)
+            // internal controls (I0 / I1)
             input  logic        i0_valid_id,
             input  logic        i0_lane_sel_id,
             input  logic        i0_reg_write_id,
@@ -805,8 +768,6 @@ Intermediate Register (ID_DP):
             input  logic        i0_rs2_use_id,
             input  logic        spec0_en_id,
             input  br_state_t   i0_state_id,
-
-            // internal controls (I1)
             input  logic        i1_valid_id,
             input  logic        i1_lane_sel_id,
             input  logic        i1_reg_write_id,
@@ -815,73 +776,65 @@ Intermediate Register (ID_DP):
             input  logic        spec1_en_id,
             input  br_state_t   i1_state_id,
 
-            // input data (I0 / I1)
+            // input data (I0 / I1) — addresses only, no GPR operand data
             input  opcode_t     i0_opcode_id,
             input  funct3_t     i0_funct3_id,
             input  funct7_t     i0_funct7_id,
-            input  gpr_addr_t   i0_rd_addr_id,
-            input  gpr_addr_t   i0_rs1_addr_id,
-            input  gpr_addr_t   i0_rs2_addr_id,
+            input  gpr_addr_t   i0_rd_id,
+            input  gpr_addr_t   i0_rs1_id,
+            input  gpr_addr_t   i0_rs2_id,
             input  word_t       i0_imm_id,
-            input  word_t       i0_rs1_data_id,
-            input  word_t       i0_rs2_data_id,
             input  word_t       i0_pc_id,
             input  opcode_t     i1_opcode_id,
             input  funct3_t     i1_funct3_id,
             input  funct7_t     i1_funct7_id,
-            input  gpr_addr_t   i1_rd_addr_id,
-            input  gpr_addr_t   i1_rs1_addr_id,
-            input  gpr_addr_t   i1_rs2_addr_id,
+            input  gpr_addr_t   i1_rd_id,
+            input  gpr_addr_t   i1_rs1_id,
+            input  gpr_addr_t   i1_rs2_id,
             input  word_t       i1_imm_id,
-            input  word_t       i1_rs1_data_id,
-            input  word_t       i1_rs2_data_id,
             input  word_t       i1_pc_id,
 
-            // output controls (I0 / I1)
-            output logic        i0_valid_dp,
-            output logic        i0_lane_sel_dp,
-            output logic        i0_reg_write_dp,
-            output logic        i0_rs1_use_dp,
-            output logic        i0_rs2_use_dp,
-            output logic        spec0_en_dp,
-            output br_state_t   i0_state_dp,
-            output logic        i1_valid_dp,
-            output logic        i1_lane_sel_dp,
-            output logic        i1_reg_write_dp,
-            output logic        i1_rs1_use_dp,
-            output logic        i1_rs2_use_dp,
-            output logic        spec1_en_dp,
-            output br_state_t   i1_state_dp,
+            // output controls (I0 / I1) → rename
+            output logic        i0_valid_rn,
+            output logic        i0_lane_sel_rn,
+            output logic        i0_reg_write_rn,
+            output logic        i0_rs1_use_rn,
+            output logic        i0_rs2_use_rn,
+            output logic        spec0_en_rn,
+            output br_state_t   i0_state_rn,
+            output logic        i1_valid_rn,
+            output logic        i1_lane_sel_rn,
+            output logic        i1_reg_write_rn,
+            output logic        i1_rs1_use_rn,
+            output logic        i1_rs2_use_rn,
+            output logic        spec1_en_rn,
+            output br_state_t   i1_state_rn,
 
             // output data (I0 / I1)
-            output opcode_t     i0_opcode_dp,
-            output funct3_t     i0_funct3_dp,
-            output funct7_t     i0_funct7_dp,
-            output gpr_addr_t   i0_rd_addr_dp,
-            output gpr_addr_t   i0_rs1_addr_dp,
-            output gpr_addr_t   i0_rs2_addr_dp,
-            output word_t       i0_imm_dp,
-            output word_t       i0_rs1_data_dp,
-            output word_t       i0_rs2_data_dp,
-            output word_t       i0_pc_dp,
-            output opcode_t     i1_opcode_dp,
-            output funct3_t     i1_funct3_dp,
-            output funct7_t     i1_funct7_dp,
-            output gpr_addr_t   i1_rd_addr_dp,
-            output gpr_addr_t   i1_rs1_addr_dp,
-            output gpr_addr_t   i1_rs2_addr_dp,
-            output word_t       i1_imm_dp,
-            output word_t       i1_rs1_data_dp,
-            output word_t       i1_rs2_data_dp,
-            output word_t       i1_pc_dp
+            output opcode_t     i0_opcode_rn,
+            output funct3_t     i0_funct3_rn,
+            output funct7_t     i0_funct7_rn,
+            output gpr_addr_t   i0_rd_rn,
+            output gpr_addr_t   i0_rs1_rn,
+            output gpr_addr_t   i0_rs2_rn,
+            output word_t       i0_imm_rn,
+            output word_t       i0_pc_rn,
+            output opcode_t     i1_opcode_rn,
+            output funct3_t     i1_funct3_rn,
+            output funct7_t     i1_funct7_rn,
+            output gpr_addr_t   i1_rd_rn,
+            output gpr_addr_t   i1_rs1_rn,
+            output gpr_addr_t   i1_rs2_rn,
+            output word_t       i1_imm_rn,
+            output word_t       i1_pc_rn
 
         0. Structure and Specification:
 
-            id_dp is the pipeline register between decode (ID) and dispatch (DP). It
+            id_rn is the pipeline register between decode (ID) and rename (RN). It
             latches the dual-issue decode bundle on posedge when enable && !stall.
-            flush/reset clear both lanes. Beyond opcode/GPR fields it also carries
-            per-lane rs_use, speculation enables (spec*_en), and BHT state
-            (i*_state) so later stages can train predictors with resolve-time state.
+            flush/reset clear both lanes. No GPR operand data is carried (RF reads
+            happen later). Also carries per-lane rs_use, speculation enables
+            (spec*_en), and BHT state (i*_state) for later stages.
 
         1. Dual Issue Input and Output:
 
@@ -890,66 +843,258 @@ Intermediate Register (ID_DP):
 
         2. Stalls and Flush control:
 
-            | Priority | Condition        | DP register behavior              |
+            | Priority | Condition        | RN register behavior              |
             |----------|------------------|-----------------------------------|
             | 1        | !rst_n           | all outputs cleared to zero       |
             | 2        | flush            | bubble both lanes (clear to zero) |
             | 3        | enable && !stall | capture current ID inputs         |
-            | 4        | otherwise        | hold previous DP state            |
+            | 4        | otherwise        | hold previous RN state            |
 
-S3_Dispatch:
+S3_Rename:
+
+    Free List:
+            Path: `rtl/s3_dispatch/core_mod/free_list.sv`
+
+            // external controls
+            input  logic        clk,
+            input  logic        rst_n,
+            input  logic        enable,
+
+            // internal controls
+            input  logic        flush,
+
+            // allocate — rename requests
+            input  logic        alloc0_en,
+            input  logic        alloc1_en,
+            output prf_addr_t   alloc0_preg,
+            output prf_addr_t   alloc1_preg,
+            output logic        alloc_ready,
+
+            // free — ROB commit releases previous mappings
+            input  logic        free0_en,
+            input  logic        free1_en,
+            input  prf_addr_t   free0_preg,
+            input  prf_addr_t   free1_preg
+
+        0. Structure and Specification:
+
+            free_list is the PRF index allocator. It only manages unused physical
+            register numbers (no values). Rename allocates a preg per destination
+            write; ROB commit returns the previous mapping so that index can be
+            reused once no older consumer needs it.
+
+    Register Alias Table (register_allis / RAT):
+            Path: `rtl/s3_dispatch/core_mod/register_allis.sv`
+
+            // external controls
+            input  logic        clk,
+            input  logic        rst_n,
+            input  logic        enable,
+
+            // internal controls
+            input  logic        flush,
+
+            // source rename reads (arch → phys)
+            input  logic        i0_rs1_use,
+            input  logic        i0_rs2_use,
+            input  logic        i1_rs1_use,
+            input  logic        i1_rs2_use,
+            input  gpr_addr_t   i0_rs1,
+            input  gpr_addr_t   i0_rs2,
+            input  gpr_addr_t   i1_rs1,
+            input  gpr_addr_t   i1_rs2,
+            output prf_addr_t   i0_ps1,
+            output prf_addr_t   i0_ps2,
+            output prf_addr_t   i1_ps1,
+            output prf_addr_t   i1_ps2,
+
+            // destination rename writes
+            input  logic        i0_rd_wen,
+            input  logic        i1_rd_wen,
+            input  gpr_addr_t   i0_rd,
+            input  gpr_addr_t   i1_rd,
+            input  prf_addr_t   i0_prd_new,
+            input  prf_addr_t   i1_prd_new,
+            output prf_addr_t   i0_prd_old,
+            output prf_addr_t   i1_prd_old
+
+        0. Structure and Specification:
+
+            register_allis holds the architectural→physical map. Source reads
+            return current physical tags. Destination rename takes a new preg
+            from Free List, updates the RAT, and returns the previous preg for
+            the ROB to keep until commit.
 
     Reorder Buffer:
             Path: `rtl/s3_dispatch/core_mod/reorder_buffer.sv`
 
-        input  logic        clk,
-        input  logic        rst_n,
-        input  logic        enable,
-        input  logic        flush,
+            // external controls
+            input  logic        clk,
+            input  logic        rst_n,
+            input  logic        enable,
 
-        // --- add (tail allocate) ---
-        input  logic            add_en,
-        input  logic [1:0]      add_count,
-        input  logic [ROB_AW-1:0] add_idx0,
-        input  logic [ROB_AW-1:0] add_idx1,
-        input  logic            add0_valid,
-        input  logic            add1_valid,
-        input  logic [ROB_DATA_W:0] add_line0,
-        input  logic [ROB_DATA_W:0] add_line1,
-        input  gpr_addr_t       add_tag0,
-        input  gpr_addr_t       add_tag1,
+            // internal controls
+            input  logic        flush,
 
-        // --- read (body dispatch) ---
-        input  logic [ROB_AW-1:0] read_idx0,
-        input  logic [ROB_AW-1:0] read_idx1,
-        output rob_data_t       read_data0,
-        output rob_data_t       read_data1,
-        output gpr_addr_t       read_tag0,
-        output gpr_addr_t       read_tag1,
-        input  logic            read_advance0,
-        input  logic            read_advance1,
-        input  logic [1:0]      read_advance_count,
+            // allocate (rename / tail)
+            input  logic        alloc0_en,
+            input  logic        alloc1_en,
+            input  logic        alloc0_reg_write,
+            input  logic        alloc1_reg_write,
+            input  gpr_addr_t   alloc0_rd,
+            input  gpr_addr_t   alloc1_rd,
+            input  prf_addr_t   alloc0_prd,
+            input  prf_addr_t   alloc1_prd,
+            input  prf_addr_t   alloc0_prd_old,
+            input  prf_addr_t   alloc1_prd_old,
+            input  ID_packet_t  alloc0_meta,
+            input  ID_packet_t  alloc1_meta,
+            output logic [ROB_AW-1:0] alloc0_idx,
+            output logic [ROB_AW-1:0] alloc1_idx,
+            output logic        alloc_ready,
 
-        // --- update (execution complete) ---
-        input  logic            update_en,
-        input  logic [ROB_AW-1:0] update_idx,
-        input  word_t           update_result,
+            // complete (execution writeback)
+            input  logic        complete0_en,
+            input  logic        complete1_en,
+            input  logic [ROB_AW-1:0] complete0_idx,
+            input  logic [ROB_AW-1:0] complete1_idx,
+            input  word_t       complete0_result,
+            input  word_t       complete1_result,
 
-        // --- clear (commit retire) ---
-        input  logic            clear_en,
-        input  logic [1:0]      clear_count,
-        input  logic [ROB_AW-1:0] clear_idx0,
-        input  logic [ROB_AW-1:0] clear_idx1,
+            // commit (head retire → Free List reclaim)
+            output logic        commit0_en,
+            output logic        commit1_en,
+            output gpr_addr_t   commit0_rd,
+            output gpr_addr_t   commit1_rd,
+            output prf_addr_t   commit0_prd,
+            output prf_addr_t   commit1_prd,
+            output prf_addr_t   commit0_prd_old,
+            output prf_addr_t   commit1_prd_old,
+            output word_t       commit0_result,
+            output word_t       commit1_result,
 
-        // Exported state — rename search, speculation, TB trace
-        output rob_ptr_t        write_ptr,
-        output rob_ptr_t        read_ptr,
-        output rob_ptr_t        commit_ptr,
-        output logic [ROB_DATA_W:0] bank [ROB_WAYS],
-        output gpr_addr_t       tag  [ROB_WAYS]
+            // exported pointers
+            output rob_ptr_t    write_ptr,
+            output rob_ptr_t    commit_ptr
+
+        0. Structure and Specification:
+
+            ROB records rename metadata, the new destination preg, and the old
+            preg the RAT replaced. Old preg returns to Free List only when the
+            entry commits at the head (precise exceptions / mispredict recovery).
 
     Rename Dispatch:
             Path: `rtl/s3_dispatch/core_mod/rename_dispatch.sv`
+
+S4_ISSUE:
+
+    Register File (Register_File):                          [Verified - TBD]    [Proof - TBD]
+            Path: `rtl/s2_decode/core_mod/register_file.sv`
+
+            // external controls
+            input  logic        clk,
+            input  logic        rst_n,
+
+            // internal controls
+            input  logic        i0_rs1_use,
+            input  logic        i0_rs2_use,
+            input  logic        i1_rs1_use,
+            input  logic        i1_rs2_use,
+            input  logic        i0_valid_wb,
+            input  logic        i1_valid_wb,
+
+            // input data
+            input  gpr_addr_t   i0_rs1_addr,
+            input  gpr_addr_t   i0_rs2_addr,
+            input  gpr_addr_t   i1_rs1_addr,
+            input  gpr_addr_t   i1_rs2_addr,
+            input  gpr_addr_t   i0_rd,
+            input  gpr_addr_t   i1_rd,
+            input  word_t       i0_data_wb,
+            input  word_t       i1_data_wb,
+
+            // output data
+            output word_t       i0_rs1_data,
+            output word_t       i0_rs2_data,
+            output word_t       i1_rs1_data,
+            output word_t       i1_rs2_data
+
+        0. Structure and Specification:
+
+            register_file is the dual-issue scalar GPR file for RV32I: four combinational
+            read ports (I0 rs1/rs2, I1
+            rs1/rs2) and two writeback ports (I0/I1). Physical storage is x1-x31;
+            x0 is not stored; reads of x0 always return zero and writes to x0 are
+            suppressed. Decode supplies rs1_use/rs2_use and addresses; writeback
+            supplies i0_valid_wb/i1_valid_wb, rd, and data. Same-cycle WAW to the
+            same rd always prefers I1 (in-order dual-issue; ROB owns age). There is no
+            enable; commits occur on the falling clock edge whenever a valid WB
+            targets a nonzero rd. clk/rst_n clear the array on reset.
+
+        1. Combinational Dual Read with Forwarding:
+
+            Each read port is independent. Forwarding and WAW merge rules:
+
+            | rs_use | Same-cycle WB to same rd?     | Read data source                          |
+            |--------|-------------------------------|-------------------------------------------|
+            | 0      | n/a                           | 0 (unused operand)                        |
+            | 1      | no                            | regs[addr]                                |
+            | 1      | yes (one WB)                  | WB data (bypass)                          |
+            | 1      | yes (both lanes, same rd)     | I1 WB data (always younger of the pair)   |
+
+            Cross-lane bypass is supported: an ID read on either lane can see the other
+            lane's pending WB when addresses match. Bypass is visible before the bank
+            updates on the falling write edge.
+
+        2. Sequential Falling-edge Dual Writeback:
+
+            Training commits on negedge clk when i0_valid_wb or i1_valid_wb is set and
+            rd != x0. Dual WB can update two distinct registers in one cycle. If both
+            lanes write the same rd, only I1 updates regs[]; the I0 commit is
+            suppressed. Forwarding on the read path still exposes the winning WB
+            value in that cycle before the falling edge. After the edge, subsequent
+            reads see the committed value from regs[].
+
+S4_Dispatch:
+
+    Physical Register File (p_register_file):               [Verified - TBD]    [Proof - TBD]
+            Path: `rtl/s4_dispatch/core_mod/p_register_file.sv`
+
+            // external controls
+            input  logic        clk,
+            input  logic        rst_n,
+
+            // internal controls
+            input  logic        i0_rs1_use,
+            input  logic        i0_rs2_use,
+            input  logic        i1_rs1_use,
+            input  logic        i1_rs2_use,
+            input  logic        i0_valid_wb,
+            input  logic        i1_valid_wb,
+
+            // input data — physical register indices
+            input  prf_addr_t   i0_rs1_addr,
+            input  prf_addr_t   i0_rs2_addr,
+            input  prf_addr_t   i1_rs1_addr,
+            input  prf_addr_t   i1_rs2_addr,
+            input  prf_addr_t   i0_rd,
+            input  prf_addr_t   i1_rd,
+            input  word_t       i0_data_wb,
+            input  word_t       i1_data_wb,
+
+            // output data
+            output word_t       i0_rs1_data,
+            output word_t       i0_rs2_data,
+            output word_t       i1_rs1_data,
+            output word_t       i1_rs2_data
+
+        0. Structure and Specification:
+
+            p_register_file is the dual-issue PRF (NUM_PRF entries): four combinational
+            read ports and two writeback ports, mirroring register_file but addressed
+            by prf_addr_t. p0 is hardwired zero (architectural x0); p1..p{NUM_PRF-1}
+            are stored. Same-cycle WAW to the same prd prefers I1. Negedge commit with
+            same-cycle WB bypass on the read path.
 
 S4_Execution:
 

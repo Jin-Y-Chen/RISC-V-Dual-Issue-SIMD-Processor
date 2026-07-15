@@ -1,10 +1,11 @@
 `timescale 1ns / 1ps
 
 // Golden model for rtl/s1_fetch/core_mod/pc_selector.sv
-import rv_dis_pkg::*;
+// Combinational mirror of DUT equations (mode lives in pc.sv).
 
 module pc_selector_gm (
-  input  br_map_t     branch_map_in,
+  input  logic        spec0_in,
+  input  logic        spec1_in,
   input  logic        i0_pred_taken,
   input  logic        i1_pred_taken,
   input  logic        i0_brch_recover,
@@ -15,7 +16,8 @@ module pc_selector_gm (
   input  logic [31:0] i1_pc_target,
   input  logic [31:0] i0_pc_execute,
   input  logic [31:0] i1_pc_execute,
-  output br_map_t     branch_map_out,
+  output logic        spec0_out,
+  output logic        spec1_out,
   output logic [31:0] pc0_out,
   output logic [31:0] pc1_out
 );
@@ -24,12 +26,11 @@ module pc_selector_gm (
     return {imm[31:2], 2'b00};
   endfunction
 
-  logic    recover_any;
-  br_map_t pred_map;
+  logic recover_any;
 
-  assign recover_any    = i0_brch_recover | i1_brch_recover;
-  assign pred_map       = {i1_pred_taken, i0_pred_taken};
-  assign branch_map_out = recover_any ? BR_MAP_NONE : (pred_map | branch_map_in);
+  assign recover_any = i0_brch_recover | i1_brch_recover;
+  assign spec0_out   = (i0_pred_taken | spec0_in) && !recover_any;
+  assign spec1_out   = (i1_pred_taken | spec1_in) && !recover_any;
 
   always_comb begin
     pc0_out = gm_align4(pc0_in);
@@ -41,22 +42,13 @@ module pc_selector_gm (
     end else if (i1_brch_recover) begin
       pc0_out = gm_align4(i1_pc_execute) + 32'd4;
       pc1_out = gm_align4(i1_pc_execute) + 32'd8;
-    end else begin
-      unique case (pred_map)
-        BR_MAP_BOTH: begin
-          pc0_out = gm_align4(i0_pc_target);
-          pc1_out = gm_align4(i0_pc_target) + 32'd4;
-        end
-        BR_MAP_I0: begin
-          pc0_out = gm_align4(i0_pc_target);
-          pc1_out = gm_align4(pc1_in);
-        end
-        BR_MAP_I1: begin
-          pc0_out = gm_align4(i1_pc_target);
-          pc1_out = gm_align4(pc0_in);
-        end
-        default: ;
-      endcase
+    end else if (i0_pred_taken && i1_pred_taken) begin
+      pc0_out = gm_align4(i0_pc_target);
+      pc1_out = gm_align4(i0_pc_target) + 32'd4;
+    end else if (i0_pred_taken) begin
+      pc0_out = gm_align4(i0_pc_target);
+    end else if (i1_pred_taken) begin
+      pc1_out = gm_align4(i1_pc_target);
     end
   end
 

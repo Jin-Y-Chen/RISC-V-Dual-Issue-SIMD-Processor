@@ -4,13 +4,15 @@ import rv_dis_pkg::*;
 
 // Golden model for rtl/s1_fetch/core_mod/instruction_cache.sv
 // Reference = program/bin/demo_instructions.hex (@0x1000, sequential words).
-// PC lookup only; miss => 32'h0. Not a set/way cache replica.
+// PC lookup only; miss => instr=0 / valid=0. Not a set/way cache replica.
 
 module instruction_cache_gm (
   input  word_t  pc0,
   input  word_t  pc1,
   output instr_t instr0,
-  output instr_t instr1
+  output instr_t instr1,
+  output logic   i0_valid,
+  output logic   i1_valid
 );
 
   localparam word_t DEMO_BASE  = 32'h0000_1000;
@@ -38,19 +40,33 @@ module instruction_cache_gm (
     32'h00052403, 32'h00000063, 32'h02A00113, 32'h00008067
   };
 
-  function automatic word_t demo_insn_at(input word_t pc);
+  function automatic int demo_idx(input word_t pc);
     word_t key;
     int    idx;
     key = word_t'({pc[31:2], 2'b00});
     if (key < DEMO_BASE)
-      return 32'h0;
+      return -1;
     idx = int'((key - DEMO_BASE) >> 2);
     if (idx < 0 || idx >= DEMO_COUNT)
+      return -1;
+    return idx;
+  endfunction
+
+  function automatic word_t demo_insn_at(input word_t pc);
+    int idx;
+    idx = demo_idx(pc);
+    if (idx < 0)
       return 32'h0;
     return DEMO_WORD[idx];
   endfunction
 
-  assign instr0 = demo_insn_at(pc0);
-  assign instr1 = demo_insn_at(pc1);
+  function automatic logic demo_valid_at(input word_t pc);
+    return (demo_idx(pc) >= 0);
+  endfunction
+
+  assign instr0   = demo_insn_at(pc0);
+  assign instr1   = demo_insn_at(pc1);
+  assign i0_valid = demo_valid_at(pc0);
+  assign i1_valid = demo_valid_at(pc1);
 
 endmodule

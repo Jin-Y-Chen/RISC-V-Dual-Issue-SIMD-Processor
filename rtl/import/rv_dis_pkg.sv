@@ -30,6 +30,9 @@ package rv_dis_pkg;
   // =========================================================================
   typedef logic [ILEN-1:0] instr_t;
   typedef logic [RLEN-1:0] word_t;   // GPR value, PC, immediate, memory word
+
+  // Architectural NOP: addi x0, x0, 0 (used for IF/ID bubbles).
+  localparam instr_t INSTR_NOP = 32'h0000_0013;
   typedef logic [6:0]      opcode_t;
   typedef logic [2:0]      funct3_t;
   typedef logic [6:0]      funct7_t;

@@ -35,7 +35,7 @@ module fetch_core_struct_tb;
   word_t  i1_pc_target;
   instr_t instr0;
   instr_t instr1;
-  br_map_t branch_map;
+  logic    spec0_en, spec1_en;
   logic    i0_valid, i1_valid;
 
   word_t  ref_pc0;
@@ -44,7 +44,7 @@ module fetch_core_struct_tb;
   word_t  ref_i1_pc_target;
   instr_t ref_instr0;
   instr_t ref_instr1;
-  br_map_t ref_branch_map;
+  logic   ref_spec0_en, ref_spec1_en;
 
   int pass_cnt;
   int fail_cnt;
@@ -76,7 +76,8 @@ module fetch_core_struct_tb;
     .i1_pc_target     (i1_pc_target),
     .instr0           (instr0),
     .instr1           (instr1),
-    .branch_map       (branch_map),
+    .spec0_en         (spec0_en),
+    .spec1_en         (spec1_en),
     .i0_valid         (i0_valid),
     .i1_valid         (i1_valid)
   );
@@ -108,7 +109,8 @@ module fetch_core_struct_tb;
     .i1_pc_target     (ref_i1_pc_target),
     .instr0           (ref_instr0),
     .instr1           (ref_instr1),
-    .branch_map       (ref_branch_map)
+    .spec0_en         (ref_spec0_en),
+    .spec1_en         (ref_spec1_en)
   );
 
   initial clk = 1'b0;
@@ -143,7 +145,7 @@ module fetch_core_struct_tb;
 
     pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
         && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target)
-        && (branch_map === ref_branch_map);
+        && (spec0_en === ref_spec0_en) && (spec1_en === ref_spec1_en);
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
@@ -169,7 +171,8 @@ module fetch_core_struct_tb;
     tb_field_u32("pc1",          pc1,          ref_pc1);
     tb_field_u32("i0_pc_target", i0_pc_target, ref_i0_pc_target);
     tb_field_u32("i1_pc_target", i1_pc_target, ref_i1_pc_target);
-    tb_field_u32("branch_map",   {30'b0, branch_map}, {30'b0, ref_branch_map});
+    tb_field_bit("spec0_en",     spec0_en,     ref_spec0_en);
+    tb_field_bit("spec1_en",     spec1_en,     ref_spec1_en);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -182,12 +185,12 @@ module fetch_core_struct_tb;
 
     tb_banner("fetch_core_struct_tb: DUT vs fetch_core_struct_gm.sv");
 
-    step_and_check("reset", "RESET_PC pair, br_map=00");
+    step_and_check("reset", "RESET_PC pair, spec=00");
 
     @(negedge clk);
     rst_n = 1'b1;
     idle_ctrl();
-    step_and_check("sequential_step", "br_map=00 => +8/+8");
+    step_and_check("sequential_step", "spec=00 => +8/+8");
 
     @(negedge clk);
     idle_ctrl();
@@ -200,11 +203,11 @@ module fetch_core_struct_tb;
     @(negedge clk);
     idle_ctrl();
     i0_pred_taken = 1'b1;
-    step_and_check("i0_predict", "br_map=01, I0 target into next-PC bases");
+    step_and_check("i0_predict", "spec sticky both, I0 target into next-PC bases");
 
     @(negedge clk);
     idle_ctrl();
-    step_and_check("post_predict_step", "sticky br_map=01 => +4/+4 split");
+    step_and_check("post_predict_step", "sticky spec => +4/+4 split");
 
     // Decode-style nested-speculation stall freezes PC
     @(negedge clk);
@@ -216,7 +219,7 @@ module fetch_core_struct_tb;
     idle_ctrl();
     i0_brch_recover = 1'b1;
     i0_pc_execute   = word_t'(32'h0000_3000);
-    step_and_check("i0_recover", "recover clears br_map, execute+4/+8");
+    step_and_check("i0_recover", "recover clears spec, execute+4/+8");
 
     @(negedge clk);
     idle_ctrl();
@@ -225,7 +228,7 @@ module fetch_core_struct_tb;
 
     @(negedge clk);
     idle_ctrl();
-    step_and_check("sequential_resume", "br_map=00 => +8/+8");
+    step_and_check("sequential_resume", "spec=00 => +8/+8");
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

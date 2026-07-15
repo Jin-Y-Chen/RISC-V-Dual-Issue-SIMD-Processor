@@ -12,10 +12,10 @@ module state_buffer_tb;
   logic [31:0] i0_pc, i1_pc;
   logic        i0_brch_en, i1_brch_en;
   logic        i0_valid_wb, i1_valid_wb;
-  logic [31:0] i0_pc_wb, i1_pc_wb;
-  logic [1:0]  i0_target_state_wb, i1_target_state_wb;
-  logic [1:0]  i0_target_state, i1_target_state;
-  logic [1:0]  ref_i0_target_state, ref_i1_target_state;
+  logic [31:0] i0_brch_pc_wb, i1_brch_pc_wb;
+  logic [1:0]  i0_brch_state_wb, i1_brch_state_wb;
+  logic [1:0]  i0_brch_state, i1_brch_state;
+  logic [1:0]  ref_i0_brch_state, ref_i1_brch_state;
   logic        clk, rst_n;
 
   int pass_cnt;
@@ -32,12 +32,12 @@ module state_buffer_tb;
     .i1_brch_en         (i1_brch_en),
     .i0_valid_wb        (i0_valid_wb),
     .i1_valid_wb        (i1_valid_wb),
-    .i0_pc_wb           (i0_pc_wb),
-    .i1_pc_wb           (i1_pc_wb),
-    .i0_target_state_wb (i0_target_state_wb),
-    .i1_target_state_wb (i1_target_state_wb),
-    .i0_target_state    (i0_target_state),
-    .i1_target_state    (i1_target_state)
+    .i0_brch_pc_wb      (i0_brch_pc_wb),
+    .i1_brch_pc_wb      (i1_brch_pc_wb),
+    .i0_brch_state_wb   (i0_brch_state_wb),
+    .i1_brch_state_wb   (i1_brch_state_wb),
+    .i0_brch_state      (i0_brch_state),
+    .i1_brch_state      (i1_brch_state)
   );
 
   state_buffer_gm #(
@@ -51,12 +51,12 @@ module state_buffer_tb;
     .i1_brch_en         (i1_brch_en),
     .i0_valid_wb        (i0_valid_wb),
     .i1_valid_wb        (i1_valid_wb),
-    .i0_pc_wb           (i0_pc_wb),
-    .i1_pc_wb           (i1_pc_wb),
-    .i0_target_state_wb (i0_target_state_wb),
-    .i1_target_state_wb (i1_target_state_wb),
-    .i0_target_state    (ref_i0_target_state),
-    .i1_target_state    (ref_i1_target_state)
+    .i0_brch_pc_wb      (i0_brch_pc_wb),
+    .i1_brch_pc_wb      (i1_brch_pc_wb),
+    .i0_brch_state_wb   (i0_brch_state_wb),
+    .i1_brch_state_wb   (i1_brch_state_wb),
+    .i0_brch_state      (ref_i0_brch_state),
+    .i1_brch_state      (ref_i1_brch_state)
   );
 
   // Stimulus helper - same transition table as rtl/s5_memory/core/state_lookup.sv.
@@ -79,11 +79,11 @@ module state_buffer_tb;
 
   task automatic check_states(input string name, input string detail);
     bit pass;
-    pass = (i0_target_state === ref_i0_target_state) &&
-           (i1_target_state === ref_i1_target_state);
+    pass = (i0_brch_state === ref_i0_brch_state) &&
+           (i1_brch_state === ref_i1_brch_state);
     tb_report_open(pass, name, detail);
-    tb_field_u32("i0_target_state", {30'd0, i0_target_state}, {30'd0, ref_i0_target_state});
-    tb_field_u32("i1_target_state", {30'd0, i1_target_state}, {30'd0, ref_i1_target_state});
+    tb_field_u32("i0_brch_state", {30'd0, i0_brch_state}, {30'd0, ref_i0_brch_state});
+    tb_field_u32("i1_brch_state", {30'd0, i1_brch_state}, {30'd0, ref_i1_brch_state});
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -92,11 +92,11 @@ module state_buffer_tb;
     input logic [31:0] pc,
     input logic [1:0]  state
   );
-    i0_pc_wb           = pc;
-    i0_target_state_wb = state;
-    i0_valid_wb        = 1'b1;
+    i0_brch_pc_wb    = pc;
+    i0_brch_state_wb = state;
+    i0_valid_wb      = 1'b1;
     @(posedge clk);
-    i0_valid_wb        = 1'b0;
+    i0_valid_wb      = 1'b0;
   endtask
 
   task automatic fsm_step(
@@ -110,7 +110,7 @@ module state_buffer_tb;
     i0_pc       = pc;
     i0_brch_en  = 1'b1;
     #0;
-    cur = i0_target_state;
+    cur = i0_brch_state;
     nxt = state_lut_next(cur, taken);
     write_state(pc, nxt);
   endtask
@@ -127,10 +127,10 @@ module state_buffer_tb;
     i1_brch_en         = 1'b0;
     i0_valid_wb        = 1'b0;
     i1_valid_wb        = 1'b0;
-    i0_pc_wb           = '0;
-    i1_pc_wb           = '0;
-    i0_target_state_wb = 2'b01;
-    i1_target_state_wb = 2'b01;
+    i0_brch_pc_wb    = '0;
+    i1_brch_pc_wb    = '0;
+    i0_brch_state_wb = 2'b01;
+    i1_brch_state_wb = 2'b01;
     i0_pc              = PC0;
     i1_pc              = PC1;
 

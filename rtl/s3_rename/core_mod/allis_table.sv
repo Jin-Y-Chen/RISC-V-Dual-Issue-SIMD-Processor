@@ -45,8 +45,8 @@ module allis_table (
   // commit — ROB sends (rd, prd)
   input  logic        commit0_en,
   input  logic        commit1_en,
-  input  arch_addr_t  commit0_rd,
-  input  arch_addr_t  commit1_rd,
+  input  arch_addr_t  commit0_rd_addr,
+  input  arch_addr_t  commit1_rd_addr,
   input  prf_addr_t   commit0_prd,
   input  prf_addr_t   commit1_prd
 );
@@ -119,10 +119,10 @@ module allis_table (
       map_arch_q[0] <= '0;
     end else begin
       map_arch_q[0] <= '0;
-      if (commit0_en && !arch_maps_to_x0(commit0_rd))
-        map_arch_q[rat_slot(commit0_rd)] <= commit0_prd;
-      if (commit1_en && !arch_maps_to_x0(commit1_rd))
-        map_arch_q[rat_slot(commit1_rd)] <= commit1_prd;
+      if (commit0_en && !arch_maps_to_x0(commit0_rd_addr))
+        map_arch_q[rat_slot(commit0_rd_addr)] <= commit0_prd;
+      if (commit1_en && !arch_maps_to_x0(commit1_rd_addr))
+        map_arch_q[rat_slot(commit1_rd_addr)] <= commit1_prd;
     end
   end
 

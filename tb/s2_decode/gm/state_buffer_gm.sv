@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Golden model for rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv
+// Golden model for rtl/s2_decode/core_mod/state_buffer.sv
 // Bank replica + same-cycle WB bypass; miss/!brch_en => DEFAULT_STATE; train on negedge.
 import rv_dis_pkg::*;
 import cache_pkg::*;
@@ -19,12 +19,12 @@ module state_buffer_gm #(
   input  logic        i1_brch_en,
   input  logic        i0_valid_wb,
   input  logic        i1_valid_wb,
-  input  word_t       i0_pc_wb,
-  input  word_t       i1_pc_wb,
-  input  br_state_t   i0_target_state_wb,
-  input  br_state_t   i1_target_state_wb,
-  output br_state_t   i0_target_state,
-  output br_state_t   i1_target_state
+  input  word_t       i0_brch_pc_wb,
+  input  word_t       i1_brch_pc_wb,
+  input  br_state_t   i0_brch_state_wb,
+  input  br_state_t   i1_brch_state_wb,
+  output br_state_t   i0_brch_state,
+  output br_state_t   i1_brch_state
 );
 
   localparam integer WAY_AW = (WAYS <= 1) ? 0 : $clog2(WAYS);
@@ -37,12 +37,12 @@ module state_buffer_gm #(
   wire [15:0] i0_lookup_way = pc_way(i0_pc, WAY_AW);
   wire [15:0] i1_lookup_set = pc_set(i1_pc, WAY_AW, SET_AW);
   wire [15:0] i1_lookup_way = pc_way(i1_pc, WAY_AW);
-  wire [15:0] wb0_set       = pc_set(i0_pc_wb, WAY_AW, SET_AW);
-  wire [15:0] wb0_way       = pc_way(i0_pc_wb, WAY_AW);
-  wire [15:0] wb1_set       = pc_set(i1_pc_wb, WAY_AW, SET_AW);
-  wire [15:0] wb1_way       = pc_way(i1_pc_wb, WAY_AW);
-  wire [32:0] wb0_entry     = cache_set_write(1'b1, {30'd0, i0_target_state_wb}, DATA_W);
-  wire [32:0] wb1_entry     = cache_set_write(1'b1, {30'd0, i1_target_state_wb}, DATA_W);
+  wire [15:0] wb0_set       = pc_set(i0_brch_pc_wb, WAY_AW, SET_AW);
+  wire [15:0] wb0_way       = pc_way(i0_brch_pc_wb, WAY_AW);
+  wire [15:0] wb1_set       = pc_set(i1_brch_pc_wb, WAY_AW, SET_AW);
+  wire [15:0] wb1_way       = pc_way(i1_brch_pc_wb, WAY_AW);
+  wire [32:0] wb0_entry     = cache_set_write(1'b1, {30'd0, i0_brch_state_wb}, DATA_W);
+  wire [32:0] wb1_entry     = cache_set_write(1'b1, {30'd0, i1_brch_state_wb}, DATA_W);
 
   function automatic [32:0] way_with_bypass(
     input [15:0] set_i,
@@ -68,8 +68,8 @@ module state_buffer_gm #(
     DATA_W
   )[1:0];
 
-  assign i0_target_state = i0_brch_en ? raw_state0 : DEFAULT_STATE;
-  assign i1_target_state = i1_brch_en ? raw_state1 : DEFAULT_STATE;
+  assign i0_brch_state = i0_brch_en ? raw_state0 : DEFAULT_STATE;
+  assign i1_brch_state = i1_brch_en ? raw_state1 : DEFAULT_STATE;
 
   always @(negedge clk or negedge rst_n) begin
     if (!rst_n) begin
