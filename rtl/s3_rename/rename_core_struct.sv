@@ -95,22 +95,25 @@ module rename_core_struct (
   prf_addr_t cmt0_prd_old, cmt1_prd_old;
   logic [2:0] rat_ckpt_ptr;
 
-  // Branch / jump at rename → RAT checkpoint only (FL is plain dual queues).
-  wire i0_is_ctrl = (i0_opcode_rn == OPC_BRANCH) ||
-                    (i0_opcode_rn == OPC_JAL)    ||
-                    (i0_opcode_rn == OPC_JALR);
-  wire i1_is_ctrl = (i1_opcode_rn == OPC_BRANCH) ||
-                    (i1_opcode_rn == OPC_JAL)    ||
-                    (i1_opcode_rn == OPC_JALR);
-  wire need = i0_reg_write_rn || i1_reg_write_rn || i0_is_ctrl || i1_is_ctrl;
+  // Lane must dispatch if it writes, stores, or is control-flow (NOP bubbles: none).
+  wire i0_is_ctrl  = (i0_opcode_rn == OPC_BRANCH) ||
+                     (i0_opcode_rn == OPC_JAL)    ||
+                     (i0_opcode_rn == OPC_JALR);
+  wire i1_is_ctrl  = (i1_opcode_rn == OPC_BRANCH) ||
+                     (i1_opcode_rn == OPC_JAL)    ||
+                     (i1_opcode_rn == OPC_JALR);
+  wire i0_is_store = (i0_opcode_rn == OPC_STORE);
+  wire i1_is_store = (i1_opcode_rn == OPC_STORE);
+  wire i0_issue    = i0_reg_write_rn || i0_is_ctrl || i0_is_store;
+  wire i1_issue    = i1_reg_write_rn || i1_is_ctrl || i1_is_store;
+
   wire fl_ok = (i0_reg_write_rn && i1_reg_write_rn) ? fl_alloc1_valid :
                (i0_reg_write_rn ||  i1_reg_write_rn) ? fl_alloc0_valid : 1'b1;
-  wire go = !flush && !(resolve_en && resolve_mispred) && (
-      (i0_reg_write_rn || i1_reg_write_rn) ? (fl_ok && rob_alloc_ready) :
-      (i0_is_ctrl || i1_is_ctrl)           ? rob_alloc_ready :
-                                             1'b0);
+  wire go = !flush && !(resolve_en && resolve_mispred) && (i0_issue || i1_issue) &&
+            ((i0_reg_write_rn || i1_reg_write_rn) ? (fl_ok && rob_alloc_ready)
+                                                  : rob_alloc_ready);
 
-  assign stall_id = !flush && need && !go;
+  assign stall_id = !flush && (i0_issue || i1_issue) && !go;
 
   wire tip_is_i1 = (br_map != BR_MAP_I0);
   wire prf_addr_t fl_i0_tip = tip_is_i1 ? fl_i0_br1 : fl_i0_br0;
@@ -210,8 +213,8 @@ module rename_core_struct (
     .enable           (1'b1),
     .flush            (flush),
     .alloc_en         (go),
-    .alloc0_valid     (i0_reg_write_rn || i0_is_ctrl),
-    .alloc1_valid     (i1_reg_write_rn || i1_is_ctrl),
+    .alloc0_valid     (i0_issue),
+    .alloc1_valid     (i1_issue),
     .alloc0_reg_write (i0_reg_write_rn),
     .alloc1_reg_write (i1_reg_write_rn),
     .alloc0_rd_addr   (i0_rd_addr_rn),
@@ -249,8 +252,8 @@ module rename_core_struct (
     .tag              ()
   );
 
-  assign i0_valid_disp     = go && (i0_reg_write_rn || i0_is_ctrl);
-  assign i1_valid_disp     = go && (i1_reg_write_rn || i1_is_ctrl);
+  assign i0_valid_disp     = go && i0_issue;
+  assign i1_valid_disp     = go && i1_issue;
   assign i0_lane_sel_disp  = i0_lane_sel_rn;
   assign i1_lane_sel_disp  = i1_lane_sel_rn;
   assign i0_reg_write_disp = i0_reg_write_rn;
