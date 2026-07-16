@@ -1,122 +1,104 @@
 `timescale 1ns / 1ps
 
- // Free List — allocator for Physical Register File (PRF) indices only.
- // Initial pool: p32..p63 (p0..p31 reserved as identity map for x0..x31).
- // alloc_req* size the ready check; alloc*_en pops on the clock.
- // Per cycle: commit frees first (checkpoint), then speculative alloc pops.
- // Flush restores the post-commit checkpoint (undoes speculative allocates).
+// Dual-path partitioned free list: q0={p32,p34,..} q1={p33,p35,..}
+// Rename rd++; commit free wr++ (by parity); flush refills.
 import rv_dis_pkg::*;
+import rat_pkg::*;
 
 module free_list (
-  // external controls
   input  logic        clk,
   input  logic        rst_n,
-  input  logic        enable,
-
-  // internal controls
   input  logic        flush,
+  input  br_map_t     brch_map,
 
-  // allocate — request for ready, enable for pop
-  input  logic        alloc_req0,
-  input  logic        alloc_req1,
-  input  logic        alloc0_en,
-  input  logic        alloc1_en,
-  output prf_addr_t   alloc0_preg,
-  output prf_addr_t   alloc1_preg,
-  output logic        alloc_ready,
+  input  logic        rename0_en,
+  input  logic        rename1_en,
+  output prf_addr_t   i0_alloc_br0,
+  output prf_addr_t   i0_alloc_br1,
+  output prf_addr_t   i1_alloc_br0,
+  output prf_addr_t   i1_alloc_br1,
+  output logic        alloc0_valid,
+  output logic        alloc1_valid,
 
-  // free — ROB commit releases previous mappings
   input  logic        free0_en,
   input  logic        free1_en,
-  input  prf_addr_t   free0_preg,
-  input  prf_addr_t   free1_preg
+  input  prf_addr_t   i0_free_tag,
+  input  prf_addr_t   i1_free_tag
 );
 
-  localparam int FREE_N  = NUM_PRF - NUM_GPR;  // 32
-  localparam int FREE_AW = $clog2(FREE_N);
+  localparam int PART_N = (NUM_PRF - NUM_GPR) / 2;
+  localparam int Q_AW   = $clog2(PART_N);
+  typedef logic [Q_AW:0] q_ptr_t;
 
-  typedef logic [FREE_AW:0] free_cnt_t;
+  prf_addr_t q0 [PART_N], q1 [PART_N];
+  q_ptr_t    rd0, wr0, rd1, wr1;
 
-  prf_addr_t queue      [FREE_N];
-  prf_addr_t queue_ckpt [FREE_N];
-  free_cnt_t head_q, tail_q, count_q;
-  free_cnt_t head_ckpt, tail_ckpt, count_ckpt;
+  wire one_col = rat_one_col(brch_map);
+  wire use0    = rat_use_br0(brch_map);
+  wire use1    = rat_use_br1(brch_map);
+  wire dual    = use0 && use1 && !one_col;
 
-  wire free_cnt_t n_need = free_cnt_t'(alloc_req0) + free_cnt_t'(alloc_req1);
-  assign alloc_ready = (count_q >= n_need);
+  wire q_ptr_t n0 = wr0 - rd0;
+  wire q_ptr_t n1 = wr1 - rd1;
 
-  // Peek next free indices (parent gates with rename_fire).
-  assign alloc0_preg = queue[head_q[FREE_AW-1:0]];
-  assign alloc1_preg = queue[FREE_AW'(head_q[FREE_AW-1:0] + FREE_AW'(alloc_req0))];
+  assign i0_alloc_br0 = use0 ? q0[rd0[Q_AW-1:0]] : '0;
+  assign i0_alloc_br1 = one_col ? q0[rd0[Q_AW-1:0]]
+                      : use1    ? q1[rd1[Q_AW-1:0]] : '0;
+  assign i1_alloc_br0 = one_col ? q1[rd1[Q_AW-1:0]]
+                      : use0    ? q0[(rd0 + 1'b1)[Q_AW-1:0]] : '0;
+  assign i1_alloc_br1 = one_col ? q1[rd1[Q_AW-1:0]]
+                      : use1    ? q1[(rd1 + 1'b1)[Q_AW-1:0]] : '0;
+
+  assign alloc0_valid = dual ? (n0 >= 1 && n1 >= 1) :
+                        use0 ? (n0 >= 1) : use1 ? (n1 >= 1) : 1'b0;
+  assign alloc1_valid = dual ? (n0 >= 2 && n1 >= 2) :
+                        one_col ? (n0 >= 1 && n1 >= 1) :
+                        use0 ? (n0 >= 2) : use1 ? (n1 >= 2) : 1'b0;
+
+  wire fire0 = rename0_en && alloc0_valid;
+  wire fire1 = rename1_en && (rename0_en ? alloc1_valid : alloc0_valid);
 
   integer i;
-  always_ff @(posedge clk or negedge rst_n) begin
-    free_cnt_t head_n, tail_n, count_n;
-    free_cnt_t head_a, tail_a, count_a;
+  always_ff @(negedge clk or negedge rst_n) begin
+    q_ptr_t r0, w0, r1, w1;
 
-    if (!rst_n) begin
-      for (i = 0; i < FREE_N; i++) begin
-        queue[i]      <= prf_addr_t'(NUM_GPR + i);
-        queue_ckpt[i] <= prf_addr_t'(NUM_GPR + i);
+    if (!rst_n || flush) begin
+      for (i = 0; i < PART_N; i++) begin
+        q0[i] <= prf_addr_t'(NUM_GPR + i * 2);
+        q1[i] <= prf_addr_t'(NUM_GPR + 1 + i * 2);
       end
-      head_q     <= '0;
-      tail_q     <= '0;
-      count_q    <= free_cnt_t'(FREE_N);
-      head_ckpt  <= '0;
-      tail_ckpt  <= '0;
-      count_ckpt <= free_cnt_t'(FREE_N);
-    end else if (flush) begin
-      for (i = 0; i < FREE_N; i++)
-        queue[i] <= queue_ckpt[i];
-      head_q  <= head_ckpt;
-      tail_q  <= tail_ckpt;
-      count_q <= count_ckpt;
-    end else if (enable) begin
-      head_n  = head_q;
-      tail_n  = tail_q;
-      count_n = count_q;
+      {rd0, wr0} <= {q_ptr_t'(0), q_ptr_t'(PART_N)};
+      {rd1, wr1} <= {q_ptr_t'(0), q_ptr_t'(PART_N)};
+    end else begin
+      r0 = rd0; w0 = wr0;
+      r1 = rd1; w1 = wr1;
 
-      // 1) Commit frees first — architected reclaim.
-      if (free0_en) begin
-        queue[tail_n[FREE_AW-1:0]] <= free0_preg;
-        tail_n  = tail_n + 1'b1;
-        count_n = count_n + 1'b1;
+      if (free0_en && i0_free_tag >= NUM_GPR) begin
+        if (!i0_free_tag[0] && (w0 - r0) != PART_N) begin
+          q0[w0[Q_AW-1:0]] <= i0_free_tag; w0++;
+        end else if (i0_free_tag[0] && (w1 - r1) != PART_N) begin
+          q1[w1[Q_AW-1:0]] <= i0_free_tag; w1++;
+        end
       end
-      if (free1_en) begin
-        queue[tail_n[FREE_AW-1:0]] <= free1_preg;
-        tail_n  = tail_n + 1'b1;
-        count_n = count_n + 1'b1;
+      if (free1_en && i1_free_tag >= NUM_GPR) begin
+        if (!i1_free_tag[0] && (w0 - r0) != PART_N) begin
+          q0[w0[Q_AW-1:0]] <= i1_free_tag; w0++;
+        end else if (i1_free_tag[0] && (w1 - r1) != PART_N) begin
+          q1[w1[Q_AW-1:0]] <= i1_free_tag; w1++;
+        end
       end
 
-      // Checkpoint after frees (before speculative allocate).
-      head_a  = head_n;
-      tail_a  = tail_n;
-      count_a = count_n;
-      if (free0_en || free1_en) begin
-        for (i = 0; i < FREE_N; i++)
-          queue_ckpt[i] <= queue[i];
-        if (free0_en)
-          queue_ckpt[tail_q[FREE_AW-1:0]] <= free0_preg;
-        if (free1_en)
-          queue_ckpt[FREE_AW'(tail_q[FREE_AW-1:0] + FREE_AW'(free0_en))] <= free1_preg;
-        head_ckpt  <= head_a;
-        tail_ckpt  <= tail_a;
-        count_ckpt <= count_a;
+      if (fire0) begin
+        if (dual || one_col || use0) r0++;
+        if (dual || (!one_col && use1)) r1++;
+      end
+      if (fire1) begin
+        if (dual || (!one_col && use0)) r0++;
+        if (dual || one_col || use1) r1++;
       end
 
-      // 2) Speculative allocate pops.
-      if (alloc0_en && (count_n != '0)) begin
-        head_n  = head_n + 1'b1;
-        count_n = count_n - 1'b1;
-      end
-      if (alloc1_en && (count_n != '0)) begin
-        head_n  = head_n + 1'b1;
-        count_n = count_n - 1'b1;
-      end
-
-      head_q  <= head_n;
-      tail_q  <= tail_n;
-      count_q <= count_n;
+      rd0 <= r0; wr0 <= w0;
+      rd1 <= r1; wr1 <= w1;
     end
   end
 

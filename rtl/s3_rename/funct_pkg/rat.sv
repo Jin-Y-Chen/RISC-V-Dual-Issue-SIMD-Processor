@@ -25,28 +25,23 @@ import rv_dis_pkg::*;
     return br_map != BR_MAP_I0;
   endfunction
 
-  // True for x0 and illegal arch numbers x32–x63 → hardwired zero (p0 in PRF).
-  function automatic logic arch_maps_to_x0(input arch_addr_t arch);
-    return (arch == '0) || (arch >= arch_addr_t'(NUM_GPR));
-  endfunction
-
-  // Renameable arch (x1–x31) → RAT column index.
-  function automatic gpr_addr_t rat_slot(input arch_addr_t arch);
-    return gpr_addr_t'(arch[4:0]);
+  // x0 is hardwired zero (p0); not renameable.
+  function automatic logic arch_maps_to_x0(input gpr_addr_t arch);
+    return (arch == '0);
   endfunction
 
   function automatic prf_addr_t rat_map_read(
-    input arch_addr_t arch,
+    input gpr_addr_t  arch,
     input logic       tip_is_i1,
     input prf_addr_t  map_br0 [NUM_GPR],
     input prf_addr_t  map_br1 [NUM_GPR]
   );
-    rat_map_read = tip_is_i1 ? map_br1[rat_slot(arch)] : map_br0[rat_slot(arch)];
+    rat_map_read = tip_is_i1 ? map_br1[arch] : map_br0[arch];
   endfunction
 
   function automatic prf_addr_t rat_i0_src_lookup(
     input logic       use_en,
-    input arch_addr_t arch,
+    input gpr_addr_t  arch,
     input logic       tip_is_i1,
     input prf_addr_t  map_br0 [NUM_GPR],
     input prf_addr_t  map_br1 [NUM_GPR]
@@ -59,9 +54,9 @@ import rv_dis_pkg::*;
 
   function automatic prf_addr_t rat_i1_src_lookup(
     input logic       use_en,
-    input arch_addr_t arch,
+    input gpr_addr_t  arch,
     input logic       i0_rd_legal,
-    input arch_addr_t i0_rd_addr,
+    input gpr_addr_t  i0_rd_addr,
     input prf_addr_t  i0_prd_new_tag,
     input logic       tip_is_i1,
     input prf_addr_t  map_br0 [NUM_GPR],
