@@ -19,6 +19,7 @@ module rename_core_struct_tb;
   logic        complete0_en, complete1_en;
   logic [ROB_AW-1:0] complete0_idx, complete1_idx;
   word_t       complete0_result, complete1_result;
+  logic        resolve_en, resolve_mispred, resolve_win_path;
   logic        stall_id;
 
   logic        i0_valid_disp, i1_valid_disp;
@@ -59,6 +60,7 @@ module rename_core_struct_tb;
     complete0_en = 0; complete1_en = 0;
     complete0_idx = '0; complete1_idx = '0;
     complete0_result = '0; complete1_result = '0;
+    resolve_en = 0; resolve_mispred = 0; resolve_win_path = 0;
     repeat (2) @(posedge clk);
     rst_n = 1;
     @(posedge clk);

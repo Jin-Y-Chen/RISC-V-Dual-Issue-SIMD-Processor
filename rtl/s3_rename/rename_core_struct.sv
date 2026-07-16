@@ -43,6 +43,11 @@ module rename_core_struct (
   input  word_t       complete0_result,
   input  word_t       complete1_result,
 
+  // Branch resolve (from EX/WB); LIFO top of rename checkpoint stack.
+  input  logic        resolve_en,
+  input  logic        resolve_mispred,
+  input  logic        resolve_win_path, // 0 = path0/br0, 1 = path1/br1
+
   output logic        stall_id,
 
   output logic        i0_valid_disp,
@@ -88,19 +93,32 @@ module rename_core_struct (
   prf_addr_t fl_i0_br0, fl_i0_br1, fl_i1_br0, fl_i1_br1;
   prf_addr_t i0_prd_old, i1_prd_old;
   prf_addr_t cmt0_prd_old, cmt1_prd_old;
+  logic [2:0] rat_ckpt_ptr;
 
-  wire need = i0_reg_write_rn || i1_reg_write_rn;
-  wire fl_ok = (i0_reg_write_rn && i1_reg_write_rn) ? fl_alloc1_valid : fl_alloc0_valid;
-  wire go   = !flush && need && fl_ok && rob_alloc_ready;
+  // Branch / jump at rename → RAT checkpoint only (FL is plain dual queues).
+  wire i0_is_ctrl = (i0_opcode_rn == OPC_BRANCH) ||
+                    (i0_opcode_rn == OPC_JAL)    ||
+                    (i0_opcode_rn == OPC_JALR);
+  wire i1_is_ctrl = (i1_opcode_rn == OPC_BRANCH) ||
+                    (i1_opcode_rn == OPC_JAL)    ||
+                    (i1_opcode_rn == OPC_JALR);
+  wire need = i0_reg_write_rn || i1_reg_write_rn || i0_is_ctrl || i1_is_ctrl;
+  wire fl_ok = (i0_reg_write_rn && i1_reg_write_rn) ? fl_alloc1_valid :
+               (i0_reg_write_rn ||  i1_reg_write_rn) ? fl_alloc0_valid : 1'b1;
+  wire go = !flush && !(resolve_en && resolve_mispred) && (
+      (i0_reg_write_rn || i1_reg_write_rn) ? (fl_ok && rob_alloc_ready) :
+      (i0_is_ctrl || i1_is_ctrl)           ? rob_alloc_ready :
+                                             1'b0);
 
   assign stall_id = !flush && need && !go;
 
-  // ROB / dispatch see the rename tip's destination preg.
   wire tip_is_i1 = (br_map != BR_MAP_I0);
   wire prf_addr_t fl_i0_tip = tip_is_i1 ? fl_i0_br1 : fl_i0_br0;
   wire prf_addr_t fl_i1_tip = tip_is_i1 ? fl_i1_br1 : fl_i1_br0;
   wire prf_addr_t i0_prd = i0_reg_write_rn ? fl_i0_tip : i0_prd_old;
   wire prf_addr_t i1_prd = i1_reg_write_rn ? fl_i1_tip : i1_prd_old;
+
+  wire ckpt_push = go && (i0_is_ctrl || i1_is_ctrl);
 
   ID_packet_t i0_meta, i1_meta;
   always_comb begin
@@ -128,23 +146,22 @@ module rename_core_struct (
   end
 
   free_list u_free_list (
-    .clk          (clk),
-    .rst_n        (rst_n),
-    .brch_map     (br_map),
-    .kill_br0     (flush),
-    .kill_br1     (flush),
-    .rename0_en   (go && i0_reg_write_rn),
-    .rename1_en   (go && i1_reg_write_rn),
-    .i0_alloc_br0 (fl_i0_br0),
-    .i0_alloc_br1 (fl_i0_br1),
-    .i1_alloc_br0 (fl_i1_br0),
-    .i1_alloc_br1 (fl_i1_br1),
-    .alloc0_valid (fl_alloc0_valid),
-    .alloc1_valid (fl_alloc1_valid),
-    .free0_en     (commit0_en && commit0_reg_write),
-    .free1_en     (commit1_en && commit1_reg_write),
-    .i0_free_tag  (cmt0_prd_old),
-    .i1_free_tag  (cmt1_prd_old)
+    .clk         (clk),
+    .rst_n       (rst_n),
+    .flush       (flush),
+    .brch_map    (br_map),
+    .rename0_en  (go && i0_reg_write_rn),
+    .rename1_en  (go && i1_reg_write_rn),
+    .i0_alloc_br0(fl_i0_br0),
+    .i0_alloc_br1(fl_i0_br1),
+    .i1_alloc_br0(fl_i1_br0),
+    .i1_alloc_br1(fl_i1_br1),
+    .alloc0_valid(fl_alloc0_valid),
+    .alloc1_valid(fl_alloc1_valid),
+    .free0_en    (commit0_en && commit0_reg_write),
+    .free1_en    (commit1_en && commit1_reg_write),
+    .i0_free_tag (cmt0_prd_old),
+    .i1_free_tag (cmt1_prd_old)
   );
 
   allis_table u_allis (
@@ -179,7 +196,12 @@ module rename_core_struct (
     .commit0_rd_addr (commit0_rd_addr),
     .commit1_rd_addr (commit1_rd_addr),
     .commit0_prd     (commit0_prd),
-    .commit1_prd     (commit1_prd)
+    .commit1_prd     (commit1_prd),
+    .ckpt_push_en    (ckpt_push),
+    .rat_ckpt_ptr_out(rat_ckpt_ptr),
+    .resolve_en      (resolve_en),
+    .resolve_mispred (resolve_mispred),
+    .resolve_win_path(resolve_win_path)
   );
 
   reorder_buffer u_rob (
@@ -188,8 +210,8 @@ module rename_core_struct (
     .enable           (1'b1),
     .flush            (flush),
     .alloc_en         (go),
-    .alloc0_valid     (i0_reg_write_rn),
-    .alloc1_valid     (i1_reg_write_rn),
+    .alloc0_valid     (i0_reg_write_rn || i0_is_ctrl),
+    .alloc1_valid     (i1_reg_write_rn || i1_is_ctrl),
     .alloc0_reg_write (i0_reg_write_rn),
     .alloc1_reg_write (i1_reg_write_rn),
     .alloc0_rd_addr   (i0_rd_addr_rn),
@@ -227,8 +249,8 @@ module rename_core_struct (
     .tag              ()
   );
 
-  assign i0_valid_disp     = go && i0_reg_write_rn;
-  assign i1_valid_disp     = go && i1_reg_write_rn;
+  assign i0_valid_disp     = go && (i0_reg_write_rn || i0_is_ctrl);
+  assign i1_valid_disp     = go && (i1_reg_write_rn || i1_is_ctrl);
   assign i0_lane_sel_disp  = i0_lane_sel_rn;
   assign i1_lane_sel_disp  = i1_lane_sel_rn;
   assign i0_reg_write_disp = i0_reg_write_rn;
