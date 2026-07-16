@@ -36,11 +36,8 @@ package rv_dis_pkg;
   typedef logic [6:0]      opcode_t;
   typedef logic [2:0]      funct3_t;
   typedef logic [6:0]      funct7_t;
-  typedef logic [4:0]      gpr_addr_t;      // ISA x0–x31 (instruction encoding)
+  typedef logic [4:0]      gpr_addr_t;      // ISA x0–x31 (architectural)
   typedef logic [PRF_AW-1:0] prf_addr_t;    // physical register index p0–p63
-  // Arch index wide enough for 0..NUM_PRF-1; x32–x63 alias to x0 in the RAT
-  // (see rat_pkg::arch_maps_to_x0).
-  typedef logic [PRF_AW-1:0] arch_addr_t;
   typedef logic [1:0]      br_state_t;
   // Branch speculation map: {i1_pred_taken, i0_pred_taken}
   // 00 none, 01 i0, 10 i1, 11 both (from pc_selector).

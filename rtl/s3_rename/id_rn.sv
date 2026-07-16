@@ -22,7 +22,7 @@ module id_rn (
   input  logic        i0_reg_write_id,
   input  logic        i0_rs1_use_id,
   input  logic        i0_rs2_use_id,
-  input  br_state_t   i0_state_id,
+  input  br_state_t   i0_brch_state_id,
   input  logic        spec0_en_id,
   // internal controls (I1)
   input  logic        i1_decode_valid,
@@ -30,7 +30,7 @@ module id_rn (
   input  logic        i1_reg_write_id,
   input  logic        i1_rs1_use_id,
   input  logic        i1_rs2_use_id,
-  input  br_state_t   i1_state_id,
+  input  br_state_t   i1_brch_state_id,
   input  logic        spec1_en_id,
 
   // input data (I0) — arch addresses / immediate / PC
@@ -58,16 +58,16 @@ module id_rn (
   output logic        i0_reg_write_rn,
   output logic        i0_rs1_use_rn,
   output logic        i0_rs2_use_rn,
-  output br_state_t   i0_state_rn,
+  output br_state_t   i0_brch_state_rn,
 
   // output controls (I1)
   output logic        i1_lane_sel_rn,
   output logic        i1_reg_write_rn,
   output logic        i1_rs1_use_rn,
   output logic        i1_rs2_use_rn,
-  output br_state_t   i1_state_rn,
+  output br_state_t   i1_brch_state_rn,
 
-  output br_map_t     br_map_rn,
+  output br_map_t     brch_map,
 
   // output data (I0)
   output opcode_t     i0_opcode_rn,
@@ -106,7 +106,7 @@ module id_rn (
       i0_reg_write_rn  <= NOP_REG_WRITE;
       i0_rs1_use_rn    <= NOP_RS1_USE;
       i0_rs2_use_rn    <= NOP_RS2_USE;
-      i0_state_rn      <= '0;
+      i0_brch_state_rn <= '0;
       i0_opcode_rn     <= NOP_OPCODE;
       i0_funct3_rn     <= NOP_FUNCT3;
       i0_funct7_rn     <= NOP_FUNCT7;
@@ -120,7 +120,7 @@ module id_rn (
       i1_reg_write_rn  <= NOP_REG_WRITE;
       i1_rs1_use_rn    <= NOP_RS1_USE;
       i1_rs2_use_rn    <= NOP_RS2_USE;
-      i1_state_rn      <= '0;
+      i1_brch_state_rn <= '0;
       i1_opcode_rn     <= NOP_OPCODE;
       i1_funct3_rn     <= NOP_FUNCT3;
       i1_funct7_rn     <= NOP_FUNCT7;
@@ -135,7 +135,7 @@ module id_rn (
       i0_reg_write_rn  <= NOP_REG_WRITE;
       i0_rs1_use_rn    <= NOP_RS1_USE;
       i0_rs2_use_rn    <= NOP_RS2_USE;
-      i0_state_rn      <= '0;
+      i0_brch_state_rn <= '0;
       i0_opcode_rn     <= NOP_OPCODE;
       i0_funct3_rn     <= NOP_FUNCT3;
       i0_funct7_rn     <= NOP_FUNCT7;
@@ -149,7 +149,7 @@ module id_rn (
       i1_reg_write_rn  <= NOP_REG_WRITE;
       i1_rs1_use_rn    <= NOP_RS1_USE;
       i1_rs2_use_rn    <= NOP_RS2_USE;
-      i1_state_rn      <= '0;
+      i1_brch_state_rn <= '0;
       i1_opcode_rn     <= NOP_OPCODE;
       i1_funct3_rn     <= NOP_FUNCT3;
       i1_funct7_rn     <= NOP_FUNCT7;
@@ -165,7 +165,7 @@ module id_rn (
         i0_reg_write_rn  <= i0_reg_write_id;
         i0_rs1_use_rn    <= i0_rs1_use_id;
         i0_rs2_use_rn    <= i0_rs2_use_id;
-        i0_state_rn      <= i0_state_id;
+        i0_brch_state_rn <= i0_brch_state_id;
         i0_opcode_rn     <= i0_opcode_id;
         i0_funct3_rn     <= i0_funct3_id;
         i0_funct7_rn     <= i0_funct7_id;
@@ -180,7 +180,7 @@ module id_rn (
         i0_reg_write_rn  <= NOP_REG_WRITE;
         i0_rs1_use_rn    <= NOP_RS1_USE;
         i0_rs2_use_rn    <= NOP_RS2_USE;
-        i0_state_rn      <= '0;
+        i0_brch_state_rn <= '0;
         i0_opcode_rn     <= NOP_OPCODE;
         i0_funct3_rn     <= NOP_FUNCT3;
         i0_funct7_rn     <= NOP_FUNCT7;
@@ -196,7 +196,7 @@ module id_rn (
         i1_reg_write_rn  <= i1_reg_write_id;
         i1_rs1_use_rn    <= i1_rs1_use_id;
         i1_rs2_use_rn    <= i1_rs2_use_id;
-        i1_state_rn      <= i1_state_id;
+        i1_brch_state_rn <= i1_brch_state_id;
         i1_opcode_rn     <= i1_opcode_id;
         i1_funct3_rn     <= i1_funct3_id;
         i1_funct7_rn     <= i1_funct7_id;
@@ -210,7 +210,7 @@ module id_rn (
         i1_reg_write_rn  <= NOP_REG_WRITE;
         i1_rs1_use_rn    <= NOP_RS1_USE;
         i1_rs2_use_rn    <= NOP_RS2_USE;
-        i1_state_rn      <= '0;
+        i1_brch_state_rn <= '0;
         i1_opcode_rn     <= NOP_OPCODE;
         i1_funct3_rn     <= NOP_FUNCT3;
         i1_funct7_rn     <= NOP_FUNCT7;
@@ -222,7 +222,7 @@ module id_rn (
       end
 
       // Only valid lanes contribute speculation bits.
-      br_map_rn <= {i1_decode_valid & spec1_en_id, i0_decode_valid & spec0_en_id};
+      brch_map <= {spec1_en_id, spec0_en_id};
     end
   end
 

@@ -5,9 +5,8 @@ import rv_dis_pkg::*;
 import rob_pkg::*;
 
 module rename_core_struct_tb;
-  logic        clk, rst_n, enable, flush;
+  logic        clk, rst_n, flush;
   br_map_t     br_map;
-  logic        i0_valid_rn, i1_valid_rn;
   logic        i0_lane_sel_rn, i1_lane_sel_rn;
   logic        i0_reg_write_rn, i1_reg_write_rn;
   logic        i0_rs1_use_rn, i0_rs2_use_rn, i1_rs1_use_rn, i1_rs2_use_rn;
@@ -45,10 +44,8 @@ module rename_core_struct_tb;
 
   initial begin
     rst_n = 0;
-    enable = 0;
     flush = 0;
-    br_map = BR_MAP_NONE;  // 1-column rename tip
-    i0_valid_rn = 0; i1_valid_rn = 0;
+    br_map = BR_MAP_NONE;
     i0_lane_sel_rn = 0; i1_lane_sel_rn = 0;
     i0_reg_write_rn = 0; i1_reg_write_rn = 0;
     i0_rs1_use_rn = 0; i0_rs2_use_rn = 0;
@@ -64,12 +61,10 @@ module rename_core_struct_tb;
     complete0_result = '0; complete1_result = '0;
     repeat (2) @(posedge clk);
     rst_n = 1;
-    enable = 1;
     @(posedge clk);
 
-    // Dual ADD renaming (rd/rs nonzero) — br_map=00 one-column tip.
+    // Dual ADD renaming — both lanes write arch dests.
     br_map = BR_MAP_NONE;
-    i0_valid_rn = 1; i1_valid_rn = 1;
     i0_reg_write_rn = 1; i1_reg_write_rn = 1;
     i0_rs1_use_rn = 1; i0_rs2_use_rn = 1;
     i1_rs1_use_rn = 1; i1_rs2_use_rn = 1;
@@ -86,7 +81,7 @@ module rename_core_struct_tb;
 
     complete0_en = 1; complete0_idx = i0_rob_idx_disp; complete0_result = 32'hA;
     complete1_en = 1; complete1_idx = i1_rob_idx_disp; complete1_result = 32'hB;
-    i0_valid_rn = 0; i1_valid_rn = 0;
+    i0_reg_write_rn = 0; i1_reg_write_rn = 0;
     @(posedge clk);
     complete0_en = 0; complete1_en = 0;
     @(posedge clk);
