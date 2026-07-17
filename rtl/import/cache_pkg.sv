@@ -36,6 +36,34 @@ package cache_pkg;
     end
   endfunction
 
+  // Flat index decode (same role as pc_set / pc_way, without PC>>2).
+  function [15:0] index_set;
+    input [15:0] idx;
+    input integer way_aw;
+    input integer set_aw;
+    reg [31:0] set_mask32;
+    begin
+      index_set = 16'd0;
+      if (set_aw != 0) begin
+        set_mask32 = (32'h1 << set_aw) - 1;
+        index_set  = (idx >> way_aw) & set_mask32[15:0];
+      end
+    end
+  endfunction
+
+  function [15:0] index_way;
+    input [15:0] idx;
+    input integer way_aw;
+    reg [31:0] way_mask32;
+    begin
+      index_way = 16'd0;
+      if (way_aw != 0) begin
+        way_mask32 = (32'h1 << way_aw) - 1;
+        index_way  = idx & way_mask32[15:0];
+      end
+    end
+  endfunction
+
   // Packed entry format:
   // - valid bit at entry[data_w]
   // - payload in entry[31:0] (masked to data_w)

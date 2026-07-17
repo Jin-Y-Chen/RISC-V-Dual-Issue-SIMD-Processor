@@ -1,6 +1,6 @@
-# RISC-V Dual-Issue SIMD Processor (RV-DIS)
+# RISC-V Dual-Issue Processor (RV-DIS)
 
-RV32I scalar (active) + 128-bit SIMD (planned). Static even/odd dual-issue lanes.
+RV32I scalar core with static even/odd dual-issue lanes.
 
 Design notes: [project_outline.txt](project_outline.txt). Spec: [arm_spu_spulite_project_spec.txt](arm_spu_spulite_project_spec.txt).
 

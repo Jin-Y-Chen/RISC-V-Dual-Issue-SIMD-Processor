@@ -15,6 +15,9 @@ package rv_dis_pkg;
   // Physical register file (PRF) — arch x0–x31 plus rename temps (e.g. p32+)
   localparam int NUM_PRF = 64;
   localparam int PRF_AW  = $clog2(NUM_PRF);
+  // Reorder buffer — flat entry index (16 deep dual-issue ROB)
+  localparam int ROB_DEPTH = 16;
+  localparam int ROB_AW    = $clog2(ROB_DEPTH);
 
   // =========================================================================
   // Memory geometry (byte addressing — one address = 8 bits)
@@ -38,6 +41,7 @@ package rv_dis_pkg;
   typedef logic [6:0]      funct7_t;
   typedef logic [4:0]      gpr_addr_t;      // ISA x0–x31 (architectural)
   typedef logic [PRF_AW-1:0] prf_addr_t;    // physical register index p0–p63
+  typedef logic [ROB_AW-1:0] rob_idx_t;      // ROB entry tag / flat index
   typedef logic [1:0]      br_state_t;
   // Branch speculation map: {i1_pred_taken, i0_pred_taken}
   // 00 none, 01 i0, 10 i1, 11 both (from pc_selector).

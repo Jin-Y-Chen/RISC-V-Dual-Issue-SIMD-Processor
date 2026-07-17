@@ -982,18 +982,3 @@ Verification (Yosys via WSL):
 
 
 
-
-
-
-128-bit SIMD Extension (Cell/NEON-style, SPU-Lite):
-
-    a) 128-bit vector width; 8 vector registers v0-v7 (separate from scalar x0-x31)
-
-    b) Lane modes: 16x8-bit, 8x16-bit, 4x32-bit packed integer ops
-
-    c) Even lane: VADD, VSUB, VAND, VOR, VXOR (128-bit SIMD ALU)
-
-    d) Odd lane: VLD128, VST128 (16-byte aligned vector load/store)
-
-    e) Dual-issue example: vector ALU (even) + vector/scalar load (odd) in same cycle
-

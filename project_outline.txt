@@ -1,5 +1,5 @@
-and Project: RV-DIS: RISC-V Dual-Issue SIMD Processor
-(RV32I scalar + 128-bit SIMD; in-order even/odd dual-issue)
+Project: RV-DIS: RISC-V Dual-Issue Processor
+(RV32I scalar; in-order even/odd dual-issue)
 
 RISC-V 32-bit instructions formate
 

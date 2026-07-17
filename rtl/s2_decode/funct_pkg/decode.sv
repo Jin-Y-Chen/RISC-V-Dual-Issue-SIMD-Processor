@@ -60,7 +60,6 @@ import rv_dis_pkg::*;
       OPC_LUI,
       OPC_AUIPC: decode_imm = imm_u(instr);
       OPC_OP:      decode_imm = 32'd0;  // R-type: no immediate
-      // OPC_VEC_MEM: decode_imm = (funct3 == F3_VST128) ? imm_s(instr) : imm_i(instr);
       default: decode_imm = imm_i(instr);
     endcase
   endfunction

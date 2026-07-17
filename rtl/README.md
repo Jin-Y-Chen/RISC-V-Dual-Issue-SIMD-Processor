@@ -28,7 +28,6 @@ SystemVerilog by pipeline stage. Stage map: [../project_outline.txt](../project_
 
 ## Not implemented
 
-- 128-bit SIMD vector RF and execution
 - Register rename, reorder buffer, OoO RS issue (`core/forward_funct/reserved_buffer.sv` stub)
 - `s2_decode/core/target_predict.sv` — stub, not wired in top
 
