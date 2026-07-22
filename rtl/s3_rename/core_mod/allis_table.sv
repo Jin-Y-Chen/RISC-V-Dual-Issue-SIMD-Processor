@@ -2,11 +2,12 @@
 
 // Register Alias Table (RAT) + Retirement RAT (RRAT)
 //   rrat_q     — architected map (commit)
-//   map_br0_q  — speculative path 0
-//   map_br1_q  — speculative path 1
+//   map_br0_q  — path1 (specX_en=1)
+//   map_br1_q  — path0 (specX_en=0)
 //
-// Rename writes active speculative column(s) per brch_map.
-// Commit updates RRAT and both speculative maps (ROB owns path reclaim).
+// Dest tags are ROB-owned PRF p32..p63 (rob_to_prf). No free-list reclaim.
+// RRAT ports: rrat*_en / i*_rd_addr_cmt / i*_rob_idx_cmt (PRF tag = head ROB idx)
+// Path ports: rat*_en / i*_path_sel
 // Flush restores both speculative maps from RRAT.
 import rv_dis_pkg::*;
 import rat_pkg::*;
@@ -15,8 +16,10 @@ module allis_table (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        flush,
-  input  br_map_t     brch_map,
+  input  logic        spec0_en,
+  input  logic        spec1_en,
 
+  // source rename
   input  logic        i0_rs1_use,
   input  logic        i0_rs2_use,
   input  logic        i1_rs1_use,
@@ -30,57 +33,50 @@ module allis_table (
   output prf_addr_t   i1_ps1_tag,
   output prf_addr_t   i1_ps2_tag,
 
-  input  logic        i0_reg_write,
-  input  logic        i1_reg_write,
-  input  gpr_addr_t   i0_rd_addr,
-  input  gpr_addr_t   i1_rd_addr,
-  input  prf_addr_t   i0_alloc_tag,
-  input  prf_addr_t   i1_alloc_tag,
-  output prf_addr_t   i0_old_tag,
-  output prf_addr_t   i1_old_tag,
+  // dest rename (arch rd + ROB-derived ntag)
+  input  logic        i0_alloc_en,
+  input  logic        i1_alloc_en,
+  input  gpr_addr_t   i0_alloc_rd_addr,
+  input  gpr_addr_t   i1_alloc_rd_addr,
+  input  prf_addr_t   i0_alloc_ntag,
+  input  prf_addr_t   i1_alloc_ntag,
 
-  input  logic        i0_en,
-  input  logic        i1_en,
-  input  gpr_addr_t   i0_commit_rd_addr,
-  input  gpr_addr_t   i1_commit_rd_addr,
-  input  prf_addr_t   i0_commit_prd_tag,
-  input  prf_addr_t   i1_commit_prd_tag,
+  // RRAT architectural commit from ROB
+  input  logic        rrat0_en,
+  input  logic        rrat1_en,
+  input  gpr_addr_t   i0_rd_addr_cmt,
+  input  gpr_addr_t   i1_rd_addr_cmt,
+  input  prf_addr_t   i0_rob_idx_cmt,
+  input  prf_addr_t   i1_rob_idx_cmt,
 
-  // branch resolve from ROB (negedge): resolve_en gates rat_path
-  input  logic        resolve_en,  // 1 when a branch commits at ROB head
-  input  logic        rat_path     // 0=path0/map_br0 wins, 1=path1/map_br1 wins
+  // Committed branch path select; lane 1 is younger and has final priority.
+  // path_sel: 0→path0/map_br1, 1→path1/map_br0
+  input  logic        rat0_en,
+  input  logic        rat1_en,
+  input  logic        i0_path_sel,
+  input  logic        i1_path_sel
 );
 
   prf_addr_t rrat_q    [NUM_GPR];
   prf_addr_t map_br0_q [NUM_GPR];
   prf_addr_t map_br1_q [NUM_GPR];
 
-  wire tip_is_i1 = rat_tip_is_i1(brch_map);
-  wire use_br0   = rat_use_br0(brch_map);
-  wire use_br1   = rat_use_br1(brch_map);
+  wire i0_rd_legal = i0_alloc_en && !arch_maps_to_x0(i0_alloc_rd_addr);
+  wire i1_rd_legal = i1_alloc_en && !arch_maps_to_x0(i1_alloc_rd_addr);
 
-  wire i0_rd_legal = i0_reg_write && !arch_maps_to_x0(i0_rd_addr);
-  wire i1_rd_legal = i1_reg_write && !arch_maps_to_x0(i1_rd_addr);
-
-  assign i0_ps1_tag = rat_i0_src_lookup(
-      i0_rs1_use, i0_rs1_addr, tip_is_i1, map_br0_q, map_br1_q);
-  assign i0_ps2_tag = rat_i0_src_lookup(
-      i0_rs2_use, i0_rs2_addr, tip_is_i1, map_br0_q, map_br1_q);
+  assign i0_ps1_tag = rat_src_lookup(
+      i0_rs1_use, i0_rs1_addr, spec0_en, map_br0_q, map_br1_q);
+  assign i0_ps2_tag = rat_src_lookup(
+      i0_rs2_use, i0_rs2_addr, spec0_en, map_br0_q, map_br1_q);
   assign i1_ps1_tag = rat_i1_src_lookup(
-      i1_rs1_use, i1_rs1_addr, i0_rd_legal, i0_rd_addr, i0_alloc_tag,
-      tip_is_i1, map_br0_q, map_br1_q);
+      i1_rs1_use, i1_rs1_addr, i0_rd_legal, i0_alloc_rd_addr, i0_alloc_ntag,
+      spec0_en, spec1_en, map_br0_q, map_br1_q);
   assign i1_ps2_tag = rat_i1_src_lookup(
-      i1_rs2_use, i1_rs2_addr, i0_rd_legal, i0_rd_addr, i0_alloc_tag,
-      tip_is_i1, map_br0_q, map_br1_q);
+      i1_rs2_use, i1_rs2_addr, i0_rd_legal, i0_alloc_rd_addr, i0_alloc_ntag,
+      spec0_en, spec1_en, map_br0_q, map_br1_q);
 
-  assign i0_old_tag = arch_maps_to_x0(i0_rd_addr) ? '0
-                    : rat_map_read(i0_rd_addr, tip_is_i1, map_br0_q, map_br1_q);
-  assign i1_old_tag = arch_maps_to_x0(i1_rd_addr) ? '0
-                    : (i0_rd_legal && (i1_rd_addr == i0_rd_addr)) ? i0_alloc_tag
-                    : rat_map_read(i1_rd_addr, tip_is_i1, map_br0_q, map_br1_q);
-
-  wire cmt0_wr = i0_en && !arch_maps_to_x0(i0_commit_rd_addr);
-  wire cmt1_wr = i1_en && !arch_maps_to_x0(i1_commit_rd_addr);
+  wire rrat0_wr = rrat0_en && !arch_maps_to_x0(i0_rd_addr_cmt);
+  wire rrat1_wr = rrat1_en && !arch_maps_to_x0(i1_rd_addr_cmt);
 
   integer i;
   always_ff @(negedge clk or negedge rst_n) begin
@@ -99,34 +95,33 @@ module allis_table (
         map_br1_q[i] <= rrat_q[i];
       end
     end else begin
-      // Branch resolve: copy winning column to loser when a branch commits.
-      if (resolve_en) begin
-        if (rat_path == 1'b0)
+      if (rat1_en) begin
+        // If both branches resolve, the younger branch selects the final path.
+        if (i1_path_sel == 1'b1)
+          for (i = 0; i < NUM_GPR; i++) map_br1_q[i] <= map_br0_q[i];
+        else
+          for (i = 0; i < NUM_GPR; i++) map_br0_q[i] <= map_br1_q[i];
+      end else if (rat0_en) begin
+        if (i0_path_sel == 1'b1)
           for (i = 0; i < NUM_GPR; i++) map_br1_q[i] <= map_br0_q[i];
         else
           for (i = 0; i < NUM_GPR; i++) map_br0_q[i] <= map_br1_q[i];
       end
 
-      // Reg commit (RRAT + both maps), then rename so younger map wins.
-      if (cmt0_wr) begin
-        rrat_q[i0_commit_rd_addr]    <= i0_commit_prd_tag;
-        map_br0_q[i0_commit_rd_addr] <= i0_commit_prd_tag;
-        map_br1_q[i0_commit_rd_addr] <= i0_commit_prd_tag;
+      // Commit the exact ROB tag; do not overwrite younger speculative maps.
+      if (rrat0_wr) begin
+        rrat_q[i0_rd_addr_cmt] <= i0_rob_idx_cmt;
       end
-      if (cmt1_wr) begin
-        rrat_q[i1_commit_rd_addr]    <= i1_commit_prd_tag;
-        map_br0_q[i1_commit_rd_addr] <= i1_commit_prd_tag;
-        map_br1_q[i1_commit_rd_addr] <= i1_commit_prd_tag;
+      if (rrat1_wr) begin
+        rrat_q[i1_rd_addr_cmt] <= i1_rob_idx_cmt;
       end
 
-      if (use_br0) begin
-        if (i0_rd_legal) map_br0_q[i0_rd_addr] <= i0_alloc_tag;
-        if (i1_rd_legal) map_br0_q[i1_rd_addr] <= i1_alloc_tag;
-      end
-      if (use_br1) begin
-        if (i0_rd_legal) map_br1_q[i0_rd_addr] <= i0_alloc_tag;
-        if (i1_rd_legal) map_br1_q[i1_rd_addr] <= i1_alloc_tag;
-      end
+      if (i0_rd_legal)
+        if (spec0_en) map_br0_q[i0_alloc_rd_addr] <= i0_alloc_ntag;
+        else          map_br1_q[i0_alloc_rd_addr] <= i0_alloc_ntag;
+      if (i1_rd_legal)
+        if (spec1_en) map_br0_q[i1_alloc_rd_addr] <= i1_alloc_ntag;
+        else          map_br1_q[i1_alloc_rd_addr] <= i1_alloc_ntag;
     end
   end
 

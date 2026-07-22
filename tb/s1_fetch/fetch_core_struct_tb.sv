@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 
 import rv_dis_pkg::*;
+import imem_hex_loader_pkg::*;
 
 `include "../include/tb_console.svh"
 
@@ -37,6 +38,7 @@ module fetch_core_struct_tb;
   instr_t instr1;
   logic    spec0_en, spec1_en;
   logic    i0_valid, i1_valid;
+  logic    i0_target_valid, i1_target_valid;
 
   word_t  ref_pc0;
   word_t  ref_pc1;
@@ -45,6 +47,12 @@ module fetch_core_struct_tb;
   instr_t ref_instr0;
   instr_t ref_instr1;
   logic   ref_spec0_en, ref_spec1_en;
+  logic   ref_i0_valid, ref_i1_valid;
+  logic   ref_i0_target_valid, ref_i1_target_valid;
+
+  imem_prog_entry_t prog [256];
+  int               prog_len;
+  string            mem_file;
 
   int pass_cnt;
   int fail_cnt;
@@ -79,7 +87,9 @@ module fetch_core_struct_tb;
     .spec0_en         (spec0_en),
     .spec1_en         (spec1_en),
     .i0_valid         (i0_valid),
-    .i1_valid         (i1_valid)
+    .i1_valid         (i1_valid),
+    .i0_target_valid  (i0_target_valid),
+    .i1_target_valid  (i1_target_valid)
   );
 
   fetch_core_struct_gm #(
@@ -110,11 +120,27 @@ module fetch_core_struct_tb;
     .instr0           (ref_instr0),
     .instr1           (ref_instr1),
     .spec0_en         (ref_spec0_en),
-    .spec1_en         (ref_spec1_en)
+    .spec1_en         (ref_spec1_en),
+    .i0_valid         (ref_i0_valid),
+    .i1_valid         (ref_i1_valid),
+    .i0_target_valid  (ref_i0_target_valid),
+    .i1_target_valid  (ref_i1_target_valid)
   );
 
   initial clk = 1'b0;
   always #(CLK_PERIOD/2) clk <= ~clk;
+
+  // Preload the DUT's current cache storage from the architectural program
+  // image. The GM remains PC-keyed and independent of this bank geometry.
+  task automatic preload_icache;
+    int set_idx;
+    int way_idx;
+    for (int i = 0; i < prog_len; i++) begin
+      way_idx = int'(prog[i].pc[2]);
+      set_idx = int'(prog[i].pc[14:3]);
+      dut.u_icache.bank[set_idx][way_idx] = {1'b1, prog[i].word};
+    end
+  endtask
 
   task automatic idle_ctrl;
     enable          = 1'b1;
@@ -145,10 +171,16 @@ module fetch_core_struct_tb;
 
     pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
         && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target)
-        && (spec0_en === ref_spec0_en) && (spec1_en === ref_spec1_en);
+        && (instr0 === ref_instr0) && (instr1 === ref_instr1)
+        && (spec0_en === ref_spec0_en) && (spec1_en === ref_spec1_en)
+        && (i0_valid === ref_i0_valid) && (i1_valid === ref_i1_valid)
+        && (i0_target_valid === ref_i0_target_valid)
+        && (i1_target_valid === ref_i1_target_valid);
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
+    tb_field_in_bit("clk",             clk);
+    tb_field_in_bit("rst_n",           rst_n);
     tb_field_in_bit("enable",          enable);
     tb_field_in_bit("dispatch_stall",  dispatch_stall);
     tb_field_in_bit("spec0_stall",     spec0_stall);
@@ -171,8 +203,14 @@ module fetch_core_struct_tb;
     tb_field_u32("pc1",          pc1,          ref_pc1);
     tb_field_u32("i0_pc_target", i0_pc_target, ref_i0_pc_target);
     tb_field_u32("i1_pc_target", i1_pc_target, ref_i1_pc_target);
+    tb_field_u32("instr0",       instr0,       ref_instr0);
+    tb_field_u32("instr1",       instr1,       ref_instr1);
     tb_field_bit("spec0_en",     spec0_en,     ref_spec0_en);
     tb_field_bit("spec1_en",     spec1_en,     ref_spec1_en);
+    tb_field_bit("i0_valid",      i0_valid,      ref_i0_valid);
+    tb_field_bit("i1_valid",      i1_valid,      ref_i1_valid);
+    tb_field_bit("i0_target_valid", i0_target_valid, ref_i0_target_valid);
+    tb_field_bit("i1_target_valid", i1_target_valid, ref_i1_target_valid);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -182,6 +220,9 @@ module fetch_core_struct_tb;
     fail_cnt = 0;
     rst_n    = 1'b0;
     idle_ctrl();
+    if (!$value$plusargs("imem_mem=%s", mem_file))
+      mem_file = "program/bin/demo_instructions.mem";
+    imem_load_mem_program(mem_file, prog, prog_len);
 
     tb_banner("fetch_core_struct_tb: DUT vs fetch_core_struct_gm.sv");
 
@@ -189,6 +230,7 @@ module fetch_core_struct_tb;
 
     @(negedge clk);
     rst_n = 1'b1;
+    preload_icache();
     idle_ctrl();
     step_and_check("sequential_step", "spec=00 => +8/+8");
 

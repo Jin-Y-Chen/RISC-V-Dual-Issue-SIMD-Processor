@@ -132,7 +132,7 @@ module s4_execute_struct (
   rs_entry_t od0_bank [0:RS_DEPTH-1];
   rs_entry_t od1_bank [0:RS_DEPTH-1];
 
-  reservation_station #(
+  legacy_reservation_station #(
     .IS_ODD(1'b0)
   ) u_rs_even (
     .clk               (clk),
@@ -205,7 +205,7 @@ module s4_execute_struct (
     .s1_pc_ex          ()
   );
 
-  reservation_station #(
+  legacy_reservation_station #(
     .IS_ODD(1'b1)
   ) u_rs_odd (
     .clk               (clk),

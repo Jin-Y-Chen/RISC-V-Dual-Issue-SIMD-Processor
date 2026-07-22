@@ -1,0 +1,16 @@
+{
+  "extra_sources": [
+    "rtl/s1_fetch/core_mod/pc.sv",
+    "rtl/s1_fetch/core_mod/pc_selector.sv",
+    "rtl/s1_fetch/core_mod/instruction_cache.sv",
+    "rtl/s1_fetch/core_mod/target_buffer.sv",
+    "tb/include/imem_hex_loader_pkg.sv",
+    "tb/s1_fetch/gm/pc_gm.sv",
+    "tb/s1_fetch/gm/pc_selector_gm.sv",
+    "tb/s1_fetch/gm/instruction_cache_gm.sv",
+    "tb/s1_fetch/gm/target_buffer_gm.sv"
+  ],
+  "plusargs": [
+    "imem_mem=${MEM_FILE}"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "extra_sources": [
+    "tb/include/imem_hex_loader_pkg.sv"
+  ],
+  "plusargs": [
+    "imem_mem=${MEM_FILE}",
+    "cache_dump=icache_bank.txt"
+  ],
+  "artifacts": [
+    "icache_bank.txt"
+  ]
+}

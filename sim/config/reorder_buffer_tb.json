@@ -1,0 +1,13 @@
+{
+  "extra_sources": [
+    "rtl/s3_rename/funct_pkg/rob.sv",
+    "rtl/s3_rename/core_mod/reorder_buffer.sv",
+    "tb/s3_rename/gm/reorder_buffer_gm.sv"
+  ],
+  "plusargs": [
+    "rob_dump=rob_bank.txt"
+  ],
+  "artifacts": [
+    "rob_bank.txt"
+  ]
+}

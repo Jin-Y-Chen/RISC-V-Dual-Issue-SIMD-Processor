@@ -1,0 +1,8 @@
+{
+  "plusargs": [
+    "btb_dump=btb_bank.txt"
+  ],
+  "artifacts": [
+    "btb_bank.txt"
+  ]
+}

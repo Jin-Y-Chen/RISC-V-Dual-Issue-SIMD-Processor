@@ -101,8 +101,9 @@ package cache_pkg;
         mask32 = (32'h1 << data_w) - 1;
 
       cache_set_write         = 33'd0;
-      cache_set_write[data_w] = valid;
       cache_set_write[31:0]   = data & mask32;
+      // Set valid after payload so DATA_W<32 does not clear entry[data_w].
+      cache_set_write[data_w] = valid;
     end
   endfunction
 

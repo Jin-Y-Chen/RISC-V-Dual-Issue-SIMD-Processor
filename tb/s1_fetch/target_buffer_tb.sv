@@ -70,18 +70,42 @@ module target_buffer_tb;
 
   task automatic dump_btb_txt(input string path);
     int fd;
+    bit set_hit;
+    logic        v;
+    logic [31:0] tgt;
+
     fd = $fopen(path, "w");
     if (fd == 0) begin
       $error("dump_btb_txt: cannot open %s", path);
       return;
     end
-    $fdisplay(fd, "# target_buffer DUT bank (valid entries only)");
+
+    // WAYS=16 => way index is PC[5:2] (4 bits); print every way in occupied sets.
+    $fdisplay(fd, "# target_buffer DUT bank");
     $fdisplay(fd, "# INDEX_W=%0d WAYS=%0d SETS=%0d", INDEX_W, WAYS, SETS);
-    $fdisplay(fd, "# columns: set way target");
-    for (int s = 0; s < SETS; s++)
+    $fdisplay(fd, "# occupied sets only; each way shown (V=0 => -)");
+    $fdisplay(fd, "# columns: way[3:0]  V  target");
+
+    for (int s = 0; s < SETS; s++) begin
+      set_hit = 1'b0;
       for (int w = 0; w < WAYS; w++)
         if (dut.bank[s][w][32])
-          $fdisplay(fd, "%4d %2d 0x%08h", s, w, dut.bank[s][w][31:0]);
+          set_hit = 1'b1;
+      if (!set_hit)
+        continue;
+
+      $fdisplay(fd, "");
+      $fdisplay(fd, "# set %0d", s);
+      for (int w = 0; w < WAYS; w++) begin
+        v   = dut.bank[s][w][32];
+        tgt = dut.bank[s][w][31:0];
+        if (v)
+          $fdisplay(fd, "  %04b  %0d  0x%08h", w[3:0], v, tgt);
+        else
+          $fdisplay(fd, "  %04b  %0d  -", w[3:0], v);
+      end
+    end
+
     $fclose(fd);
     $display("[INFO] BTB dump -> %s", path);
   endtask
@@ -116,6 +140,8 @@ module target_buffer_tb;
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
+    tb_field_in_bit("clk",             clk);
+    tb_field_in_bit("rst_n",           rst_n);
     tb_field_in_u32("i0_pc",           i0_pc);
     tb_field_in_u32("i1_pc",           i1_pc);
     tb_field_in_bit("i0_valid_wb",     i0_valid_wb);

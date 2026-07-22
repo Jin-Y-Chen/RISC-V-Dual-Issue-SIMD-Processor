@@ -1,0 +1,8 @@
+{
+  "plusargs": [
+    "state_dump=state_bank.txt"
+  ],
+  "artifacts": [
+    "state_bank.txt"
+  ]
+}

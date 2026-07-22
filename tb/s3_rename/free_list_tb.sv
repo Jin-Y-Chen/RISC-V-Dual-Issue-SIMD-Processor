@@ -5,11 +5,12 @@ import rv_dis_pkg::*;
 
 module free_list_tb;
   logic        clk, rst_n, flush;
-  logic        rename0_en, rename1_en;
-  prf_addr_t   i0_alloc_tag, i1_alloc_tag;
-  logic        alloc0_valid, alloc1_valid;
-  logic        free0_en, free1_en;
+  logic        i0_alloc_en, i1_alloc_en;
+  prf_addr_t   i0_alloc_ntag, i1_alloc_ntag;
+  logic        i0_alloc_ok, i1_alloc_ok;
+  logic        i0_free_en, i1_free_en;
   prf_addr_t   i0_free_tag, i1_free_tag;
+  logic [NUM_PRF-1:0] rrat_used;
 
   free_list dut (.*);
 
@@ -23,37 +24,55 @@ module free_list_tb;
 
   task automatic clear_stim;
     flush = 0;
-    rename0_en = 0; rename1_en = 0;
-    free0_en = 0; free1_en = 0;
+    i0_alloc_en = 0; i1_alloc_en = 0;
+    i0_free_en = 0; i1_free_en = 0;
     i0_free_tag = '0; i1_free_tag = '0;
   endtask
 
   initial begin
     rst_n = 0;
+    rrat_used = '0;
+    for (int r = 0; r < NUM_GPR; r++)
+      rrat_used[r] = 1'b1;
     clear_stim();
     repeat (2) tick;
     rst_n = 1;
     tick;
 
-    rename0_en = 1; rename1_en = 1;
+    i0_alloc_en = 1; i1_alloc_en = 1;
     tick;
-    if (!alloc0_valid || !alloc1_valid) $error("alloc not ready");
-    if (i0_alloc_tag != 6'd32 || i1_alloc_tag != 6'd33)
-      $error("expect p32/p33 got %0d/%0d", i0_alloc_tag, i1_alloc_tag);
+    if (!i0_alloc_ok || !i1_alloc_ok) $error("alloc not ready");
+    if (i0_alloc_ntag != 6'd32 || i1_alloc_ntag != 6'd33)
+      $error("expect p32/p33 got %0d/%0d", i0_alloc_ntag, i1_alloc_ntag);
     clear_stim();
     tick;
 
-    // Rename temp + arch tag both re-enter the 64-deep pool.
-    free0_en = 1; i0_free_tag = 6'd32;
-    free1_en = 1; i1_free_tag = 6'd5;
+    i0_free_en = 1; i0_free_tag = 6'd32;
+    i1_free_en = 1; i1_free_tag = 6'd5;
     tick;
     clear_stim();
 
-    rename0_en = 1; rename1_en = 1;
+    i0_alloc_en = 1; i1_alloc_en = 1;
     tick;
-    if (i0_alloc_tag != 6'd34 || i1_alloc_tag != 6'd35)
-      $error("expect p34/p35 got %0d/%0d", i0_alloc_tag, i1_alloc_tag);
+    if (i0_alloc_ntag != 6'd34 || i1_alloc_ntag != 6'd35)
+      $error("expect p34/p35 got %0d/%0d", i0_alloc_ntag, i1_alloc_ntag);
     clear_stim();
+
+    // Model x1 committing p32: p1 becomes free while p32 remains architected.
+    rrat_used = '0;
+    rrat_used[0] = 1'b1;
+    for (int r = 2; r <= 32; r++)
+      rrat_used[r] = 1'b1;
+    flush = 1;
+    @(negedge clk);
+    #1;
+    flush = 0;
+    i0_alloc_en = 1;
+    i1_alloc_en = 1;
+    #1;
+    if (i0_alloc_ntag != 6'd1 || i1_alloc_ntag != 6'd33)
+      $error("flush rebuild expect p1/p33 got %0d/%0d",
+             i0_alloc_ntag, i1_alloc_ntag);
 
     $display("OK free_list_tb");
     $finish;

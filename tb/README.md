@@ -1,82 +1,69 @@
 # Testbenches
 
-Run from repo root:
-
-```bash
-./scripts/run-sim -TOP <name>
-```
+All non-RTL SystemVerilog lives here: directed testbenches, golden models, and
+UVM environments. Run simulations through the Python control panel:
 
 ```powershell
-.\scripts\lib\run_yosys.ps1 -Top <name> -Sim
+python sim/run.py <top>
+python sim/run.py rename_uvm --test rename_smoke_test
+python sim/run.py --list
 ```
 
-Shared utilities: `common/` (`tb_console.svh`, `tb_block_case_loader.svh`). See `common/README.md`.
+See [`sim/README.md`](../sim/README.md) for simulator options and result layout.
 
-Golden models: `gm/` (Verilog, sim) + `tb/gm/` (C++ offline check). See `model/README.md`.
+## Layout
 
-## Conventions (WSL)
-
-- **`tb_advance(clk)`** - `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang some simulators with timing enabled).
-- **Includes** - `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
-- **`tb_summary`** - end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
-
-```
+```text
 tb/
-  include/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader_pkg.sv (.mem)
-  models/         (future BFMs / memory models)
-  s1_fetch/
-    cases/        *.txt case data
-    pc_tb, pc_selector_tb, instruction_cache_tb, target_buffer_tb, fetch_core_struct_tb
-  s2_decode/      if_id_tb, decoder_tb, state_buffer_tb, register_file_tb (+ gm/)
-  s3_execute/     even_lane_tb, odd_lane_tb, id_ex_dispatch_tb
-  s4_memory/      ex_mem_tb, memory_cache_tb
-  s5_wback/       ex_mem_wb_tb
+  include/              Shared headers / packages (tb_console.svh, loaders)
+  uvm/
+    common/             Reusable UVM base package
+    rename/             Rename-stage UVM (agents, env, refmodel, tests, top)
+  s1_fetch/             Directed TBs (+ gm/)
+  s2_decode/            Directed TBs (+ gm/)
+  s3_rename/            Directed rename TBs
+  s3_execute/           Directed execute TBs (legacy stage name)
+  s4_dispatch/          Directed dispatch TBs
+  s4_memory/            Directed memory TBs (legacy stage name)
+  s5_wback/             Directed writeback TBs (legacy stage name)
+  top/                  Full-core directed TB
 ```
 
-## s1_fetch
+Golden models stay next to their directed stage under `gm/` (not duplicated into
+UVM). The rename UVM environment carries its own reference model under
+`tb/uvm/rename/env/rename_refmodel.sv`.
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `pc_tb` | `rtl/s1_fetch/pc.sv` | Reset, +8/+8, +4/+4, stall, enable hold |
-| `pc_selector_tb` | `rtl/s1_fetch/core_mod/pc_selector.sv` | Predict / recover / stall-in-spec |
-| `instruction_cache_tb` | `tb/s1_fetch/models/instruction_cache.sv` | Dual read, miss -> 0 |
-| `target_buffer_tb` | `rtl/s1_fetch/core_mod/target_buffer.sv` | Miss -> 0, WB install hit |
-| `fetch_core_struct_tb` | `rtl/s1_fetch/fetch_core_struct.sv` (+ real `pc` / `pc_selector`, sim I$/BTB models) | Sequential, BTB, predict, stall, recover |
+## Conventions
 
-I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by all simulators. Real RTL remains under `rtl/s1_fetch/core_mod/`.
+- **`tb_advance(clk)`** — tick tasks use `@(negedge clk)`; clocks use
+  `always #(CLK_PERIOD/2)`.
+- **Includes** — `` `include "../include/tb_console.svh" `` (or the relative path
+  from the TB file).
+- **`tb_summary`** — end directed TBs with `tb_summary(pass_cnt, fail_cnt)`.
 
-## s2_decode
+## UVM rename suite
 
-| TB | DUT | GM | Checks |
-|----|-----|-----|--------|
-| `if_id_tb` | `rtl/s2_decode/if_id.sv` | `gm/if_id_gm.sv` | CLEAR/HOLD/CAPTURE LUT |
-| `decoder_tb` | `rtl/s2_decode/core_mod/decoder.sv` | `gm/decoder_gm.sv` | opcode/funct3 LUTs, imm, flags |
-| `state_buffer_tb` | `rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv` | `gm/state_buffer_gm.sv` | bank + WB bypass |
-| `register_file_tb` | `rtl/s2_decode/core_mod/register_file.sv` | `gm/register_file_gm.sv` | x0, dual WB, bypass |
+Sources: `tb/uvm/rename/`  
+Harness: `tb/uvm/rename/top/rename_tb_top.sv`  
+Filelist: `sim/filelists/uvm/rename.f`
 
-## s3_execute
+```powershell
+python sim/run.py rename_uvm
+python sim/run.py rename_uvm --test rename_random_test --sim xsim
+```
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `even_lane_tb` | `even_lane.sv` + `scalar_alu.sv` | ADD/SUB/AND/OR/XOR |
-| `odd_lane_tb` | `odd_lane.sv`, branch + LSU | branches, JAL/JALR, LW/SW |
-| `id_ex_dispatch_tb` | `rtl/s3_dispatch/dispatch_core_struct.sv` | even/odd dispatch |
+Tests: `rename_smoke_test`, `rename_random_test`, `rename_raw_hazard_test`,
+`rename_branch_test`, `rename_flush_test`.
 
-## s4_memory
+## Directed stage notes
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `ex_mem_tb` | `rtl/s4_memory/ex_mem.sv` | per-lane EX/MEM, stall, flush |
-| `memory_cache_tb` | `rtl/s4_memory/core/memory_cache.sv` | D-cache |
+| Area | Examples |
+|------|----------|
+| Fetch | `pc_tb`, `pc_selector_tb`, `instruction_cache_tb`, `target_buffer_tb`, `fetch_core_struct_tb` |
+| Decode | `if_id_tb`, `decoder_tb`, `state_buffer_tb`, `register_file_tb`, `decode_core_struct_tb` |
+| Rename | `rename_core_struct_tb`, `reorder_buffer_tb` |
+| Dispatch | `rn_dp_tb`, `reservation_station_tb` |
+| Execute / Mem / WB | `even_lane_tb`, `odd_lane_tb`, `ex_mem_tb`, `memory_cache_tb`, `ex_mem_wb_tb` |
+| Top | `risc_dis_unit_tb` |
 
-## s5_wback
-
-| TB | DUT | Checks |
-|----|-----|--------|
-| `ex_mem_wb_tb` | `rtl/s5_wback/ex_mem_wb.sv` | 4 lane inputs -> 2 GPR writes |
-
-## Not in tree yet
-
-`dispatch_hazard_tb` - listed in `run_yosys.ps1` `-Top` validate set but no `tb/s2_decode/dispatch_hazard_tb.sv` file.
-
-Design context: [../../project_outline.txt](../../project_outline.txt)
+Design context: [`../project_outline.txt`](../project_outline.txt)

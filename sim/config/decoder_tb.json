@@ -1,0 +1,5 @@
+{
+  "extra_sources": [
+    "rtl/s2_decode/funct_pkg/decode.sv"
+  ]
+}

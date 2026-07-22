@@ -33,7 +33,11 @@ module fetch_core_struct_gm #(
   output instr_t instr0,
   output instr_t instr1,
   output logic  spec0_en,
-  output logic  spec1_en
+  output logic  spec1_en,
+  output logic  i0_valid,
+  output logic  i1_valid,
+  output logic  i0_target_valid,
+  output logic  i1_target_valid
 );
 
   logic  spec0;
@@ -42,11 +46,21 @@ module fetch_core_struct_gm #(
   logic  spec1_next;
   logic  i0_btb_valid;
   logic  i1_btb_valid;
+  logic  i0_icache_valid;
+  logic  i1_icache_valid;
+  instr_t i0_icache_instr;
+  instr_t i1_icache_instr;
   word_t pc0_next;
   word_t pc1_next;
 
   assign spec0_en = spec0_next;
   assign spec1_en = spec1_next;
+  assign instr0 = rst_n ? i0_icache_instr : '0;
+  assign instr1 = rst_n ? i1_icache_instr : '0;
+  assign i0_valid = rst_n && i0_icache_valid;
+  assign i1_valid = rst_n && i1_icache_valid;
+  assign i0_target_valid = rst_n && i0_btb_valid;
+  assign i1_target_valid = rst_n && i1_btb_valid;
 
   pc_gm #(
     .RESET_PC(RESET_PC)
@@ -67,14 +81,11 @@ module fetch_core_struct_gm #(
     .spec1_out       (spec1)
   );
 
-  logic i0_icache_valid;
-  logic i1_icache_valid;
-
   instruction_cache_gm u_icache_gm (
     .pc0      (pc0),
     .pc1      (pc1),
-    .instr0   (instr0),
-    .instr1   (instr1),
+    .instr0   (i0_icache_instr),
+    .instr1   (i1_icache_instr),
     .i0_valid (i0_icache_valid),
     .i1_valid (i1_icache_valid)
   );

@@ -242,4 +242,15 @@ import rv_dis_pkg::*;
       endcase
   endfunction
 
+  function automatic logic decode_store_en(
+    input logic [6:0] opcode,
+    input logic [2:0] funct3
+  );
+    // RV-DIS scalar memory subset: SW only (matches insn_legal_scalar).
+    unique case (opcode)
+      OPC_STORE: decode_store_en = (funct3 == F3_SW);
+      default:   decode_store_en = 1'b0;
+    endcase
+  endfunction
+
 endpackage

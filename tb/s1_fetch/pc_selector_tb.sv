@@ -110,6 +110,7 @@ module pc_selector_tb;
     detail = $sformatf("ctrl=%06b", ctrl[5:0]);
     tb_report_open(pass, $sformatf("ctrl_%02x", ctrl), detail);
     tb_log_section("inputs");
+    tb_field_in_bit("clk",             clk);
     tb_field_in_bit("spec0_in",        spec0_in);
     tb_field_in_bit("spec1_in",        spec1_in);
     tb_field_in_bit("i0_pred_taken",   i0_pred_taken);

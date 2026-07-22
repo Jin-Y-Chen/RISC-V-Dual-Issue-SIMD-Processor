@@ -82,8 +82,16 @@ task automatic tb_field_in_u32(input string label, input logic [31:0] val);
   $display("  %-16s = %18s", label, $sformatf("0x%08h", val));
 endtask
 
+task automatic tb_field_in_u2(input string label, input logic [1:0] val);
+  $display("  %-16s = %18s", label, $sformatf("%02b", val));
+endtask
+
 task automatic tb_field_bit(input string label, input logic got, input logic exp);
   tb_field_line(label, $sformatf("%0d", got), $sformatf("%0d", exp));
+endtask
+
+task automatic tb_field_u2(input string label, input logic [1:0] got, input logic [1:0] exp);
+  tb_field_line(label, $sformatf("%02b", got), $sformatf("%02b", exp));
 endtask
 
 task automatic tb_field_u5(input string label, input logic [4:0] got, input logic [4:0] exp);

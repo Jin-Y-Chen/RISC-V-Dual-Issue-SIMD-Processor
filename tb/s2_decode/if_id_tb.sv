@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// if_id_tb - DUT vs gm/if_id_gm.sv (CLEAR/HOLD/CAPTURE + per-lane fetch_valid CE).
+// if_id_tb - DUT vs gm/if_id_gm.sv (flush/stall/enable + per-lane fetch_valid).
 
 import rv_dis_pkg::*;
 
@@ -24,78 +24,44 @@ module if_id_tb;
   logic [31:0] i0_instr_id, i1_instr_id;
   logic [31:0] i0_pc_id, i1_pc_id;
   logic [31:0] i0_pc_target_id, i1_pc_target_id;
-  logic        i0_valid_id, i1_valid_id;
   logic        i0_target_valid_id, i1_target_valid_id;
   logic        spec0_en_id, spec1_en_id;
 
   logic [31:0] ref_i0_instr_id, ref_i1_instr_id;
   logic [31:0] ref_i0_pc_id, ref_i1_pc_id;
   logic [31:0] ref_i0_pc_target_id, ref_i1_pc_target_id;
-  logic        ref_i0_valid_id, ref_i1_valid_id;
   logic        ref_i0_target_valid_id, ref_i1_target_valid_id;
   logic        ref_spec0_en_id, ref_spec1_en_id;
 
   int pass_cnt;
   int fail_cnt;
 
-  if_id dut (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .enable          (enable),
-    .flush           (flush),
-    .stall           (stall),
-    .i0_fetch_valid      (i0_fetch_valid),
-    .i1_fetch_valid      (i1_fetch_valid),
-    .i0_target_valid_if  (i0_target_valid_if),
-    .i1_target_valid_if  (i1_target_valid_if),
-    .spec0_en_if     (spec0_en_if),
-    .spec1_en_if     (spec1_en_if),
-    .i0_instr_if     (i0_instr_if),
-    .i1_instr_if     (i1_instr_if),
-    .i0_pc_if        (i0_pc_if),
-    .i1_pc_if        (i1_pc_if),
-    .i0_pc_target_if (i0_pc_target_if),
-    .i1_pc_target_if (i1_pc_target_if),
-    .i0_instr_id     (i0_instr_id),
-    .i1_instr_id     (i1_instr_id),
-    .i0_pc_id        (i0_pc_id),
-    .i1_pc_id        (i1_pc_id),
-    .i0_pc_target_id (i0_pc_target_id),
-    .i1_pc_target_id (i1_pc_target_id),
-    .i0_valid_id         (i0_valid_id),
-    .i1_valid_id         (i1_valid_id),
-    .i0_target_valid_id  (i0_target_valid_id),
-    .i1_target_valid_id  (i1_target_valid_id),
-    .spec0_en_id     (spec0_en_id),
-    .spec1_en_id     (spec1_en_id)
-  );
+  if_id dut (.*);
 
   if_id_gm u_if_id_gm (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .enable          (enable),
-    .flush           (flush),
-    .stall           (stall),
+    .clk                 (clk),
+    .rst_n               (rst_n),
+    .enable              (enable),
+    .flush               (flush),
+    .stall               (stall),
     .i0_fetch_valid      (i0_fetch_valid),
     .i1_fetch_valid      (i1_fetch_valid),
     .i0_target_valid_if  (i0_target_valid_if),
     .i1_target_valid_if  (i1_target_valid_if),
-    .spec0_en_if     (spec0_en_if),
-    .spec1_en_if     (spec1_en_if),
-    .i0_instr_if     (i0_instr_if),
-    .i1_instr_if     (i1_instr_if),
-    .i0_pc_if        (i0_pc_if),
-    .i1_pc_if        (i1_pc_if),
-    .i0_pc_target_if (i0_pc_target_if),
-    .i1_pc_target_if (i1_pc_target_if),
-    .i0_instr_id     (ref_i0_instr_id),
-    .i1_instr_id     (ref_i1_instr_id),
-    .i0_pc_id        (ref_i0_pc_id),
-    .i1_pc_id        (ref_i1_pc_id),
-    .i0_pc_target_id (ref_i0_pc_target_id),
-    .i1_pc_target_id (ref_i1_pc_target_id),
-    .i0_valid_id         (ref_i0_valid_id),
-    .i1_valid_id         (ref_i1_valid_id),
+    .spec0_en_if         (spec0_en_if),
+    .spec1_en_if         (spec1_en_if),
+    .i0_instr_if         (i0_instr_if),
+    .i1_instr_if         (i1_instr_if),
+    .i0_pc_if            (i0_pc_if),
+    .i1_pc_if            (i1_pc_if),
+    .i0_pc_target_if     (i0_pc_target_if),
+    .i1_pc_target_if     (i1_pc_target_if),
+    .i0_instr_id         (ref_i0_instr_id),
+    .i1_instr_id         (ref_i1_instr_id),
+    .i0_pc_id            (ref_i0_pc_id),
+    .i1_pc_id            (ref_i1_pc_id),
+    .i0_pc_target_id     (ref_i0_pc_target_id),
+    .i1_pc_target_id     (ref_i1_pc_target_id),
     .i0_target_valid_id  (ref_i0_target_valid_id),
     .i1_target_valid_id  (ref_i1_target_valid_id),
     .spec0_en_id         (ref_spec0_en_id),
@@ -145,15 +111,31 @@ module if_id_tb;
            (i1_pc_id === ref_i1_pc_id) &&
            (i0_pc_target_id === ref_i0_pc_target_id) &&
            (i1_pc_target_id === ref_i1_pc_target_id) &&
-           (i0_valid_id === ref_i0_valid_id) &&
-           (i1_valid_id === ref_i1_valid_id) &&
            (i0_target_valid_id === ref_i0_target_valid_id) &&
            (i1_target_valid_id === ref_i1_target_valid_id) &&
            (spec0_en_id === ref_spec0_en_id) &&
            (spec1_en_id === ref_spec1_en_id);
     tb_report_open(pass, name, detail);
-    tb_field_bit("i0_valid_id", i0_valid_id, ref_i0_valid_id);
-    tb_field_bit("i1_valid_id", i1_valid_id, ref_i1_valid_id);
+    tb_log_section("inputs");
+    tb_field_in_bit("clk",                clk);
+    tb_field_in_bit("rst_n",              rst_n);
+    tb_field_in_bit("enable",             enable);
+    tb_field_in_bit("flush",              flush);
+    tb_field_in_bit("stall",              stall);
+    tb_field_in_bit("i0_fetch_valid",     i0_fetch_valid);
+    tb_field_in_bit("i1_fetch_valid",     i1_fetch_valid);
+    tb_field_in_bit("i0_target_valid_if", i0_target_valid_if);
+    tb_field_in_bit("i1_target_valid_if", i1_target_valid_if);
+    tb_field_in_bit("spec0_en_if",        spec0_en_if);
+    tb_field_in_bit("spec1_en_if",        spec1_en_if);
+    tb_field_in_u32("i0_instr_if",        i0_instr_if);
+    tb_field_in_u32("i1_instr_if",        i1_instr_if);
+    tb_field_in_u32("i0_pc_if",           i0_pc_if);
+    tb_field_in_u32("i1_pc_if",           i1_pc_if);
+    tb_field_in_u32("i0_pc_target_if",    i0_pc_target_if);
+    tb_field_in_u32("i1_pc_target_if",    i1_pc_target_if);
+    $display("");
+    tb_log_section("check");
     tb_field_bit("i0_target_valid_id", i0_target_valid_id, ref_i0_target_valid_id);
     tb_field_bit("i1_target_valid_id", i1_target_valid_id, ref_i1_target_valid_id);
     tb_field_bit("spec0_en_id", spec0_en_id, ref_spec0_en_id);

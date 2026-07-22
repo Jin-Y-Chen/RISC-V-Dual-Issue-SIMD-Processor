@@ -1,5 +1,5 @@
-Project: RV-DIS: RISC-V Dual-Issue Processor
-(RV32I scalar; in-order even/odd dual-issue)
+Project: RV-DIS: RISC-V Dual-Issue Out-of-Order Processor
+(RV32I scalar; dual-issue with rename / ROB / OoO issue)
 
 RISC-V 32-bit instructions formate
 
@@ -67,9 +67,9 @@ S1_Fetch:
 
             The PC unit is a registered dual-issue address generator. It owns two 32-bit
             byte addresses, pc0_out and pc1_out, for the I0 and I1 fetch lanes, plus two
-            registered speculation flags (spec0_out / spec1_out) that record whether
-            each lane is currently on a speculative path. The flags are independent:
-            spec0 tracks I0; spec1 tracks I1. The module does not decode branches or
+            registered path selectors (spec0_out / spec1_out): zero denotes path0
+            and one denotes path1. The flags are independent: spec0 tracks I0 and
+            spec1 tracks I1. The module does not decode branches or
             read the BTB. It only (1) aligns pc0_in / pc1_in to 4-byte boundaries,
             (2) computes local mode from next-spec bits and adds the selected increment
             when enabled and not stalled, and (3) latches PCs and spec flags on the
@@ -578,7 +578,6 @@ S2_Decode:
             from execute via i0_valid_wb / i1_valid_wb with branch PC and updated
             i0_target_state_wb / i1_target_state_wb.
 
-
         1. Branch Predict 2-bit State Encode:
 
             Each stored entry is a 2-bit saturating counter (br_state_t). Prediction at
@@ -852,208 +851,352 @@ Intermediate Register (ID_RN):
 
 S3_Rename:
 
-    Free List:
-            Path: `rtl/s3_dispatch/core_mod/free_list.sv`
+    Physical-tag allocation (ROB-owned PRF p32..p63):
+            Path: `rtl/s3_rename/core_mod/reorder_buffer.sv`, helper `rob_pkg::rob_to_prf`.
+            32 ROB entries; `prd_ntag = {1'b1, rob_idx}`. No free list — reclaim is
+            ROB head advance. Architectural x0..x31 stay on p0..p31 in the RRAT.
 
-            // external controls
+    Free List (REMOVED — see ROB-owned PRF above):
+            Path: `rtl/s3_rename/core_mod/free_list.sv` (legacy; unused)
+
             input  logic        clk,
             input  logic        rst_n,
-            input  logic        enable,
-
-            // internal controls
             input  logic        flush,
+            input  logic [NUM_PRF-1:0] rrat_used,
 
-            // allocate — rename requests
-            input  logic        alloc0_en,
-            input  logic        alloc1_en,
-            output prf_addr_t   alloc0_preg,
-            output prf_addr_t   alloc1_preg,
-            output logic        alloc_ready,
+            // allocation to rename
+            input  logic        i0_alloc_en,
+            input  logic        i1_alloc_en,
+            output prf_addr_t   i0_alloc_tag,
+            output prf_addr_t   i1_alloc_tag,
+            output logic        i0_alloc_ok,
+            output logic        i1_alloc_ok,
 
-            // free — ROB commit releases previous mappings
-            input  logic        free0_en,
-            input  logic        free1_en,
-            input  prf_addr_t   free0_preg,
-            input  prf_addr_t   free1_preg
+            // reclamation from ROB retirement / squash
+            input  logic        i0_free_en,
+            input  logic        i1_free_en,
+            input  prf_addr_t   i0_free_tag,
+            input  prf_addr_t   i1_free_tag
 
         0. Structure and Specification:
 
-            free_list is the PRF index allocator. It only manages unused physical
-            register numbers (no values). Rename allocates a preg per destination
-            write; ROB commit returns the previous mapping so that index can be
-            reused once no older consumer needs it.
+            The Free List is a 64-slot circular queue whose entries each hold one
+            six-bit physical tag in the range p0 through p63. Queue slot numbers
+            and physical tags are separate concepts: q[0] through q[63] are
+            storage locations, not physical registers p0 through p63.
 
-    Register Alias Table (register_allis / RAT):
-            Path: `rtl/s3_dispatch/core_mod/register_allis.sv`
+            On reset, q[0] through q[31] contain p32 through p63. Those are the
+            32 tags not used by the initial architectural mappings x0→p0 through
+            x31→p31. Queue slots q[32] through q[63] are initially outside the
+            valid read-to-write pointer range and therefore empty; they do not
+            represent nonexistent tags p64 through p95. The queue has no
+            per-entry valid bits. Consecutive read pointers rd0/rd1 and write
+            pointers wr0/wr1 determine which slots currently contain free tags.
 
-            // external controls
+            Each pointer contains a six-bit queue index plus one wrap bit. When a
+            pointer advances past q[63], its queue index returns to q[0] and its
+            wrap bit toggles through normal pointer arithmetic. rd1 always stays
+            one position after rd0, and wr1 always stays one position after wr0,
+            including across the q[63]?q[0] boundary.
+
+            Occupancy is wr0 minus rd0 using both the index and wrap bit. When all
+            free tags have been allocated, rd0 equals wr0 with the same wrap bit,
+            so occupancy is zero and the queue is empty. The combinational tag
+            outputs may still show stale queue contents, but i0_alloc_ok and
+            i1_alloc_ok are deasserted and neither read pointer advances. A tag
+            returned by the ROB advances the write pointers, makes occupancy
+            nonzero, and re-enables allocation.
+
+            Equal six-bit indices do not always mean empty. If wr0 and rd0 have
+            the same queue index but opposite wrap state, their distance is 64:
+            all queue slots contain free tags and the queue is full. Reclamation
+            is then blocked unless same-cycle allocation first creates space,
+            preventing the write pointers from overtaking unread free tags.
+
+        1. Physical-Tag Allocation:
+
+            The Free List maintains two consecutive read pointers: rd0 heads
+            lane 0 and rd1 equals rd0 plus one for lane 1. Allocation tags are
+            read combinationally from those dedicated heads, so a single pointer
+            never supplies both lanes. Lane 0 receives the older free tag and
+            lane 1 receives the next tag when both allocate. Each accepted
+            allocation advances both pointers together by the number of tags
+            consumed, preserving the consecutive relationship. Rename removes
+            one tag for each accepted register-writing destination; instructions
+            without a destination do not consume a physical tag.
+
+        2. Physical-Tag Reclamation:
+
+            The ROB returns up to two tags at retirement. A correct-path register
+            write returns its previous physical mapping because the new mapping
+            has become architectural. A wrong-path register write instead returns
+            its newly allocated destination because that mapping must be
+            discarded. Two consecutive write pointers provide independent tail
+            ports: wr0 receives lane 0's returned tag and wr1 equals wr0 plus one
+            for lane 1. A lone lane-1 return uses wr0 so no queue slot is skipped.
+            Both write pointers advance together by the number of accepted tags.
+            Physical p0 is never reclaimed; initial tags such as p1 through p31
+            enter the queue only after their architectural registers commit newer
+            physical mappings.
+
+        3. Simultaneous Allocation and Reclamation:
+
+            Reclamation and allocation update the queue on the negative clock
+            edge. Returned tags advance the consecutive write pointers while
+            accepted rename requests independently advance the consecutive read
+            pointers. Tags consumed in the cycle create capacity for simultaneous
+            returns, allowing full-to-full operation without dropping a reclaimed
+            tag or moving physical-register values.
+
+        4. Flush and Recovery:
+
+            Selective branch-path removal does not require a Free List flush.
+            The ROB retires each wrong-path entry and directly returns that
+            entry's newly allocated tag through i0_free_tag or i1_free_tag.
+
+            A full flush is different: it invalidates every outstanding ROB
+            entry at once, such as during exception or whole-pipeline recovery.
+            Those speculative tags are no longer returned one entry at a time.
+            The Free List therefore rebuilds itself from rrat_used, the bitmap of
+            physical tags still owned by the committed RRAT. It scans p1 through
+            p63 and queues every tag not present in that bitmap. This preserves
+            committed mappings and prevents a flush from reallocating a physical
+            tag that the architectural state still uses.
+    
+    Register Alias Table (RAT):
+            Path: `rtl/s3_rename/core_mod/allis_table.sv`
+            Helper package: `rtl/s3_rename/funct_pkg/rat.sv`
+
             input  logic        clk,
             input  logic        rst_n,
-            input  logic        enable,
-
-            // internal controls
             input  logic        flush,
+            input  path_sel_t   i0_p            input  path_sel_t   i0_path_sel,
+            input  path_sel_t   i1_path_sel,
 
-            // source rename reads (arch → phys)
+            // source rename
             input  logic        i0_rs1_use,
             input  logic        i0_rs2_use,
             input  logic        i1_rs1_use,
             input  logic        i1_rs2_use,
-            input  gpr_addr_t   i0_rs1,
-            input  gpr_addr_t   i0_rs2,
-            input  gpr_addr_t   i1_rs1,
-            input  gpr_addr_t   i1_rs2,
-            output prf_addr_t   i0_ps1,
-            output prf_addr_t   i0_ps2,
-            output prf_addr_t   i1_ps1,
-            output prf_addr_t   i1_ps2,
-
-            // destination rename writes
-            input  logic        i0_rd_wen,
-            input  logic        i1_rd_wen,
-            input  gpr_addr_t   i0_rd,
-            input  gpr_addr_t   i1_rd,
-            input  prf_addr_t   i0_prd_new,
-            input  prf_addr_t   i1_prd_new,
-            output prf_addr_t   i0_prd_old,
-            output prf_addr_t   i1_prd_old
-
-        0. Structure and Specification:
-
-            register_allis holds the architectural→physical map. Source reads
-            return current physical tags. Destination rename takes a new preg
-            from Free List, updates the RAT, and returns the previous preg for
-            the ROB to keep until commit.
-
-    Reorder Buffer:
-            Path: `rtl/s3_dispatch/core_mod/reorder_buffer.sv`
-
-            // external controls
-            input  logic        clk,
-            input  logic        rst_n,
-            input  logic        enable,
-
-            // internal controls
-            input  logic        flush,
-
-            // allocate (rename / tail)
-            input  logic        alloc0_en,
-            input  logic        alloc1_en,
-            input  logic        alloc0_reg_write,
-            input  logic        alloc1_reg_write,
-            input  gpr_addr_t   alloc0_rd,
-            input  gpr_addr_t   alloc1_rd,
-            input  prf_addr_t   alloc0_prd,
-            input  prf_addr_t   alloc1_prd,
-            input  prf_addr_t   alloc0_prd_old,
-            input  prf_addr_t   alloc1_prd_old,
-            input  ID_packet_t  alloc0_meta,
-            input  ID_packet_t  alloc1_meta,
-            output logic [ROB_AW-1:0] alloc0_idx,
-            output logic [ROB_AW-1:0] alloc1_idx,
-            output logic        alloc_ready,
-
-            // complete (execution writeback)
-            input  logic        complete0_en,
-            input  logic        complete1_en,
-            input  logic [ROB_AW-1:0] complete0_idx,
-            input  logic [ROB_AW-1:0] complete1_idx,
-            input  word_t       complete0_result,
-            input  word_t       complete1_result,
-
-            // commit (head retire → Free List reclaim)
-            output logic        commit0_en,
-            output logic        commit1_en,
-            output gpr_addr_t   commit0_rd,
-            output gpr_addr_t   commit1_rd,
-            output prf_addr_t   commit0_prd,
-            output prf_addr_t   commit1_prd,
-            output prf_addr_t   commit0_prd_old,
-            output prf_addr_t   commit1_prd_old,
-            output word_t       commit0_result,
-            output word_t       commit1_result,
-
-            // exported pointers
-            output rob_ptr_t    write_ptr,
-            output rob_ptr_t    commit_ptr
-
-        0. Structure and Specification:
-
-            ROB records rename metadata, the new destination preg, and the old
-            preg the RAT replaced. Old preg returns to Free List only when the
-            entry commits at the head (precise exceptions / mispredict recovery).
-
-    Rename Dispatch:
-            Path: `rtl/s3_dispatch/core_mod/rename_dispatch.sv`
-
-S4_ISSUE:
-
-    Register File (Register_File):                          [Verified - TBD]    [Proof - TBD]
-            Path: `rtl/s2_decode/core_mod/register_file.sv`
-
-            // external controls
-            input  logic        clk,
-            input  logic        rst_n,
-
-            // internal controls
-            input  logic        i0_rs1_use,
-            input  logic        i0_rs2_use,
-            input  logic        i1_rs1_use,
-            input  logic        i1_rs2_use,
-            input  logic        i0_valid_wb,
-            input  logic        i1_valid_wb,
-
-            // input data
             input  gpr_addr_t   i0_rs1_addr,
             input  gpr_addr_t   i0_rs2_addr,
             input  gpr_addr_t   i1_rs1_addr,
             input  gpr_addr_t   i1_rs2_addr,
-            input  gpr_addr_t   i0_rd,
-            input  gpr_addr_t   i1_rd,
-            input  word_t       i0_data_wb,
-            input  word_t       i1_data_wb,
+            output prf_addr_t   i0_ps1_tag,
+            output prf_addr_t   i0_ps2_tag,
+            output prf_addr_t   i1_ps1_tag,
+            output prf_addr_t   i1_ps2_tag,
 
-            // output data
-            output word_t       i0_rs1_data,
-            output word_t       i0_rs2_data,
-            output word_t       i1_rs1_data,
-            output word_t       i1_rs2_data
+            // destination rename
+            input  logic        i0_alloc_en,
+            input  logic        i1_alloc_en,
+            input  gpr_addr_t   i0_alloc_rd_addr,
+            input  gpr_addr_t   i1_alloc_rd_addr,
+            input  prf_addr_t   i0_alloc_tag,
+            input  prf_addr_t   i1_alloc_tag,
+            output prf_addr_t   i0_alloc_prd_old,
+            output prf_addr_t   i1_alloc_prd_old,
+
+            // RRAT architectural commit from ROB
+            input  logic        rrat0_en,
+            input  logic        rrat1_en,
+            input  gpr_addr_t   i0_rd_addr_cmt,
+            input  gpr_addr_t   i1_rd_addr_cmt,
+            input  prf_addr_t   i0_rob_idx_cmt,
+            input  prf_addr_t   i1_rob_idx_cmt,
+            // committed branch path select
+            input  logic        rat0_en,
+            input  logic        rat1_en,
+            input  logic        i0_path_sel,
+            input  logic        i1_path_sel
 
         0. Structure and Specification:
 
-            register_file is the dual-issue scalar GPR file for RV32I: four combinational
-            read ports (I0 rs1/rs2, I1
-            rs1/rs2) and two writeback ports (I0/I1). Physical storage is x1-x31;
-            x0 is not stored; reads of x0 always return zero and writes to x0 are
-            suppressed. Decode supplies rs1_use/rs2_use and addresses; writeback
-            supplies i0_valid_wb/i1_valid_wb, rd, and data. Same-cycle WAW to the
-            same rd always prefers I1 (in-order dual-issue; ROB owns age). There is no
-            enable; commits occur on the falling clock edge whenever a valid WB
-            targets a nonzero rd. clk/rst_n clear the array on reset.
+            The RAT contains two speculative architectural-to-physical maps and
+            one retirement map (RRAT). A lane with specX_en/path_sel=0 accesses
+            path0 in map_br1_q; path_sel=1 accesses path1 in map_br0_q. Each
+            map contains one physical tag for every architectural register.
+            Reset initializes x0 through x31 to p0 through p31 in all three maps,
+            and x0 always reads p0.
 
-        1. Combinational Dual Read with Forwarding:
+        1. Source Register Lookup:
 
-            Each read port is independent. Forwarding and WAW merge rules:
+            Each source address reads only the speculative column selected by
+            that instruction's path_sel. Disabled sources and architectural x0
+            pass lane 0's newly allocated destination
+            when both instructions select the same path and lane 1 reads lane
+            0's architectural destination. No bypass occurs between different
+            paths because their mappings are independent.
 
-            | rs_use | Same-cycle WB to same rd?     | Read data source                          |
-            |--------|-------------------------------|-------------------------------------------|
-            | 0      | n/a                           | 0 (unused operand)                        |
-            | 1      | no                            | regs[addr]                                |
-            | 1      | yes (one WB)                  | WB data (bypass)                          |
-            | 1      | yes (both lanes, same rd)     | I1 WB data (always younger of the pair)   |
+        2. Destination Register Rename:
 
-            Cross-lane bypass is supported: an ID read on either lane can see the other
-            lane's pending WB when addresses match. Bypass is visible before the bank
-            updates on the falling write edge.
+            A valid destination obtains a new tag from the Free List. Before
+            updating the selected column, the RAT returns that column's current
+            tag as prd_old for storage in the ROB. Each lane writes only its own
+            selected path. If both lanes rename the same architectural register
+            on the same path, lane 1 is younger and its mapping takes priority.
+            Writes to architectural x0 are ignored.
 
-        2. Sequential Falling-edge Dual Writeback:
+        3. Commit to the Retirement RAT:
 
-            Training commits on negedge clk when i0_valid_wb or i1_valid_wb is set and
-            rd != x0. Dual WB can update two distinct registers in one cycle. If both
-            lanes write the same rd, only I1 updates regs[]; the I0 commit is
-            suppressed. Forwarding on the read path still exposes the winning WB
-            value in that cycle before the falling edge. After the edge, subsequent
-            reads see the committed value from regs[].
+            Correct-path commit writes the exact physical tag stored by the ROB
+            into the RRAT. It does not read the live speculative RAT because a
+            younger instruction may already have replaced the same architectural
+            register. Dual commit updates two RRAT entries in program order; if
+            both commits target the same architectural register, lane 1 supplies
+            the final architectural mapping.
+
+        4. Branch Resolution and Recovery:
+
+            Each commit lane has an independent resolve enable and winning-path
+            output. ratX_en and ratX_path identify a committed branch resolution.
+            ratX_path=1 preserves map_br0_q and copies it into map_br1_q;
+            ratX_path=0 preserves map_br1_q and copies it into map_br0_q. If both
+            branches resolve together, lane 1 is younger and its path determines
+            the final synchronized RAT state. A flush performs stronger recovery
+            by restoring both speculative columns from the RRAT. The rrat_used
+            bitmap marks every physical tag referenced by the committed RRAT so
+            the Free List can safely reconstruct all remaining free tags.
+
+    Reorder Buffer:
+            Path: `rtl/s3_rename/core_mod/reorder_buffer.sv`
+            Helper package: `rtl/s3_rename/funct_pkg/rob.sv`
+
+            // external controls
+            input  logic        clk,
+            input  logic        rst_n,
+            input  logic        flush,
+
+            // dual allocation from rename
+            input  logic        i0_alloc_en,
+            input  logic        i1_alloc_en,
+            input  logic        i0_alloc_reg_write,
+            input  logic        i1_alloc_reg_write,
+            input  logic        i0_alloc_is_brnch,
+            input  logic        i1_alloc_is_brnch,
+            input  logic        i0_alloc_is_store,
+            input  logic        i1_alloc_is_store,
+            input  path_sel_t   i0_alloc_rd_addr,           
+            input  path_sel_t   i0_alloc_path_sel,
+            input  path_sel_t   i1_alloc_path_sel,
+
+            input  gpr_addr_t   i1_alloc_rd_addr,
+            input  prf_addr_t   i0_alloc_prd_tag,
+            input  prf_addr_t   i1_alloc_prd_tag,
+            input  prf_addr_t   i0_alloc_prd_old,
+            input  prf_addr_t   i1_alloc_prd_old,
+            output rob_idx_t    i0_rob_idx,
+            output rob_idx_t    i1_rob_idx,
+            output logic        stall,
+
+            // completion from execution / writeback
+            input  logic        wback0_en,
+            input  logic        wback1_en,
+            input  rob_idx_t    i0_idx_wb,
+            input  rob_idx_t    i1_idx_wb,
+            input  logic        i0_brch_taken_wb,
+            input  logic        i1_brch_taken_wb,
+
+            // ← retire unit commit strobes; → head readiness
+            input  logic        retire0_en,
+            input  logic        retire1_en,
+            output logic        i0_can_retire,
+            output logic        i1_can_retire,
+
+            // → RRAT: architectural map commit
+            output logic        rrat0_en,
+            output logic        rrat1_en,
+            output gpr_addr_t   i0_rd_addr_cmt,
+            output gpr_addr_t   i1_rd_addr_cmt,
+            output prf_addr_t   i0_rob_idx_cmt,
+            output prf_addr_t   i1_rob_idx_cmt,
+
+            // → RAT: committed branch path select
+            output logic        rat0_en,
+            output logic        rat1_en,
+            output logic        i0_path_sel,
+            output logic        i1_path_sel,
+
+            // → store buffer: in-order store commit
+            output logic        stb0_en,
+            output logic        stb1_en
+
+        0. Structure and Specification:
+
+            The reorder buffer is a 16-entry structure organized as eight sets
+            with two ways per set. A flat four-bit ROB index is interpreted as
+            {set, way}, with instruction 0 assigned to way 0 and instruction 1
+            assigned to way 1. Five-bit write and commit pointers include an
+            extra wrap bit so their difference gives the current occupancy. The
+            ROB asserts stall when fewer than two entries remain because each
+            accepted allocation advances the write pointer by one dual-issue
+            pair.
+
+            Each valid entry contains a packed payload holding complete,
+            register-write, branch, store, one-bit path selection, architectural
+            destination, and branch-taken state. Payload data and packed valid
+            bits are stored separately. Reset or flush returns both pointers to
+            zero and invalidates the complete ROB by clearing the packed valid
+            array; stale payload data is ignored and therefore does not require
+            a bank-wide reset loop.
+
+        1. Allocation of New Entry:
+
+            Rename allocates both ways of the tail set on the positive clock
+            edge. The ROB records the destination metadata during the same
+            rename transaction. Each allocated entry starts incomplete and
+            stores its lane's specX_en as path_sel: zero selects path0/map_br1_q
+            and one selects path1/map_br0_q. The returned ROB indices (PRF-wide
+            p32..p63 tags) identify the entries that execution must later mark
+            complete.
+    
+            Writeback addresses an entry using its PRF-wide ROB tag, preserves
+            its rename metadata, marks it complete, and records the taken
+            result for a branch. The ROB does not retain general execution
+            results because data values are written directly to the physical
+            register file.
+
+        3. Branch Resolution:
+
+            The ROB maintains one active path, initially path0. When a
+            correct-path branch reaches the head, its written-back br_taken bit
+            becomes the next active path and is reported on its corresponding
+            ratX_en/ratX_path channel. The second head entry is evaluated
+            against the path selected by the first; therefore two completed
+            branches may resolve in one cycle. If both resolve, lane 1 provides
+            the final active path. Entries on the other path are discarded
+            without waiting for execution completion.
+
+        4. Commit to the Alias Table and Free List:
+
+            Commit walks the head in program order and may retire zero, one, or
+            two instructions per cycle. The oldest entry retires when it is
+            complete (or vacant). The next entry retires in the same cycle only
+            when it is also complete. Valid right-path register writes update
+            the RRAT with the PRF tag derived from the ROB head index. A
+            wrong-path register write does not update the RRAT. Store bits
+            travel with each entry so memory-order policy can serialize store
+            retirement. After an entry retires, only its valid bit is cleared
+            so the slot can be reused.
+
+Intermediate Register (RN_DP):
+            Path: `rtl/s4_dispatch/rn_dp.sv`
+
+        0. Structure and Specification:
+
+            rn_dp is a one-entry elastic pipeline register for the complete
+            dual-issue renamed bundle. It carries each instruction's validity,
+            execution-lane selection, decoded controls, architectural
+            destination, physical source and destination tags, ROB index,
+            immediate, and PC from rename into dispatch.
+
+        1. Backpressure and Recovery:
+
+            stall_dp holds the registered bundle when the Reservation Station
+            lacks capacity, and stall_rn propagates that backpressure into the
+            rename stage so no Free List or ROB allocation is consumed twice.
+            Reset or flush invalidates both lanes. When enabled and unstalled,
+            the register accepts both input lanes atomically, including bubbles.
 
 S4_Dispatch:
 
@@ -1096,29 +1239,61 @@ S4_Dispatch:
             are stored. Same-cycle WAW to the same prd prefers I1. Negedge commit with
             same-cycle WB bypass on the read path.
 
-S4_Execution:
-
-    Intermediate Register (DP_EX):
-            Path: `rtl/s4_execution/dp_ex.sv`
-
     Reservation Station:
-            Path: `rtl/s4_execution/core_mod/reservation_station.sv`
+            Path: `rtl/s4_dispatch/core_mod/reservation_station.sv`
 
-        1. Specification and Structure:
+        0. Structure and Specification:
 
-        2. Two 8-entry Reserved Buffer
+            The Reservation Station is a 16-entry centralized issue queue.
+            Every entry stores decoded execution controls, physical source and
+            destination tags, source-use flags, captured operand values, ROB
+            index, immediate, PC, lane selection, and monotonically increasing
+            age. Physical tags eliminate WAR and WAW hazards.
 
-        3. Out-of-Order Execution
+        1. Dual Dispatch and Backpressure:
 
-        4. Forward Result with Write Back Bypass
+            Up to two renamed instructions are inserted per cycle. The station
+            counts currently free entries plus entries accepted by execution in
+            the same cycle. stall_dp is asserted when the complete incoming
+            bundle cannot be accepted, so a dual bundle is never partially
+            inserted. Freed issue slots may be reused immediately at the clock
+            edge.
 
+        2. RAW Readiness and Wakeup:
+
+            A physical-register readiness bitmap tracks pending destinations.
+            Dispatch marks each newly allocated prd unavailable. Sources whose
+            tags are already ready capture data from the PRF; unavailable
+            sources wait in the station. Two writeback broadcasts mark
+            destinations ready and forward their values into all matching
+            operands. Same-pair I1 dependencies on I0 are explicitly marked
+            unready even when I0's newly allocated tag was previously free.
+
+        3. Out-of-Order Issue:
+
+            Each cycle the station selects the two oldest entries whose required
+            operands are ready. The two execution outputs have independent ready
+            inputs, allowing either issued instruction to remain queued while
+            the other advances. Operand data receives same-cycle writeback
+            forwarding before issue. The PRD and ROB index accompany each
+            issued instruction so execution can update the PRF and the exact ROB
+            entry.
+
+        4. Flush:
+
+            Reset or flush invalidates every station entry, resets age ordering,
+            and restores the physical-readiness bitmap. No payload-array reset
+            beyond invalidation is architecturally required, but the complete
+            packed entries are cleared for deterministic simulation.
+
+S5_Execution:
     Even Unit:
-            Path: `rtl/s4_execution/core_mod/even_units/even_lane_struct.sv`
+            Path: `rtl/s5_execution/core_mod/even_units/even_lane_struct.sv`
 
     Odd Unit:
-            Path: `rtl/s4_execution/core_mod/odd_units/odd_lane_struct.sv`
+            Path: `rtl/s5_execution/core_mod/odd_units/odd_lane_struct.sv`
 
-S5_Memory:
+S6_Memory:
 
     Intermediate Register (EX_MEM):
             Path: `rtl/s5_memory/ex_mem.sv`
@@ -1129,10 +1304,9 @@ S5_Memory:
     Branch State Transition Lookup (State_Lookup):
             Path: `rtl/s5_memory/core/state_lookup.sv`
 
-S6_Wback:
+S7_Wback:
 
-    Reorder Retirement (Retired):
+    Retirement Commit(Retired):
             Path: `rtl/s6_wback/core/retire.sv`
 
     Write Back:
-            Path: `rtl/s6_wback/ex_mem_wb.sv`

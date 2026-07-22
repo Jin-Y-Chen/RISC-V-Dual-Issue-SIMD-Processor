@@ -10,7 +10,7 @@ module decoder_tb;
 
   logic [31:0] instr;
 
-  logic        valid, lane_sel, brch_en, jump_en;
+  logic        valid, lane_sel, brch_en, jump_en, store_en;
   logic [6:0]  opcode;
   logic [2:0]  funct3;
   logic [6:0]  funct7;
@@ -18,7 +18,7 @@ module decoder_tb;
   logic [31:0] imm;
   logic        rs1_use, rs2_use, reg_write;
 
-  logic        ref_valid, ref_lane_sel, ref_brch_en, ref_jump_en;
+  logic        ref_valid, ref_lane_sel, ref_brch_en, ref_jump_en, ref_store_en;
   logic [6:0]  ref_opcode;
   logic [2:0]  ref_funct3;
   logic [6:0]  ref_funct7;
@@ -35,6 +35,7 @@ module decoder_tb;
     .lane_sel  (lane_sel),
     .brch_en   (brch_en),
     .jump_en   (jump_en),
+    .store_en  (store_en),
     .opcode    (opcode),
     .funct3    (funct3),
     .funct7    (funct7),
@@ -53,6 +54,7 @@ module decoder_tb;
     .lane_sel  (ref_lane_sel),
     .brch_en   (ref_brch_en),
     .jump_en   (ref_jump_en),
+    .store_en  (ref_store_en),
     .opcode    (ref_opcode),
     .funct3    (ref_funct3),
     .funct7    (ref_funct7),
@@ -69,16 +71,22 @@ module decoder_tb;
     bit pass;
     pass = (valid === ref_valid) && (lane_sel === ref_lane_sel) &&
            (brch_en === ref_brch_en) && (jump_en === ref_jump_en) &&
+           (store_en === ref_store_en) &&
            (opcode === ref_opcode) && (funct3 === ref_funct3) &&
            (funct7 === ref_funct7) && (rd_addr === ref_rd_addr) &&
            (rs1_addr === ref_rs1_addr) && (rs2_addr === ref_rs2_addr) && (imm === ref_imm) &&
            (rs1_use === ref_rs1_use) && (rs2_use === ref_rs2_use) &&
            (reg_write === ref_reg_write);
     tb_report_open(pass, name, detail);
+    tb_log_section("inputs");
+    tb_field_in_u32("instr", instr);
+    $display("");
+    tb_log_section("check");
     tb_field_bit("valid", valid, ref_valid);
     tb_field_lane("lane_sel", lane_sel, ref_lane_sel);
     tb_field_bit("brch_en", brch_en, ref_brch_en);
     tb_field_bit("jump_en", jump_en, ref_jump_en);
+    tb_field_bit("store_en", store_en, ref_store_en);
     tb_field_op7("opcode", opcode, ref_opcode);
     tb_field_f3("funct3", funct3, ref_funct3);
     tb_field_f7("funct7", funct7, ref_funct7);
