@@ -126,51 +126,25 @@ class rename_refmodel extends uvm_object;
                             req.rs2[1] == req.rd[0])
                             ? new_tag[0] : map_read(req.rs2[1], req.spec_en[1]));
 
-    for (int lane = 0; lane < 2; lane++) begin
-      if (wb.wback_en[lane] && rob[to_flat(wb.rob_idx[lane])].valid) begin
-        rob[to_flat(wb.rob_idx[lane])].complete = 1;
-        rob[to_flat(wb.rob_idx[lane])].branch_taken = wb.branch_taken[lane];
-      end
-    end
-
-    if (go) begin
-      for (int lane = 0; lane < 2; lane++) begin
-        idx = (base + lane) % ROB_DEPTH;
-        rob[idx].valid = issue[lane];
-        rob[idx].complete = 0;
-        rob[idx].reg_write = issue[lane] && req.reg_write[lane];
-        rob[idx].is_branch = issue[lane] && (req.opcode[lane] == OPC_BRANCH);
-        rob[idx].is_store = issue[lane] && req.store_en[lane];
-        rob[idx].spec_en = req.spec_en[lane];
-        rob[idx].rd = req.rd[lane];
-        rob[idx].prd = to_prf(idx);
-        rob[idx].branch_taken = 0;
-      end
-      write_ptr = (write_ptr + 2) % (2 * ROB_DEPTH);
-      occupancy += 2;
-    end
-
+    // Retire from registered ROB state first (no same-cycle WB bypass).
+    // WB / alloc / reclaim below update state for the next cycle.
     head[0] = rob[commit_ptr % ROB_DEPTH];
     head[1] = rob[(commit_ptr + 1) % ROB_DEPTH];
     on_path[0] = !head[0].valid || head[0].spec_en == active_spec;
-    ready[0] = (occupancy >= 1) &&
-               (!head[0].valid || !on_path[0] || head[0].complete);
-    branch_commit[0] = ready[0] && head[0].valid && on_path[0] &&
-                       head[0].is_branch;
+    ready[0] = head[0].valid && head[0].complete;
+    branch_commit[0] = ready[0] && on_path[0] && head[0].is_branch;
     path_after0 = branch_commit[0] ? head[0].branch_taken : active_spec;
 
     on_path[1] = !head[1].valid || head[1].spec_en == path_after0;
-    ready[1] = ready[0] && (occupancy >= 2) &&
-               (!head[1].valid || !on_path[1] || head[1].complete);
-    branch_commit[1] = ready[1] && head[1].valid && on_path[1] &&
-                       head[1].is_branch;
+    ready[1] = ready[0] && head[1].valid && head[1].complete;
+    branch_commit[1] = ready[1] && on_path[1] && head[1].is_branch;
     path_after1 = branch_commit[1] ? head[1].branch_taken : path_after0;
     n_commit = ready[1] ? 2 : (ready[0] ? 1 : 0);
 
     for (int lane = 0; lane < 2; lane++) begin
       exp_wb.retire_en[lane] = ready[lane];
-      exp_wb.commit_en[lane] = ready[lane] && head[lane].valid &&
-                               on_path[lane] && head[lane].reg_write;
+      exp_wb.commit_en[lane] = ready[lane] && on_path[lane] &&
+                               head[lane].reg_write;
       exp_wb.commit_rd[lane] = head[lane].rd;
       exp_wb.commit_prd[lane] = to_prf((commit_ptr + lane) % ROB_DEPTH);
     end
@@ -193,6 +167,31 @@ class rename_refmodel extends uvm_object;
       commit_ptr = (commit_ptr + n_commit) % (2 * ROB_DEPTH);
       occupancy -= n_commit;
       active_spec = ready[1] ? path_after1 : path_after0;
+    end
+
+    // Negedge-order storage updates for next cycle: WB → alloc → map
+    for (int lane = 0; lane < 2; lane++) begin
+      if (wb.wback_en[lane] && rob[to_flat(wb.rob_idx[lane])].valid) begin
+        rob[to_flat(wb.rob_idx[lane])].complete = 1;
+        rob[to_flat(wb.rob_idx[lane])].branch_taken = wb.branch_taken[lane];
+      end
+    end
+
+    if (go) begin
+      for (int lane = 0; lane < 2; lane++) begin
+        idx = (base + lane) % ROB_DEPTH;
+        rob[idx].valid = issue[lane];
+        rob[idx].complete = 0;
+        rob[idx].reg_write = issue[lane] && req.reg_write[lane];
+        rob[idx].is_branch = issue[lane] && (req.opcode[lane] == OPC_BRANCH);
+        rob[idx].is_store = issue[lane] && req.store_en[lane];
+        rob[idx].spec_en = req.spec_en[lane];
+        rob[idx].rd = req.rd[lane];
+        rob[idx].prd = to_prf(idx);
+        rob[idx].branch_taken = 0;
+      end
+      write_ptr = (write_ptr + 2) % (2 * ROB_DEPTH);
+      occupancy += 2;
     end
 
     if (go) begin

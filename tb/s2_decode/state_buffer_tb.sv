@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // state_buffer_tb - DUT vs gm/state_buffer_gm.sv (bank replica + WB bypass).
 // Optional +state_dump=<path> writes occupied-set bank dump (2-bit states).

@@ -3,8 +3,9 @@
 // memory_cache_tb - L1 miss busy, hit path, WAW suppress, WAR read-then-write.
 
 import rv_dis_pkg::*;
+import cache_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module memory_cache_tb;
 
@@ -13,6 +14,13 @@ module memory_cache_tb;
   localparam int TEST_ADDR      = 32'h0000_1000;
   localparam int TEST_ADDR2     = 32'h0000_2000;
   localparam logic [31:0] L2_WORD = 32'hDEAD_BEEF;
+  // Match memory_cache defaults for hierarchical L1 poke
+  localparam int WAYS    = 16;
+  localparam int INDEX_W = PC_INDEX_AW;
+  localparam int WAY_AW  = $clog2(WAYS);
+  localparam int SET_AW  = INDEX_W - WAY_AW;
+  localparam int DATA_W  = RLEN;
+  localparam int LINE_AW = 5; // 32-byte lines
 
   logic        clk;
   logic        rst_n;
@@ -65,6 +73,18 @@ module memory_cache_tb;
     dut.l2_array[base + 1] = word[15:8];
     dut.l2_array[base + 2] = word[23:16];
     dut.l2_array[base + 3] = word[31:24];
+  endtask
+
+  // Keep L1 bank coherent with a hierarchical L2 preload (avoids stale-way WAR fails).
+  task automatic preload_l1_word(input logic [31:0] byte_addr, input logic [31:0] word);
+    logic [15:0] set_i, way_i;
+    logic [31:0] line_i;
+    preload_l2_word(byte_addr, word);
+    set_i  = pc_set(byte_addr, WAY_AW, SET_AW);
+    way_i  = pc_way(byte_addr, WAY_AW);
+    line_i = byte_addr >> LINE_AW;
+    dut.bank[set_i][way_i] = cache_set_write(1'b1, word, DATA_W);
+    dut.l1_warm[line_i]    = 1'b1;
   endtask
 
   task automatic drive_i0_read(input logic [31:0] addr);
@@ -208,8 +228,7 @@ module memory_cache_tb;
     tick();
 
     // --- WAR: I0 read + I1 write same word - comb read sees pre-write value ---
-    preload_l2_word(TEST_ADDR, 32'h3333_4444);
-    fill_line(TEST_ADDR);
+    preload_l1_word(TEST_ADDR, 32'h3333_4444);
     i0_act   = 1'b0;
     i0_addr  = TEST_ADDR;
     i0_besel = 4'b1111;
@@ -217,11 +236,12 @@ module memory_cache_tb;
     i1_addr  = TEST_ADDR;
     i1_wdata = 32'h5555_6666;
     i1_besel = 4'b1111;
+    #0;
     check_mem_data("war_read_before_write", "I0 load sees old word before I1 store",
                    32'h3333_4444, 32'd0);
     tick();
     drive_i0_read(TEST_ADDR);
-    tick();
+    #0;
     check_mem_data("war_write_visible", "after posedge, I1 store is visible",
                    32'h5555_6666, 32'd0);
     clear_ports();

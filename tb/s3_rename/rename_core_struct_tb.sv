@@ -98,12 +98,12 @@ module rename_core_struct_tb;
     wback1_en = 1; i1_rob_idx_wb = i1_rob_idx_disp; i1_brch_taken_wb = 0;
     i0_reg_write_rn = 0; i1_reg_write_rn = 0;
     i0_valid_rn = 0; i1_valid_rn = 0;
-    @(posedge clk);
-    wback0_en = 0; wback1_en = 0;
-    @(posedge clk);
+    #0;                      // combo WB → can_retire → RRAT same cycle
     if (!rrat0_en || !rrat1_en) $error("expected dual RRAT commit");
     if (i0_rob_idx_cmt != rob_to_prf(5'd0) || i1_rob_idx_cmt != rob_to_prf(5'd1))
       $error("RRAT rob_idx expect p32/p33 got %0d/%0d", i0_rob_idx_cmt, i1_rob_idx_cmt);
+    @(posedge clk);
+    wback0_en = 0; wback1_en = 0;
 
     $display("OK rename_core_struct_tb");
     $finish;

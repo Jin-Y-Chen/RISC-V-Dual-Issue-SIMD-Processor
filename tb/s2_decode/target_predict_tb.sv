@@ -2,7 +2,7 @@
 
 import rv_dis_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // target_predict_tb - DUT vs gm/target_predict_gm.sv (combinational lane predict).
 module target_predict_tb;

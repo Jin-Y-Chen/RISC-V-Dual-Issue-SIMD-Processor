@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import imem_hex_loader_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // fetch_core_struct_tb - integrated fetch; DUT vs gm/fetch_core_struct_gm.sv.
 // Nested-speculation freeze uses decode-style spec*_stall (no fetch_stall).

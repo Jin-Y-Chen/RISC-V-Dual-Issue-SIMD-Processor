@@ -8,7 +8,7 @@
 import rv_dis_pkg::*;
 import decode_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module register_file_tb;
 

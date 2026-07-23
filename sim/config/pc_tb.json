@@ -1,0 +1,9 @@
+{
+  "extra_sources": [
+    "tb/dpi/dpi_pkg.sv",
+    "tb/s1_fetch/gm/pc_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s1_fetch/pc_gm.cpp"
+  ]
+}

@@ -9,8 +9,17 @@ from pathlib import Path
 from .common import ROOT, SIM_DIR, sim_failed
 
 
-def run(top: str, flist: Path, out: Path, plusargs: list[str], *, uvm: bool = False) -> int:
+def run(
+    top: str,
+    flist: Path,
+    out: Path,
+    plusargs: list[str],
+    *,
+    uvm: bool = False,
+    dpi_cpp: list[str] | None = None,
+) -> int:
     del uvm  # always link UVM lib when available
+    del dpi_cpp  # TODO: wire DPI-C when Questa flow is used
     for tool in ("vlib", "vmap", "vlog", "vsim"):
         if not shutil.which(tool):
             print(f"{tool} not on PATH", file=__import__("sys").stderr)

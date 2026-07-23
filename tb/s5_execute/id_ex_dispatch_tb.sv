@@ -11,7 +11,7 @@ import rv_dis_pkg::*;
 import rob_pkg::*;
 import rob_queue_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module id_ex_dispatch_tb;
 

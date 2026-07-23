@@ -4,7 +4,7 @@
 import rv_dis_pkg::*;
 import rob_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module reorder_buffer_tb;
 
@@ -260,13 +260,13 @@ module reorder_buffer_tb;
     cycle_hold;
     check_outs("after_dual_alloc", "tail advanced; next tags p34/p35");
 
-    // ---- WB both + dual retire/commit ----
+    // ---- WB both (combo complete) + dual retire/commit same cycle ----
     @(posedge clk);
     wback0_en     = 1; wback1_en = 1;
     i0_rob_idx_wb = rob_to_prf(5'd0);
     i1_rob_idx_wb = rob_to_prf(5'd1);
     #0;
-    check_outs("wb_bypass_ready", "complete via WB forward → can_retire");
+    check_outs("wb_ready", "combo WB → can_retire");
     retire0_en = 1; retire1_en = 1;
     #0;
     check_outs("dual_commit", "RRAT dual commit p32/p33 rd=1/2");
@@ -293,9 +293,9 @@ module reorder_buffer_tb;
     check_outs("single_alloc1_idx", "I1 packs at tail (same as I0 slot)");
     cycle_hold;
 
-    // WB + retire store (head is rd=3 ALU, then store)
+    // WB + retire same cycle (head is rd=3 ALU, then store)
     @(posedge clk);
-    wback0_en = 1; i0_rob_idx_wb = rob_to_prf(5'd2); // flat 2 after prior commits
+    wback0_en = 1; i0_rob_idx_wb = rob_to_prf(5'd2);
     #0;
     retire0_en = i0_can_retire;
     #0;
@@ -310,7 +310,7 @@ module reorder_buffer_tb;
     check_outs("commit_store", "stb0_en on store commit");
     cycle_hold;
 
-    // ---- branch alloc + taken WB + path commit ----
+    // ---- branch alloc + taken WB + path commit (combo) ----
     begin
       prf_addr_t br_tag;
       @(posedge clk);
@@ -351,7 +351,8 @@ module reorder_buffer_tb;
       if ($test$plusargs("rob_dump")) begin
         string dump_path;
         dump_path = "rob_bank.txt";
-        void'($value$plusargs("rob_dump=%s", dump_path));
+        if (!$value$plusargs("rob_dump=%s", dump_path))
+          dump_path = "rob_bank.txt";
         dump_rob_txt(dump_path);
       end
     end

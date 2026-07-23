@@ -1,7 +1,6 @@
 # Testbenches
 
-All non-RTL SystemVerilog lives here: directed testbenches, golden models, and
-UVM environments. Run simulations through the Python control panel:
+Directed unit TBs, CPU env scaffold, DPI packages, and UVM. Run via:
 
 ```powershell
 python sim/run.py <top>
@@ -9,61 +8,47 @@ python sim/run.py rename_uvm --test rename_smoke_test
 python sim/run.py --list
 ```
 
-See [`sim/README.md`](../sim/README.md) for simulator options and result layout.
+See [`sim/README.md`](../sim/README.md). C++ golden models: [`../model/`](../model/).
 
 ## Layout
 
 ```text
 tb/
-  include/              Shared headers / packages (tb_console.svh, loaders)
-  uvm/
-    common/             Reusable UVM base package
-    rename/             Rename-stage UVM (agents, env, refmodel, tests, top)
-  s1_fetch/             Directed TBs (+ gm/)
-  s2_decode/            Directed TBs (+ gm/)
-  s3_rename/            Directed rename TBs
-  s3_execute/           Directed execute TBs (legacy stage name)
-  s4_dispatch/          Directed dispatch TBs
-  s4_memory/            Directed memory TBs (legacy stage name)
-  s5_wback/             Directed writeback TBs (legacy stage name)
-  top/                  Full-core directed TB
+├── tb_top.sv              // Top-level CPU testbench
+├── tb_pkg.sv              // Global types / ROB helpers / txn structs
+│
+├── interfaces/            // cpu_if, commit_if, memory_if
+├── transaction/           // cpu_txn, commit_txn, memory_txn
+├── driver/                // cpu_driver, memory_driver, tb_driver (ROB)
+├── monitor/               // cpu/commit/memory + tb_monitor (ROB)
+├── scoreboard/            // cpu_scoreboard, predictor, tb_scoreboard (ROB)
+├── sequence/              // base_seq, random_seq, directed_seq
+├── env/                   // cpu_agent, cpu_env, cpu_test
+├── dpi/                   // dpi_pkg, cpu_dpi.cpp, tb_console, imem loader
+├── rtl/                   // pointers only — design stays in repo rtl/
+│
+├── uvm/                   // Rename-stage UVM suite
+├── top/                   // Full-core directed TB (risc_dis_unit_tb)
+│
+├── s1_fetch/              // Directed TBs + gm/ DPI shims
+├── s2_decode/
+├── s3_rename/             // includes rob_tb, reorder_buffer_tb, …
+├── s4_dispatch/
+├── s5_execute/
+├── s6_memory/
+└── s7_wback/
 ```
 
-Golden models stay next to their directed stage under `gm/` (not duplicated into
-UVM). The rename UVM environment carries its own reference model under
-`tb/uvm/rename/env/rename_refmodel.sv`.
+Stage `gm/` files are thin DPI shims; reference logic lives in `model/<stage>/`.
 
 ## Conventions
 
-- **`tb_advance(clk)`** — tick tasks use `@(negedge clk)`; clocks use
-  `always #(CLK_PERIOD/2)`.
-- **Includes** — `` `include "../include/tb_console.svh" `` (or the relative path
-  from the TB file).
-- **`tb_summary`** — end directed TBs with `tb_summary(pass_cnt, fail_cnt)`.
+- `` `include "../dpi/tb_console.svh" ``
+- Tick with `@(negedge clk)`; end directed TBs with `tb_summary(...)`.
 
-## UVM rename suite
-
-Sources: `tb/uvm/rename/`  
-Harness: `tb/uvm/rename/top/rename_tb_top.sv`  
-Filelist: `sim/filelists/uvm/rename.f`
+## UVM
 
 ```powershell
 python sim/run.py rename_uvm
 python sim/run.py rename_uvm --test rename_random_test --sim xsim
 ```
-
-Tests: `rename_smoke_test`, `rename_random_test`, `rename_raw_hazard_test`,
-`rename_branch_test`, `rename_flush_test`.
-
-## Directed stage notes
-
-| Area | Examples |
-|------|----------|
-| Fetch | `pc_tb`, `pc_selector_tb`, `instruction_cache_tb`, `target_buffer_tb`, `fetch_core_struct_tb` |
-| Decode | `if_id_tb`, `decoder_tb`, `state_buffer_tb`, `register_file_tb`, `decode_core_struct_tb` |
-| Rename | `rename_core_struct_tb`, `reorder_buffer_tb` |
-| Dispatch | `rn_dp_tb`, `reservation_station_tb` |
-| Execute / Mem / WB | `even_lane_tb`, `odd_lane_tb`, `ex_mem_tb`, `memory_cache_tb`, `ex_mem_wb_tb` |
-| Top | `risc_dis_unit_tb` |
-
-Design context: [`../project_outline.txt`](../project_outline.txt)

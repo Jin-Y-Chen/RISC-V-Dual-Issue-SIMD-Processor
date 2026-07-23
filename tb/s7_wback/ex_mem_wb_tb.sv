@@ -2,7 +2,7 @@
 
 import rv_dis_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // ex_mem_wb_tb - 4 lane copies, odd WB mux, direct GPR retire (push0/push1).
 module ex_mem_wb_tb;

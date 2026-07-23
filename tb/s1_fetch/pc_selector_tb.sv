@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // pc_selector_tb - exhaustive 6-bit control sweep; reference = gm/pc_selector_gm.sv.
 // ctrl = {spec0_in, spec1_in, i0_pred, i1_pred, i0_rec, i1_rec}

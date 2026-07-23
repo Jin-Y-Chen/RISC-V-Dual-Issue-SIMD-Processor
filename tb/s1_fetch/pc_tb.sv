@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // pc_tb - exhaustive control sweep; reference = gm/pc_gm.sv.
 // ctrl = {rst_n, enable, dispatch_stall, spec0_stall, spec1_stall, spec0_in, spec1_in}

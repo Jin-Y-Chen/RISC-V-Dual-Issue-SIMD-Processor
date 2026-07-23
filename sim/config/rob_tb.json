@@ -1,0 +1,19 @@
+{
+  "extra_sources": [
+    "rtl/s3_rename/funct_pkg/rob.sv",
+    "rtl/s3_rename/core_mod/rob_units/tail_alloc.sv",
+    "rtl/s3_rename/core_mod/rob_units/head_retire.sv",
+    "rtl/s3_rename/core_mod/reorder_buffer.sv",
+    "tb/dpi/dpi_pkg.sv",
+    "tb/tb_pkg.sv",
+    "tb/driver/tb_driver.sv",
+    "tb/monitor/tb_monitor.sv",
+    "tb/scoreboard/tb_scoreboard.sv",
+    "tb/s3_rename/rob_tb.sv"
+  ],
+  "dpi_cpp": [
+    "model/s3_rename/rob_gm.cpp"
+  ],
+  "plusargs": [],
+  "artifacts": []
+}

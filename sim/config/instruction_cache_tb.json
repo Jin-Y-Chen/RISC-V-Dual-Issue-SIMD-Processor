@@ -1,6 +1,11 @@
 {
   "extra_sources": [
-    "tb/include/imem_hex_loader_pkg.sv"
+    "tb/dpi/imem_hex_loader_pkg.sv",
+    "tb/dpi/dpi_pkg.sv",
+    "tb/s1_fetch/gm/instruction_cache_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s1_fetch/instruction_cache_gm.cpp"
   ],
   "plusargs": [
     "imem_mem=${MEM_FILE}",

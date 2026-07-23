@@ -1,0 +1,7 @@
+{
+  "extra_sources": [
+    "rtl/s4_dispatch/core_mod/reservation_station.sv"
+  ],
+  "plusargs": [],
+  "artifacts": []
+}

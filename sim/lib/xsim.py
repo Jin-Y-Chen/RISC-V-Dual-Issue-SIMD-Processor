@@ -137,6 +137,7 @@ def run_vivado_sim(
     plusargs: list[str],
     *,
     uvm: bool = False,
+    dpi_cpp: list[str] | None = None,
 ) -> int:
     bin_dir = find_vivado_bin()
     if not bin_dir:
@@ -177,11 +178,89 @@ def run_vivado_sim(
     xvlog = _tool(bin_dir, "xvlog")
     xelab = _tool(bin_dir, "xelab")
     xsim = _tool(bin_dir, "xsim")
+    xsc = _tool(bin_dir, "xsc")
+
+    dpi_cpp = dpi_cpp or []
+    dpi_lib_name = f"{top}_dpi"
+    dpi_lib_base = out / dpi_lib_name  # persist outside temp build dir
 
     with tempfile.TemporaryDirectory(prefix="riscv-sim.") as build_s:
         build = Path(build_s)
         scratch = build / ".scratch"
         scratch.mkdir(parents=True, exist_ok=True)
+
+        if dpi_cpp:
+            print(file=__import__("sys").stderr)
+            print(
+                f"[0/3] xsc  - Compiling {len(dpi_cpp)} C++ DPI source(s) → {dpi_lib_name}",
+                file=__import__("sys").stderr,
+            )
+            with log.open("a", encoding="utf-8") as fh:
+                fh.write(f"\n=== xsc ({len(dpi_cpp)} cpp) ===\n")
+
+            cpp_abs: list[str] = []
+            include_dirs: set[str] = set()
+            for p in dpi_cpp:
+                path = Path(p)
+                if not path.is_absolute() and not re.match(r"^[A-Za-z]:", str(path)):
+                    path = ROOT / path
+                path = path.resolve()
+                cpp_abs.append(win_path(path))
+                include_dirs.add(win_path(path.parent))
+                print(f"        * {_ui_rel(str(path), ROOT)}", file=__import__("sys").stderr)
+
+            gcc_opts: list[str] = []
+            # Always expose model/ so includes like "common/types.hpp" and "s1_fetch/..." resolve.
+            for inc in (ROOT / "model", ROOT / "model" / "common"):
+                gcc_opts.extend(["--gcc_compile_options", f"-I{win_path(inc)}"])
+            for inc in sorted(include_dirs):
+                gcc_opts.extend(["--gcc_compile_options", f"-I{inc}"])
+
+            # Windows DPI libs are .a archives; Linux uses .so (--shared).
+            shared_flag = "--shared"
+
+            # Compile objects into out/xsim.dir/... then link shared lib into out/.
+            cmd_c = [
+                str(xsc),
+                "-c",
+                *cpp_abs,
+                "--cppversion",
+                "14",
+                *gcc_opts,
+            ]
+            rc = _run_capture(cmd_c, log, out)
+            if rc != 0:
+                return 1
+
+            # Explicit object list — Windows shells do not expand xsc's *.obj glob.
+            obj_dir = out / "xsim.dir" / "work" / "xsc"
+            objs = sorted(obj_dir.glob("*.obj")) if obj_dir.is_dir() else []
+            if not objs:
+                print(f"xsc produced no object files under {obj_dir}", file=__import__("sys").stderr)
+                return 1
+
+            cmd_l = [
+                str(xsc),
+                shared_flag,
+                "--cppversion",
+                "14",
+                "-o",
+                win_path(dpi_lib_base),
+                *[win_path(o) for o in objs],
+            ]
+            rc = _run_capture(cmd_l, log, out)
+            if rc != 0:
+                return 1
+
+            lib_ok = any(
+                Path(str(dpi_lib_base) + ext).is_file() for ext in (".a", ".so", ".dll", ".dylib", "")
+            )
+            if not lib_ok:
+                print(
+                    f"xsc did not produce shared library at {dpi_lib_base}",
+                    file=__import__("sys").stderr,
+                )
+                return 1
 
         print(file=__import__("sys").stderr)
         print(
@@ -230,6 +309,13 @@ def run_vivado_sim(
             "--log",
             win_path(xelab_log),
         ]
+        if dpi_cpp:
+            # xelab resolves -sv_lib relative to cwd (.a on Windows, .so on Linux).
+            for ext in (".a", ".so", ".dll", ".dylib"):
+                src = Path(str(dpi_lib_base) + ext)
+                if src.is_file():
+                    shutil.copy2(src, build / src.name)
+            cmd.extend(["-sv_lib", dpi_lib_name])
         rc = _run_toollog(cmd, xelab_log, log, build)
         if rc != 0 or _stage_has_error(xelab_log):
             return 1
@@ -250,14 +336,23 @@ def run_vivado_sim(
         lines.extend(["-runall", "--log", win_path(xsim_log)])
         args_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+        # Snapshot lives in temp build dir; DPI lib is absolute under results/.
         _run_toollog([str(xsim), "--file", win_path(args_file)], xsim_log, log, build)
         print(file=__import__("sys").stderr)
 
     return 0
 
 
-def run(top: str, flist: Path, out: Path, plusargs: list[str], *, uvm: bool = False) -> int:
-    rc = run_vivado_sim(top, flist, out, plusargs, uvm=uvm)
+def run(
+    top: str,
+    flist: Path,
+    out: Path,
+    plusargs: list[str],
+    *,
+    uvm: bool = False,
+    dpi_cpp: list[str] | None = None,
+) -> int:
+    rc = run_vivado_sim(top, flist, out, plusargs, uvm=uvm, dpi_cpp=dpi_cpp)
     log = out / "compile_run.log"
     if rc != 0 or sim_failed(log):
         print(f"failed - see {log}", file=__import__("sys").stderr)

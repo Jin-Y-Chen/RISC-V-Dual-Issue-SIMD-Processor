@@ -1,3 +1,9 @@
 {
-  "extra_sources": []
+  "extra_sources": [
+    "tb/dpi/dpi_pkg.sv",
+    "tb/s2_decode/gm/target_predict_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s2_decode/target_predict_gm.cpp"
+  ]
 }

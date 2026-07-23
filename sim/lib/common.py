@@ -124,6 +124,7 @@ def load_target_config(
         "extra_sources": [],
         "plusargs": [],
         "artifacts": [],
+        "dpi_cpp": [],
         "full": False,
     }
     if not cfg_path.is_file():
@@ -138,7 +139,7 @@ def load_target_config(
         else str(root / "program" / "bin" / "demo_instructions.mem").replace("\\", "/"),
     }
 
-    for key in ("extra_sources", "plusargs", "artifacts"):
+    for key in ("extra_sources", "plusargs", "artifacts", "dpi_cpp"):
         vals = raw.get(key, [])
         if not isinstance(vals, list):
             raise ValueError(f"{cfg_path}: '{key}' must be a list")

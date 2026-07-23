@@ -4,7 +4,7 @@
 
 import rv_dis_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module even_lane_tb;
 

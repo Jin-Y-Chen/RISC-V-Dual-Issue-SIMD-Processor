@@ -7,7 +7,7 @@
 import rv_dis_pkg::*;
 import imem_hex_loader_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module instruction_cache_tb;
 

@@ -2,7 +2,7 @@
 
 import rv_dis_pkg::word_t;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 // target_buffer_tb - BTB lookup/WB; DUT vs gm/target_buffer_gm.sv.
 // Each vector applies inputs on posedge clk.

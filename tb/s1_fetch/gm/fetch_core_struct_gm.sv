@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
 
 import rv_dis_pkg::*;
+import dpi_pkg::*;
 
-// Golden model for rtl/s1_fetch/fetch_core_struct.sv
-// Composes pc_gm + pc_selector_gm + instruction_cache_gm + target_buffer_gm.
-
+// DPI shim — golden logic in model/s1_fetch/fetch_core_struct_gm.cpp
 module fetch_core_struct_gm #(
   parameter word_t RESET_PC = RESET_PC_INIT
 ) (
@@ -40,90 +39,54 @@ module fetch_core_struct_gm #(
   output logic  i1_target_valid
 );
 
-  logic  spec0;
-  logic  spec1;
-  logic  spec0_next;
-  logic  spec1_next;
-  logic  i0_btb_valid;
-  logic  i1_btb_valid;
-  logic  i0_icache_valid;
-  logic  i1_icache_valid;
-  instr_t i0_icache_instr;
-  instr_t i1_icache_instr;
-  word_t pc0_next;
-  word_t pc1_next;
+  chandle h;
+  int p0, p1, t0, t1, in0, in1, s0, s1, v0, v1, tv0, tv1;
 
-  assign spec0_en = spec0_next;
-  assign spec1_en = spec1_next;
-  assign instr0 = rst_n ? i0_icache_instr : '0;
-  assign instr1 = rst_n ? i1_icache_instr : '0;
-  assign i0_valid = rst_n && i0_icache_valid;
-  assign i1_valid = rst_n && i1_icache_valid;
-  assign i0_target_valid = rst_n && i0_btb_valid;
-  assign i1_target_valid = rst_n && i1_btb_valid;
+  initial begin
+    h = fetch_dpi_create(int'(RESET_PC));
+    if (h == null) $fatal(1, "fetch_dpi_create failed");
+  end
+  final fetch_dpi_destroy(h);
 
-  pc_gm #(
-    .RESET_PC(RESET_PC)
-  ) u_pc_gm (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .enable          (enable),
-    .dispatch_stall  (dispatch_stall),
-    .spec0_stall     (spec0_stall),
-    .spec1_stall     (spec1_stall),
-    .spec0_in        (spec0_next),
-    .spec1_in        (spec1_next),
-    .pc0_in          (pc0_next),
-    .pc1_in          (pc1_next),
-    .pc0_out         (pc0),
-    .pc1_out         (pc1),
-    .spec0_out       (spec0),
-    .spec1_out       (spec1)
-  );
+  always @(*) begin
+    fetch_dpi_eval(
+      h, int'(rst_n), int'(enable), int'(dispatch_stall),
+      int'(spec0_stall), int'(spec1_stall),
+      int'(i0_pred_taken), int'(i1_pred_taken),
+      int'(i0_brch_recover), int'(i1_brch_recover),
+      int'(i0_pc_execute), int'(i1_pc_execute),
+      int'(i0_valid_wb), int'(i1_valid_wb),
+      int'(i0_pc_wb), int'(i1_pc_wb), int'(i0_pc_target_wb), int'(i1_pc_target_wb),
+      p0, p1, t0, t1, in0, in1, s0, s1, v0, v1, tv0, tv1);
+    pc0 = p0[31:0]; pc1 = p1[31:0];
+    i0_pc_target = t0[31:0]; i1_pc_target = t1[31:0];
+    instr0 = in0[31:0]; instr1 = in1[31:0];
+    spec0_en = s0[0]; spec1_en = s1[0];
+    i0_valid = v0[0]; i1_valid = v1[0];
+    i0_target_valid = tv0[0]; i1_target_valid = tv1[0];
+  end
 
-  instruction_cache_gm u_icache_gm (
-    .pc0      (pc0),
-    .pc1      (pc1),
-    .instr0   (i0_icache_instr),
-    .instr1   (i1_icache_instr),
-    .i0_valid (i0_icache_valid),
-    .i1_valid (i1_icache_valid)
-  );
+  always @(posedge clk) begin
+    if (!rst_n)
+      fetch_dpi_reset(h);
+    else
+      fetch_dpi_commit_posedge(
+        h, int'(rst_n), int'(enable), int'(dispatch_stall),
+        int'(spec0_stall), int'(spec1_stall),
+        int'(i0_pred_taken), int'(i1_pred_taken),
+        int'(i0_brch_recover), int'(i1_brch_recover),
+        int'(i0_pc_execute), int'(i1_pc_execute),
+        int'(i0_valid_wb), int'(i1_valid_wb),
+        int'(i0_pc_wb), int'(i1_pc_wb), int'(i0_pc_target_wb), int'(i1_pc_target_wb));
+  end
 
-  target_buffer_gm u_target_gm (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .i0_pc           (pc0),
-    .i1_pc           (pc1),
-    .i0_valid_wb     (i0_valid_wb),
-    .i1_valid_wb     (i1_valid_wb),
-    .i0_pc_wb        (i0_pc_wb),
-    .i1_pc_wb        (i1_pc_wb),
-    .i0_pc_target_wb (i0_pc_target_wb),
-    .i1_pc_target_wb (i1_pc_target_wb),
-    .i0_valid        (i0_btb_valid),
-    .i1_valid        (i1_btb_valid),
-    .i0_pc_target    (i0_pc_target),
-    .i1_pc_target    (i1_pc_target)
-  );
-
-  pc_selector_gm u_pc_sel_gm (
-    .spec0_in        (spec0),
-    .spec1_in        (spec1),
-    .i0_pred_taken   (i0_pred_taken),
-    .i1_pred_taken   (i1_pred_taken),
-    .i0_brch_recover (i0_brch_recover),
-    .i1_brch_recover (i1_brch_recover),
-    .pc0_in          (pc0),
-    .pc1_in          (pc1),
-    .i0_pc_target    (i0_pc_target),
-    .i1_pc_target    (i1_pc_target),
-    .i0_pc_execute   (i0_pc_execute),
-    .i1_pc_execute   (i1_pc_execute),
-    .spec0_out       (spec0_next),
-    .spec1_out       (spec1_next),
-    .pc0_out         (pc0_next),
-    .pc1_out         (pc1_next)
-  );
+  always @(negedge clk or negedge rst_n) begin
+    if (!rst_n)
+      ;
+    else
+      fetch_dpi_commit_negedge(
+        h, int'(i0_valid_wb), int'(i1_valid_wb),
+        int'(i0_pc_wb), int'(i1_pc_wb), int'(i0_pc_target_wb), int'(i1_pc_target_wb));
+  end
 
 endmodule

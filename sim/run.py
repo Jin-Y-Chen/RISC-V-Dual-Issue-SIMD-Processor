@@ -123,6 +123,7 @@ def run_simulation(args: argparse.Namespace) -> int:
     plusargs: list[str] = list(cfg["plusargs"])
     artifacts: list[str] = list(cfg["artifacts"])
     extra_sources: list[str] = list(cfg["extra_sources"])
+    dpi_cpp: list[str] = list(cfg.get("dpi_cpp", []))
     full = bool(args.full or cfg.get("full"))
 
     flist: Path | None = abs_path(args.flist) if args.flist else None
@@ -169,7 +170,7 @@ def run_simulation(args: argparse.Namespace) -> int:
         plusargs.extend(args.plusarg or [])
         plusargs.extend(args.extra or [])
 
-        rc = adapter.run(elab_top, flist, out, plusargs, uvm=uvm)
+        rc = adapter.run(elab_top, flist, out, plusargs, uvm=uvm, dpi_cpp=dpi_cpp)
         log = out / "compile_run.log"
 
         counts = pass_fail_counts(log)

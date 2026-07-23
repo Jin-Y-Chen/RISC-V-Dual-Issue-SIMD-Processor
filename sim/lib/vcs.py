@@ -9,8 +9,17 @@ from pathlib import Path
 from .common import ROOT, SIM_DIR, sim_failed
 
 
-def run(top: str, flist: Path, out: Path, plusargs: list[str], *, uvm: bool = False) -> int:
+def run(
+    top: str,
+    flist: Path,
+    out: Path,
+    plusargs: list[str],
+    *,
+    uvm: bool = False,
+    dpi_cpp: list[str] | None = None,
+) -> int:
     del uvm
+    del dpi_cpp
     if not shutil.which("vcs"):
         print("vcs not on PATH", file=__import__("sys").stderr)
         return 1

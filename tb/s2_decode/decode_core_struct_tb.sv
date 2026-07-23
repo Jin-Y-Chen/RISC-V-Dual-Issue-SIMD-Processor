@@ -3,7 +3,7 @@
 // Decode struct smoke + nested-speculation stall vs per-lane spec*_en_id.
 import rv_dis_pkg::*;
 
-`include "../include/tb_console.svh"
+`include "../dpi/tb_console.svh"
 
 module decode_core_struct_tb;
   logic        clk;
