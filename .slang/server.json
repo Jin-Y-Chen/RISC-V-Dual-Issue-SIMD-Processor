@@ -1,9 +1,9 @@
 {
-  "flags": "-f .slang/project.f -y rtl/import -y rtl/s1_fetch/core_mod -y rtl/s1_fetch -y tb -y tb/dpi -y tb/interfaces -y tb/driver -y tb/monitor -y tb/scoreboard -y tb/s1_fetch/gm -y tb/s2_decode/gm",
+  "flags": "-f .slang/project.f -y rtl/import -y rtl/s1_fetch/core_mod -y rtl/s1_fetch -y tb -y tb/dpi -y tb/dpi/shims -y tb/common/interfaces -y tb/common/utils -y tb/env -y tb/s1_fetch/tests -y tb/s2_decode/tests",
   "build": ".slang/project.f",
   "index": [
     {
-      "dirs": ["rtl", "tb"],
+      "dirs": ["rtl", "tb", "model"],
       "excludeDirs": ["docs"]
     }
   ]

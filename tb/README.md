@@ -1,54 +1,80 @@
 # Testbenches
 
-Directed unit TBs, CPU env scaffold, DPI packages, and UVM. Run via:
+Run from repo root:
 
 ```powershell
-python sim/run.py <top>
-python sim/run.py rename_uvm --test rename_smoke_test
+python sim/run.py <top>          # e.g. pc_tb, rob_tb
+python sim/run.py rename_uvm
 python sim/run.py --list
 ```
 
-See [`sim/README.md`](../sim/README.md). C++ golden models: [`../model/`](../model/).
+C++ goldens live in [`../model/`](../model/). SV only has thin DPI shims under `dpi/shims/`.
 
 ## Layout
 
 ```text
 tb/
-├── tb_top.sv              // Top-level CPU testbench
-├── tb_pkg.sv              // Global types / ROB helpers / txn structs
+├── README.md
+├── tb_pkg.sv                 # shared stim/obs types, ROB DPI helpers
+├── tb_top.sv                 # full-core harness (DUT + env + sequences)
 │
-├── interfaces/            // cpu_if, commit_if, memory_if
-├── transaction/           // cpu_txn, commit_txn, memory_txn
-├── driver/                // cpu_driver, memory_driver, tb_driver (ROB)
-├── monitor/               // cpu/commit/memory + tb_monitor (ROB)
-├── scoreboard/            // cpu_scoreboard, predictor, tb_scoreboard (ROB)
-├── sequence/              // base_seq, random_seq, directed_seq
-├── env/                   // cpu_agent, cpu_env, cpu_test
-├── dpi/                   // dpi_pkg, cpu_dpi.cpp, tb_console, imem loader
-├── rtl/                   // pointers only — design stays in repo rtl/
+├── common/                   # shared by all stages
+│   ├── interfaces/           # cpu_if, commit_if, memory_if, irq_if
+│   ├── transactions/         # txn helper packages
+│   ├── config/               # env config stubs
+│   └── utils/                # tb_console.svh, imem hex loader
 │
-├── uvm/                   // Rename-stage UVM suite
-├── top/                   // Full-core directed TB (risc_dis_unit_tb)
+├── env/                      # full-core verification
+│   ├── cpu_env.sv / cpu_agent.sv / cpu_test.sv
+│   ├── memory_driver.sv / memory_monitor.sv
+│   ├── sequences/            # directed + random stimulus
+│   └── risc_dis_unit_tb.sv   # smoke elaborate of top DUT
 │
-├── s1_fetch/              // Directed TBs + gm/ DPI shims
+├── uvm/                      # rename_core_struct UVM suite only
+│
+├── dpi/
+│   ├── dpi_pkg.sv            # all DPI-C imports
+│   ├── cpu_dpi.cpp           # optional full-core DPI stub
+│   └── shims/<stage>/        # DUT-port-compatible DPI wrappers
+│
+├── s1_fetch/                 # tests/ + infra/
 ├── s2_decode/
-├── s3_rename/             // includes rob_tb, reorder_buffer_tb, …
+├── s3_rename/                # directed rob_* DPI TBs (+ infra); no rename_* directed TB
 ├── s4_dispatch/
 ├── s5_execute/
-├── s6_memory/
-└── s7_wback/
+└── s6_wback/
 ```
 
-Stage `gm/` files are thin DPI shims; reference logic lives in `model/<stage>/`.
+Each stage folder is only:
+
+```text
+sN_*/
+├── tests/     # directed *_tb.sv
+└── infra/     # drivers, monitors, scoreboards, scaffolds
+```
 
 ## Conventions
 
-- `` `include "../dpi/tb_console.svh" ``
-- Tick with `@(negedge clk)`; end directed TBs with `tb_summary(...)`.
+| Kind | Where |
+|------|--------|
+| Directed unit test | `sN_*/tests/*_tb.sv` |
+| Stage helpers | `sN_*/infra/` |
+| DPI shim | `dpi/shims/<stage>/` |
+| Console macros | `` `include "../../common/utils/tb_console.svh" `` from `tests/` |
 
-## UVM
+End directed TBs with `tb_summary(pass_cnt, fail_cnt)`.
 
-```powershell
-python sim/run.py rename_uvm
-python sim/run.py rename_uvm --test rename_random_test --sim xsim
-```
+## Rename stage
+
+| What | How |
+|------|-----|
+| `rename_core_struct` | **UVM only** — `tb/uvm/rename/`, run `python sim/run.py rename_uvm` |
+| `reorder_buffer` / ROB units | Directed DPI TBs — `tb/s3_rename/tests/{rob,reorder_buffer}_tb.sv` |
+
+Do not add a directed `rename_core_struct_tb` or extra `rename_*` infra; that coverage lives in the UVM suite.
+
+## UVM rename
+
+- Sources: `tb/uvm/rename/`
+- Filelist: `sim/filelists/uvm/rename.f`
+- Top: `rename_tb_top` (suite name `rename_uvm`)

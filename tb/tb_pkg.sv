@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Global testbench package — types, txn helpers, DPI re-exports.
+// Global TB types and ROB DPI helpers (import dpi_pkg for raw DPI-C).
 package tb_pkg;
 
   import rv_dis_pkg::*;

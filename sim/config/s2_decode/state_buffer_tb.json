@@ -1,0 +1,15 @@
+{
+  "extra_sources": [
+    "tb/dpi/dpi_pkg.sv",
+    "tb/dpi/shims/s2_decode/state_buffer_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s2_decode/state_buffer_gm.cpp"
+  ],
+  "plusargs": [
+    "state_dump=state_bank.txt"
+  ],
+  "artifacts": [
+    "state_bank.txt"
+  ]
+}

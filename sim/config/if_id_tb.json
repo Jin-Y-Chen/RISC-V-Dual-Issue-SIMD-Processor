@@ -1,9 +1,0 @@
-{
-  "extra_sources": [
-    "tb/dpi/dpi_pkg.sv",
-    "tb/s2_decode/gm/if_id_gm.sv"
-  ],
-  "dpi_cpp": [
-    "model/s2_decode/if_id_gm.cpp"
-  ]
-}

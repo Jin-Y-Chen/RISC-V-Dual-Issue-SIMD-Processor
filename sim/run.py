@@ -29,7 +29,9 @@ from lib.common import (  # noqa: E402
     list_uvm_suites,
     load_target_config,
     pass_fail_counts,
+    resolve_target,
     results_dir_for,
+    validate_directed_top,
     write_full_flist,
     write_minimal_flist,
 )
@@ -109,10 +111,14 @@ def cmd_list(kind: str) -> int:
 
 
 def run_simulation(args: argparse.Namespace) -> int:
-    top = args.top
-    if not top:
+    raw_top = args.top
+    if not raw_top:
         build_parser().print_help()
         return 1
+
+    top, alias_note = resolve_target(raw_top)
+    if alias_note:
+        print(f"  ({alias_note})")
 
     sim = args.sim
     adapter = ADAPTERS[sim]
@@ -144,6 +150,10 @@ def run_simulation(args: argparse.Namespace) -> int:
                 ]
             )
         else:
+            err = validate_directed_top(top)
+            if err:
+                print(err, file=sys.stderr)
+                return 1
             elab_top = top
             if flist is None:
                 fd, name = tempfile.mkstemp(prefix="riscv-sim-flist.", suffix=".f")

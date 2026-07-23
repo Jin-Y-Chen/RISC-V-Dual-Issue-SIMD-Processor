@@ -10,7 +10,7 @@ SystemVerilog by pipeline stage. Stage map: [../project_outline.txt](../project_
 | S2 Decode | `s2_decode/` | IF/ID, dual decoder, GPR |
 | S3 Execute / Dispatch | `s3_dispatch/` | ROB, rename/route, branch speculate, ID/DP |
 | S4 Memory | `s4_memory/` | EX/MEM (`ex_mem`), L1 data cache |
-| S5 Writeback | `s5_wback/` or `s6_wback/` | EX/MEM/WB merge (`ex_mem_wb`), retire |
+| S5 Writeback | `s7_wback/` | EX/MEM/WB merge (`ex_mem_wb`), retire |
 
 ## Modules
 
@@ -21,7 +21,7 @@ SystemVerilog by pipeline stage. Stage map: [../project_outline.txt](../project_
 | Decode | `s2_decode/decode_core_struct.sv`, `if_id.sv`, `core/decoder.sv`, `register_file.sv`, `state_buffer.sv` |
 | Dispatch / EX | `s3_dispatch/dispatch_core_struct.sv`, `id_dp.sv`, `core_mod/reorder_buffer.sv`, `rename_dispatch.sv`, `branch_speculate.sv` |
 | Memory | `s4_memory/ex_mem.sv`, `core/memory_cache.sv` |
-| Writeback | `s6_wback/ex_mem_wb.sv` |
+| Writeback | `s7_wback/ex_mem_wb.sv` |
 | Top | `top/risc_dis_unit.sv` |
 
 `*_struct.sv` / `*_core_struct.sv` files hold bundled port types per stage.

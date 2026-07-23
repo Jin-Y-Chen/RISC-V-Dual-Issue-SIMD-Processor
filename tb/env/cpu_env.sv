@@ -20,6 +20,6 @@ module cpu_env (
   memory_driver  u_mem_drv (.vif(mem_drv_if));
   memory_monitor u_mem_mon (.vif(mem_mon_if));
 
-  cpu_scoreboard u_sb  ();
-  predictor      u_pred();
+  arch_scoreboard u_sb  ();
+  arch_predictor  u_pred();
 endmodule

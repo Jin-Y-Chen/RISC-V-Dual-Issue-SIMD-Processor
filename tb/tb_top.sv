@@ -36,7 +36,7 @@ module tb_top;
     .stall_id       (cif.stall_id)
   );
 
-  // Observe-side placeholders until fuller DUT hooks exist (not driven by cpu_driver).
+  // Observe-side placeholders until fuller DUT hooks exist.
   assign cif.i0_valid = 1'b0;
   assign cif.i1_valid = 1'b0;
 

@@ -7,22 +7,28 @@ Design notes: [project_outline.txt](project_outline.txt). Spec: [arm_spu_spulite
 
 HDL is SystemVerilog under `rtl/`. Directed and UVM verification run through
 `python sim/run.py` (XSim default; Questa/VCS/Xcelium adapters for UVM).
+C++ golden models live under `model/` and are linked via DPI-C (`tb/dpi/`).
 
 ## Layout
 
 ```
 project/
 ├── rtl/              synthesizable design
-├── tb/               directed TBs, golden models, UVM (`tb/uvm/`)
+├── model/            C++ golden models (by pipeline stage)
+├── tb/               directed TBs, env, DPI shims, UVM
+│   ├── common/       interfaces, transactions, utils
+│   ├── env/          full-core harness + sequences
+│   ├── dpi/shims/    stage-grouped DPI wrappers
+│   └── s1_fetch/ … s6_wback/   each: tests/ + infra/
 ├── sim/              Python control panel, filelists, results/
 ├── program/          ASM sources, hex images, assembler
-├── docs/             ISA and architecture notes
-└── verif/            redirect stub (sources moved to tb/uvm + sim/)
+└── docs/             ISA and architecture notes
 ```
 
 | Path | Contents |
 |------|----------|
 | `rtl/` | Pipeline RTL — [rtl/README.md](rtl/README.md) |
+| `model/` | C++ DPI golden models by stage |
 | `tb/` | Directed TBs + UVM — [tb/README.md](tb/README.md) |
 | `sim/` | Simulation control panel — [sim/README.md](sim/README.md) |
 

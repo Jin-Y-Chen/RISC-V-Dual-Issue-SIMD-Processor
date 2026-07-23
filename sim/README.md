@@ -31,15 +31,19 @@ sim/
     questa.py vcs.py xcelium.py
   filelists/
     uvm/rename.f         UVM rename compile list
-  config/<target>.json   Optional plusargs / artifacts / extra_sources
-  results/<target>/<sim>/compile_run.log
-  work/<sim>/...         Simulator scratch (ignored)
-  tcl/vivado_sim.tcl     Optional Vivado Tcl helper (tool-specific)
+  config/<stage>/<target>.json   Optional plusargs / artifacts / dpi_cpp
+    common/  s1_fetch/  s2_decode/  s3_rename/  s4_dispatch/
+    s5_execute/  s6_wback/
+  results/<target>/<sim>/compile_run.log   (gitignored)
+  work/<sim>/...         Simulator scratch (gitignored)
 ```
 
 Directed sources still come from `.slang/project.f` (minimal DUT/GM/TB filter by
 default; `--full` or `"full": true` in JSON uses the whole list). UVM suites use
 explicit filelists under `sim/filelists/`.
+The runner resolves `config/**/<target>.json` by target name (stage folder is
+organizational only). `rename_core_struct` is verified via `rename_uvm` only
+(no directed `rename_core_struct_tb` config).
 
 ## Options
 
@@ -58,13 +62,14 @@ explicit filelists under `sim/filelists/`.
 
 ## Config JSON
 
-`sim/config/<target>.json` (optional):
+`sim/config/<stage>/<target>.json` (optional):
 
 ```json
 {
   "extra_sources": ["rtl/path/file.sv"],
   "plusargs": ["imem_mem=${MEM_FILE}", "cache_dump=icache_bank.txt"],
   "artifacts": ["icache_bank.txt"],
+  "dpi_cpp": ["model/stage/foo_gm.cpp"],
   "full": false
 }
 ```

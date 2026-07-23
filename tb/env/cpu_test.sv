@@ -4,9 +4,9 @@ import rv_dis_pkg::*;
 import tb_pkg::*;
 import cpu_txn_pkg::*;
 
-`include "../sequence/base_seq.sv"
-`include "../sequence/random_seq.sv"
-`include "../sequence/directed_seq.sv"
+`include "sequences/base_seq.sv"
+`include "sequences/random_seq.sv"
+`include "sequences/directed_seq.sv"
 
 // Test layer: builds sequences and drives cpu_if.
 module cpu_test (
@@ -15,7 +15,7 @@ module cpu_test (
   cpu_if.drv vif
 );
   cpu_txn_t seq_q[$];
-  cpu_driver drv (.vif(vif));
+  fetch_driver drv (.vif(vif));
 
   task automatic run_directed();
     directed_seq seq;

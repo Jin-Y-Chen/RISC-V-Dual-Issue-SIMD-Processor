@@ -1,43 +1,58 @@
-# RV-DIS project file list — Slang LSP + Vivado sim (paths relative to repo root)
+# RV-DIS — Slang / sim file list (paths relative to repo root)
+#
+# Layout:
+#   tb/common/     shared IF, txn, utils
+#   tb/env/        full-core harness
+#   tb/dpi/        DPI package + stage-grouped shims
+#   tb/sN_*/tests  directed unit TBs
+#   tb/sN_*/infra  stage helpers (rob_* under s3_rename; rename_core_struct is UVM-only)
+
 +incdir+rtl/import
 +incdir+tb
 +incdir+tb/dpi
-+incdir+tb/interfaces
-+incdir+tb/transaction
-+incdir+tb/sequence
-+incdir+tb/driver
-+incdir+tb/monitor
-+incdir+tb/scoreboard
-+incdir+tb/s1_fetch/gm
-+incdir+tb/s2_decode/gm
++incdir+tb/dpi/shims
++incdir+tb/common/interfaces
++incdir+tb/common/transactions
++incdir+tb/common/utils
++incdir+tb/common/config
++incdir+tb/env
 
+# ---- packages ----
 rtl/import/rv_dis_pkg.sv
 rtl/import/cache_pkg.sv
 rtl/s3_rename/funct_pkg/rob.sv
 rtl/s3_rename/funct_pkg/rat.sv
 tb/dpi/dpi_pkg.sv
-tb/dpi/imem_hex_loader_pkg.sv
+tb/common/utils/imem_hex_loader_pkg.sv
 tb/tb_pkg.sv
-tb/interfaces/cpu_if.sv
-tb/interfaces/commit_if.sv
-tb/interfaces/memory_if.sv
-tb/transaction/cpu_txn.sv
-tb/transaction/commit_txn.sv
-tb/transaction/memory_txn.sv
-tb/driver/cpu_driver.sv
-tb/driver/memory_driver.sv
-tb/driver/tb_driver.sv
-tb/monitor/cpu_monitor.sv
-tb/monitor/commit_monitor.sv
-tb/monitor/memory_monitor.sv
-tb/monitor/tb_monitor.sv
-tb/scoreboard/cpu_scoreboard.sv
-tb/scoreboard/predictor.sv
-tb/scoreboard/tb_scoreboard.sv
+tb/common/config/cpu_env_cfg.sv
+
+# ---- common interfaces / txns ----
+tb/common/interfaces/cpu_if.sv
+tb/common/interfaces/commit_if.sv
+tb/common/interfaces/memory_if.sv
+tb/common/interfaces/irq_if.sv
+tb/common/transactions/cpu_txn.sv
+tb/common/transactions/commit_txn.sv
+tb/common/transactions/memory_txn.sv
+
+# ---- env (full-core) ----
+tb/s1_fetch/infra/fetch_driver.sv
+tb/s1_fetch/infra/fetch_monitor.sv
+tb/s1_fetch/infra/fetch_agent.sv
+tb/s1_fetch/infra/fetch_cov.sv
+tb/env/memory_driver.sv
+tb/env/memory_monitor.sv
+tb/s6_wback/infra/commit_monitor.sv
+tb/s6_wback/infra/arch_scoreboard.sv
+tb/s6_wback/infra/arch_predictor.sv
 tb/env/cpu_agent.sv
 tb/env/cpu_env.sv
 tb/env/cpu_test.sv
 tb/tb_top.sv
+tb/env/risc_dis_unit_tb.sv
+
+# ---- RTL (DUT) ----
 rtl/s2_decode/funct_pkg/decode.sv
 rtl/s1_fetch/core_mod/pc.sv
 rtl/s1_fetch/core_mod/pc_selector.sv
@@ -71,37 +86,41 @@ rtl/s6_memory/memory_core_struct.sv
 rtl/s7_wback/core/retire.sv
 rtl/s7_wback/ex_mem_wb.sv
 rtl/top/risc_dis_unit.sv
-tb/s1_fetch/gm/pc_gm.sv
-tb/s1_fetch/gm/pc_selector_gm.sv
-tb/s1_fetch/gm/instruction_cache_gm.sv
-tb/s1_fetch/gm/target_buffer_gm.sv
-tb/s1_fetch/gm/fetch_core_struct_gm.sv
-tb/s1_fetch/pc_tb.sv
-tb/s1_fetch/pc_selector_tb.sv
-tb/s1_fetch/instruction_cache_tb.sv
-tb/s1_fetch/target_buffer_tb.sv
-tb/s1_fetch/fetch_core_struct_tb.sv
-tb/s2_decode/gm/decoder_gm.sv
-tb/s2_decode/gm/if_id_gm.sv
-tb/s2_decode/gm/state_buffer_gm.sv
-tb/s2_decode/gm/target_predict_gm.sv
-tb/s2_decode/decoder_tb.sv
-tb/s2_decode/if_id_tb.sv
-tb/s2_decode/state_buffer_tb.sv
-tb/s2_decode/target_predict_tb.sv
-tb/s2_decode/decode_core_struct_tb.sv
-tb/s3_rename/gm/reorder_buffer_gm.sv
-tb/s3_rename/reorder_buffer_tb.sv
-tb/s3_rename/rob_tb.sv
-tb/s3_rename/rename_core_struct_tb.sv
-# register_file.sv DUT not present yet — TB/GM kept under tb/s4_dispatch/
-tb/s4_dispatch/gm/register_file_gm.sv
-tb/s4_dispatch/reservation_station_tb.sv
-tb/s4_dispatch/rn_dp_tb.sv
-tb/s5_execute/even_lane_tb.sv
-tb/s5_execute/odd_lane_tb.sv
-tb/s5_execute/id_ex_dispatch_tb.sv
-tb/s6_memory/memory_cache_tb.sv
-tb/s6_memory/ex_mem_tb.sv
-tb/s7_wback/ex_mem_wb_tb.sv
-tb/top/risc_dis_unit_tb.sv
+
+# ---- DPI shims (by stage) ----
+tb/dpi/shims/s1_fetch/pc_gm.sv
+tb/dpi/shims/s1_fetch/pc_selector_gm.sv
+tb/dpi/shims/s1_fetch/instruction_cache_gm.sv
+tb/dpi/shims/s1_fetch/target_buffer_gm.sv
+tb/dpi/shims/s1_fetch/fetch_core_struct_gm.sv
+tb/dpi/shims/s2_decode/decoder_gm.sv
+tb/dpi/shims/s2_decode/if_id_gm.sv
+tb/dpi/shims/s2_decode/state_buffer_gm.sv
+tb/dpi/shims/s2_decode/target_predict_gm.sv
+tb/dpi/shims/s3_rename/reorder_buffer_gm.sv
+tb/dpi/shims/s4_dispatch/register_file_gm.sv
+
+# ---- directed unit TBs ----
+tb/s1_fetch/tests/pc_tb.sv
+tb/s1_fetch/tests/pc_selector_tb.sv
+tb/s1_fetch/tests/instruction_cache_tb.sv
+tb/s1_fetch/tests/target_buffer_tb.sv
+tb/s1_fetch/tests/fetch_core_struct_tb.sv
+tb/s2_decode/tests/decoder_tb.sv
+tb/s2_decode/tests/if_id_tb.sv
+tb/s2_decode/tests/state_buffer_tb.sv
+tb/s2_decode/tests/target_predict_tb.sv
+tb/s2_decode/tests/decode_core_struct_tb.sv
+tb/s3_rename/infra/rob_driver.sv
+tb/s3_rename/infra/rob_monitor.sv
+tb/s3_rename/infra/rob_scoreboard.sv
+tb/s3_rename/tests/reorder_buffer_tb.sv
+tb/s3_rename/tests/rob_tb.sv
+tb/s4_dispatch/tests/rn_dp_tb.sv
+tb/s4_dispatch/tests/reservation_station_tb.sv
+tb/s5_execute/tests/even_lane_tb.sv
+tb/s5_execute/tests/odd_lane_tb.sv
+tb/s5_execute/tests/id_ex_dispatch_tb.sv
+tb/s5_execute/tests/memory_cache_tb.sv
+tb/s5_execute/tests/ex_mem_tb.sv
+tb/s6_wback/tests/ex_mem_wb_tb.sv

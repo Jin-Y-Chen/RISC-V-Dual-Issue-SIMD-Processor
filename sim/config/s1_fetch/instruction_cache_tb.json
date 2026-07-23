@@ -1,0 +1,17 @@
+{
+  "extra_sources": [
+    "tb/common/utils/imem_hex_loader_pkg.sv",
+    "tb/dpi/dpi_pkg.sv",
+    "tb/dpi/shims/s1_fetch/instruction_cache_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s1_fetch/instruction_cache_gm.cpp"
+  ],
+  "plusargs": [
+    "imem_mem=${MEM_FILE}",
+    "cache_dump=icache_bank.txt"
+  ],
+  "artifacts": [
+    "icache_bank.txt"
+  ]
+}

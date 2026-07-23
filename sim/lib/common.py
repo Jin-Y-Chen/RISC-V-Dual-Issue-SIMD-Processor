@@ -21,6 +21,32 @@ UVM_SUITES: dict[str, dict[str, str]] = {
     },
 }
 
+# Common typos / short names → real directed top (project.f *_tb.sv stem).
+TARGET_ALIASES: dict[str, str] = {
+    "decode_tb": "decoder_tb",
+}
+
+
+def resolve_target(name: str) -> tuple[str, str | None]:
+    """Return (canonical_top, alias_note). Alias note is set when name was remapped."""
+    canon = TARGET_ALIASES.get(name, name)
+    if canon != name:
+        return canon, f"alias: {name} -> {canon}"
+    return name, None
+
+
+def validate_directed_top(top: str) -> str | None:
+    """Return an error message if top is not a known directed TB, else None."""
+    known = list_directed_tops()
+    if top in known:
+        return None
+    # Suggest close matches (prefix / substring).
+    hints = [t for t in known if top.rstrip("_tb") in t or t.startswith(top[: max(3, len(top) - 3)])]
+    msg = f"Unknown directed top '{top}'. Use --list to see available tops."
+    if hints:
+        msg += f" Did you mean: {', '.join(hints[:5])}?"
+    return msg
+
 FAIL_RE = re.compile(
     r"\[FAIL\]|"
     r"SUMMARY:.*[1-9][0-9]* failed|"
@@ -111,6 +137,22 @@ def expand_placeholders(value: str, mapping: dict[str, str]) -> str:
     return out
 
 
+def find_target_config(target: str) -> Path | None:
+    """Locate sim/config/**/<target>.json (stage subdirs or flat legacy)."""
+    cfg_root = SIM_DIR / "config"
+    flat = cfg_root / f"{target}.json"
+    if flat.is_file():
+        return flat
+    hits = sorted(p for p in cfg_root.rglob(f"{target}.json") if p.is_file())
+    if not hits:
+        return None
+    if len(hits) > 1:
+        raise FileExistsError(
+            f"multiple configs for '{target}': " + ", ".join(str(p) for p in hits)
+        )
+    return hits[0]
+
+
 def load_target_config(
     target: str,
     *,
@@ -118,8 +160,8 @@ def load_target_config(
     out: Path,
     mem_file: str = "",
 ) -> dict[str, Any]:
-    """Load sim/config/<target>.json with placeholder expansion."""
-    cfg_path = SIM_DIR / "config" / f"{target}.json"
+    """Load sim/config/<stage>/<target>.json with placeholder expansion."""
+    cfg_path = find_target_config(target)
     data: dict[str, Any] = {
         "extra_sources": [],
         "plusargs": [],
@@ -127,7 +169,7 @@ def load_target_config(
         "dpi_cpp": [],
         "full": False,
     }
-    if not cfg_path.is_file():
+    if cfg_path is None:
         return data
 
     raw = json.loads(cfg_path.read_text(encoding="utf-8"))
