@@ -1,0 +1,5 @@
+{
+  "extra_sources": [
+    "rtl/s5_execution/dp_ex.sv"
+  ]
+}
