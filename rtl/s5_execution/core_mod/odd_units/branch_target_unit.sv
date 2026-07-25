@@ -17,13 +17,11 @@ module branch_target_unit (
   always_comb begin
     brch_taken = 1'b0;
 
-    unique case (funct3)
+    case (funct3)
       F3_BEQ:  brch_taken = (operand_a == operand_b);
       F3_BNE:  brch_taken = (operand_a != operand_b);
       F3_BLT:  brch_taken = ($signed(operand_a) < $signed(operand_b));
       F3_BGE:  brch_taken = ($signed(operand_a) >= $signed(operand_b));
-      //F3_BLTU: brch_taken = (cmp_a < cmp_b);
-      //F3_BGEU: brch_taken = (cmp_a >= cmp_b);
       default: brch_taken = 1'b0;
     endcase
   end

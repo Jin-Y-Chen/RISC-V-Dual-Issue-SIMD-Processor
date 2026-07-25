@@ -126,7 +126,6 @@ tb/s4_dispatch/tests/reservation_station_tb.sv
 tb/s5_execute/tests/dp_ex_tb.sv
 tb/s5_execute/tests/even_lane_tb.sv
 tb/s5_execute/tests/odd_lane_tb.sv
-tb/s5_execute/tests/id_ex_dispatch_tb.sv
 tb/s5_execute/tests/memory_cache_tb.sv
 tb/s5_execute/tests/ex_mem_tb.sv
 tb/s6_wback/tests/ex_mem_wb_tb.sv

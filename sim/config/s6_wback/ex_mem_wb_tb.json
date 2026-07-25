@@ -1,0 +1,5 @@
+{
+  "extra_sources": [
+    "rtl/s7_wback/ex_mem_wb.sv"
+  ]
+}

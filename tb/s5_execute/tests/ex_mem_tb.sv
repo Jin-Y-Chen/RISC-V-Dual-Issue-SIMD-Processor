@@ -21,7 +21,7 @@ module ex_mem_tb;
   // --- od0 EX inputs (I0 / odd copy) ---
   logic        od0_enable_ex;
   logic        od0_reg_write_ex;
-  logic [4:0]  od0_rd_addr_ex;
+  prf_addr_t   od0_rd_addr_ex;
   logic        od0_brch_taken_ex;
   logic [31:0] od0_brch_pc_ex;
   logic        od0_mem_en_ex;
@@ -37,7 +37,7 @@ module ex_mem_tb;
   // --- od1 EX inputs (I1 / odd copy) ---
   logic        od1_enable_ex;
   logic        od1_reg_write_ex;
-  logic [4:0]  od1_rd_addr_ex;
+  prf_addr_t   od1_rd_addr_ex;
   logic        od1_brch_taken_ex;
   logic [31:0] od1_brch_pc_ex;
   logic        od1_mem_en_ex;
@@ -52,7 +52,7 @@ module ex_mem_tb;
 
   // --- od0 MEM outputs ---
   logic        od0_reg_write_mem;
-  logic [4:0]  od0_rd_addr_mem;
+  prf_addr_t   od0_rd_addr_mem;
   logic        od0_brch_taken_mem;
   logic [31:0] od0_brch_pc_mem;
   logic        od0_mem_en_mem;
@@ -67,7 +67,7 @@ module ex_mem_tb;
 
   // --- od1 MEM outputs ---
   logic        od1_reg_write_mem;
-  logic [4:0]  od1_rd_addr_mem;
+  prf_addr_t   od1_rd_addr_mem;
   logic        od1_brch_taken_mem;
   logic [31:0] od1_brch_pc_mem;
   logic        od1_mem_en_mem;

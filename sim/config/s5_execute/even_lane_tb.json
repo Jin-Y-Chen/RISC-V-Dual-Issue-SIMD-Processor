@@ -1,0 +1,6 @@
+{
+  "extra_sources": [
+    "rtl/s5_execution/core_mod/even_units/scalar_alu_unit.sv",
+    "rtl/s5_execution/core_mod/even_units/even_lane_struct.sv"
+  ]
+}

@@ -40,6 +40,7 @@ module even_lane_tb;
     rs1_data = rs1_i;
     rs2_data = rs2_i;
     imm      = imm_i;
+    #1; // allow combo DUT to settle (XSim)
   endtask
 
   task automatic check_expect(

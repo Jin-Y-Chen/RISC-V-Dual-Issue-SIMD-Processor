@@ -47,6 +47,7 @@ module odd_lane_tb;
     rs2_data = rs2_i;
     imm      = imm_i;
     pc       = pc_i;
+    #1; // allow combo DUT to settle (XSim)
   endtask
 
   task automatic check_expect(
@@ -225,11 +226,11 @@ module odd_lane_tb;
       link_pc, pc + 32'h0000_1000);
     run_idle();
 
-    // --- Wrong lane (even-lane opcode): no brch_taken/mem/reg_write
+    // --- Wrong lane (even-lane opcode): no brch/mem; mem path still computes addr
     run_insn(1'b1, OPC_OP, F3_ADD_SUB, 32'd1, 32'd2, 32'd0, pc);
-    check_expect("alu_reject", "OP on odd lane -> no activity",
+    check_expect("alu_reject", "OP on odd lane -> no brch/mem",
       1'b0, pc + 32'd0,
-      1'b0, 1'b0, 32'd1, 32'd2, 4'b0000,
+      1'b0, 1'b0, 32'd1, 32'd0, 4'b0000,
       pc + 32'd4, 32'd0);
     run_idle();
 

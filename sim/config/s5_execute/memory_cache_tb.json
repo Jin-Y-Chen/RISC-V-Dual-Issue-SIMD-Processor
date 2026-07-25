@@ -1,0 +1,5 @@
+{
+  "extra_sources": [
+    "rtl/s6_memory/core/memory_cache.sv"
+  ]
+}
