@@ -138,7 +138,7 @@ import rv_dis_pkg::*;
   );
     rs_make_entry = '0;
     if (!valid)
-      return;
+      return rs_make_entry;
     rs_make_entry.valid     = 1'b1;
     rs_make_entry.age       = age;
     rs_make_entry.lane_sel  = lane_sel;

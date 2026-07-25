@@ -1,0 +1,7 @@
+{
+  "extra_sources": [
+    "rtl/s5_execution/core_mod/odd_units/branch_target_unit.sv",
+    "rtl/s5_execution/core_mod/odd_units/memory_address_unit.sv",
+    "rtl/s5_execution/core_mod/odd_units/odd_lane_struct.sv"
+  ]
+}

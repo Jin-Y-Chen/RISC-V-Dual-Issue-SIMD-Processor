@@ -24,6 +24,7 @@ module if_id_tb;
   logic [31:0] i0_instr_id, i1_instr_id;
   logic [31:0] i0_pc_id, i1_pc_id;
   logic [31:0] i0_pc_target_id, i1_pc_target_id;
+  logic        i0_valid_id, i1_valid_id;
   logic        i0_target_valid_id, i1_target_valid_id;
   logic        spec0_en_id, spec1_en_id;
 

@@ -15,17 +15,17 @@ module ex_mem_wb_tb;
   logic        flush;
 
   logic        ev0_reg_write_ex;
-  logic [4:0]  ev0_rd_addr_ex;
+  prf_addr_t   ev0_rd_addr_ex;
   logic [31:0] ev0_wdata_ex;
   logic [31:0] ev0_pc_ex;
 
   logic        ev1_reg_write_ex;
-  logic [4:0]  ev1_rd_addr_ex;
+  prf_addr_t   ev1_rd_addr_ex;
   logic [31:0] ev1_wdata_ex;
   logic [31:0] ev1_pc_ex;
 
   logic        od0_reg_write_mem;
-  logic [4:0]  od0_rd_addr_mem;
+  prf_addr_t   od0_rd_addr_mem;
   logic [31:0] od0_pc_mem;
   logic        od0_use_link_mem;
   logic [31:0] od0_alu_result_mem;
@@ -34,7 +34,7 @@ module ex_mem_wb_tb;
   logic [31:0] od0_load_mem_data;
 
   logic        od1_reg_write_mem;
-  logic [4:0]  od1_rd_addr_mem;
+  prf_addr_t   od1_rd_addr_mem;
   logic [31:0] od1_pc_mem;
   logic        od1_use_link_mem;
   logic [31:0] od1_alu_result_mem;
@@ -43,12 +43,12 @@ module ex_mem_wb_tb;
   logic [31:0] od1_load_mem_data;
 
   logic        ev0_reg_write_exwb;
-  logic [4:0]  ev0_rd_addr_exwb;
+  prf_addr_t   ev0_rd_addr_exwb;
   logic [31:0] ev0_wdata_exwb;
   logic [31:0] ev0_pc_exwb;
 
   logic        ev1_reg_write_exwb;
-  logic [4:0]  ev1_rd_addr_exwb;
+  prf_addr_t   ev1_rd_addr_exwb;
   logic [31:0] ev1_wdata_exwb;
   logic [31:0] ev1_pc_exwb;
 
@@ -56,12 +56,12 @@ module ex_mem_wb_tb;
   logic [31:0] od1_wdata_mem;
 
   logic        push0_valid;
-  logic [4:0]  push0_rd_addr;
+  prf_addr_t   push0_rd_addr;
   logic [31:0] push0_wdata;
   logic [31:0] push0_pc;
 
   logic        push1_valid;
-  logic [4:0]  push1_rd_addr;
+  prf_addr_t   push1_rd_addr;
   logic [31:0] push1_wdata;
   logic [31:0] push1_pc;
 
@@ -79,6 +79,7 @@ module ex_mem_wb_tb;
 
   task automatic clear_inputs;
     enable = 1'b1;
+    flush  = 1'b0;
     ev0_reg_write_ex = 1'b0;
     ev0_rd_addr_ex = '0;
     ev0_wdata_ex = '0;
@@ -268,6 +269,7 @@ module ex_mem_wb_tb;
     od0_pc_mem         = 32'h0000_3000;
     od0_use_link_mem   = 1'b1;
     od0_alu_result_mem = 32'h1111_1111;
+    #1;
     check_od0_wdata("od0_link_mux", "JAL link = pc+4",
                     32'h0000_3004);
 
@@ -276,6 +278,7 @@ module ex_mem_wb_tb;
     od0_rd_addr_mem    = 5'd3;
     od0_pc_mem         = 32'h0000_4000;
     od0_alu_result_mem = 32'h0004_5000;
+    #1;
     check_od0_wdata("od0_lui_mux", "LUI/AUIPC uses reg_wdata path",
                     32'h0004_5000);
 

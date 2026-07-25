@@ -23,21 +23,21 @@ module ex_mem_wb (
   input  logic        od1_mem_en_mem,
   input  logic        od1_mem_write_mem,
 
-  // input data
-  input  gpr_addr_t   ev0_rd_addr_ex,
-  input  word_t        ev0_wdata_ex,
-  input  word_t         ev0_pc_ex,
-  input  gpr_addr_t   ev1_rd_addr_ex,
-  input  word_t        ev1_wdata_ex,
-  input  word_t         ev1_pc_ex,
-  input  gpr_addr_t   od0_rd_addr_mem,
-  input  word_t         od0_pc_mem,
-  input  word_t        od0_alu_result_mem,
-  input  word_t        od0_load_mem_data,
-  input  gpr_addr_t   od1_rd_addr_mem,
-  input  word_t         od1_pc_mem,
-  input  word_t        od1_alu_result_mem,
-  input  word_t        od1_load_mem_data,
+  // input data (rd = PRF / ROB dest tag)
+  input  prf_addr_t   ev0_rd_addr_ex,
+  input  word_t       ev0_wdata_ex,
+  input  word_t       ev0_pc_ex,
+  input  prf_addr_t   ev1_rd_addr_ex,
+  input  word_t       ev1_wdata_ex,
+  input  word_t       ev1_pc_ex,
+  input  prf_addr_t   od0_rd_addr_mem,
+  input  word_t       od0_pc_mem,
+  input  word_t       od0_alu_result_mem,
+  input  word_t       od0_load_mem_data,
+  input  prf_addr_t   od1_rd_addr_mem,
+  input  word_t       od1_pc_mem,
+  input  word_t       od1_alu_result_mem,
+  input  word_t       od1_load_mem_data,
 
   // output controls
   output logic        ev0_reg_write_exwb,
@@ -46,34 +46,34 @@ module ex_mem_wb (
   output logic        push1_valid,
 
   // output data
-  output gpr_addr_t   ev0_rd_addr_exwb,
-  output word_t        ev0_wdata_exwb,
-  output word_t         ev0_pc_exwb,
-  output gpr_addr_t   ev1_rd_addr_exwb,
-  output word_t        ev1_wdata_exwb,
-  output word_t         ev1_pc_exwb,
-  output word_t        od0_wdata_mem,
-  output word_t        od1_wdata_mem,
-  output gpr_addr_t   push0_rd_addr,
-  output word_t        push0_wdata,
-  output word_t         push0_pc,
-  output gpr_addr_t   push1_rd_addr,
-  output word_t        push1_wdata,
-  output word_t         push1_pc
+  output prf_addr_t   ev0_rd_addr_exwb,
+  output word_t       ev0_wdata_exwb,
+  output word_t       ev0_pc_exwb,
+  output prf_addr_t   ev1_rd_addr_exwb,
+  output word_t       ev1_wdata_exwb,
+  output word_t       ev1_pc_exwb,
+  output word_t       od0_wdata_mem,
+  output word_t       od1_wdata_mem,
+  output prf_addr_t   push0_rd_addr,
+  output word_t       push0_wdata,
+  output word_t       push0_pc,
+  output prf_addr_t   push1_rd_addr,
+  output word_t       push1_wdata,
+  output word_t       push1_pc
 );
 
   logic        od0_odd_load_mem;
   logic        od1_odd_load_mem;
 
   logic        od0_reg_write_memwb;
-  logic [4:0]  od0_rd_addr_memwb;
-  word_t        od0_wdata_memwb;
-  word_t        od0_pc_memwb;
+  prf_addr_t   od0_rd_addr_memwb;
+  word_t       od0_wdata_memwb;
+  word_t       od0_pc_memwb;
 
   logic        od1_reg_write_memwb;
-  logic [4:0]  od1_rd_addr_memwb;
-  word_t        od1_wdata_memwb;
-  word_t        od1_pc_memwb;
+  prf_addr_t   od1_rd_addr_memwb;
+  word_t       od1_wdata_memwb;
+  word_t       od1_pc_memwb;
 
   assign od0_odd_load_mem = od0_reg_write_mem && od0_mem_en_mem && !od0_mem_write_mem;
   assign od1_odd_load_mem = od1_reg_write_mem && od1_mem_en_mem && !od1_mem_write_mem;
@@ -91,12 +91,12 @@ module ex_mem_wb (
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
       ev0_reg_write_exwb <= 1'b0;
-      ev0_rd_addr_exwb   <= 5'd0;
+      ev0_rd_addr_exwb   <= '0;
       ev0_wdata_exwb     <= '0;
       ev0_pc_exwb        <= '0;
 
       ev1_reg_write_exwb <= 1'b0;
-      ev1_rd_addr_exwb   <= 5'd0;
+      ev1_rd_addr_exwb   <= '0;
       ev1_wdata_exwb     <= '0;
       ev1_pc_exwb        <= '0;
     end else if (enable) begin
@@ -116,12 +116,12 @@ module ex_mem_wb (
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
       od0_reg_write_memwb <= 1'b0;
-      od0_rd_addr_memwb   <= 5'd0;
+      od0_rd_addr_memwb   <= '0;
       od0_wdata_memwb     <= '0;
       od0_pc_memwb        <= '0;
 
       od1_reg_write_memwb <= 1'b0;
-      od1_rd_addr_memwb   <= 5'd0;
+      od1_rd_addr_memwb   <= '0;
       od1_wdata_memwb     <= '0;
       od1_pc_memwb        <= '0;
     end else if (enable) begin

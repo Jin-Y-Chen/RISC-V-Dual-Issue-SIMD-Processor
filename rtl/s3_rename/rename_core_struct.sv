@@ -39,6 +39,7 @@ module rename_core_struct (
   output logic        i0_valid_disp, i1_valid_disp,
   output logic        i0_lane_sel_disp, i1_lane_sel_disp,
   output logic        i0_reg_write_disp, i1_reg_write_disp,
+  output logic        i0_spec_en_disp, i1_spec_en_disp,
   output logic        i0_rs1_use_disp, i0_rs2_use_disp,
   output logic        i1_rs1_use_disp, i1_rs2_use_disp,
   output opcode_t     i0_opcode_disp, i1_opcode_disp,
@@ -62,7 +63,6 @@ module rename_core_struct (
   logic stall;
   logic rat0_en, rat1_en;
   logic i0_path_sel, i1_path_sel;
-  logic retire0_en, retire1_en;
   logic i0_can_retire, i1_can_retire;
 
   wire i0_br = i0_valid_rn && (i0_opcode_rn == OPC_BRANCH);
@@ -141,6 +141,8 @@ module rename_core_struct (
   assign i1_lane_sel_disp  = i1_lane_sel_rn;
   assign i0_reg_write_disp = i0_reg_write_rn;
   assign i1_reg_write_disp = i1_reg_write_rn;
+  assign i0_spec_en_disp   = spec0_en_rn;
+  assign i1_spec_en_disp   = spec1_en_rn;
   assign i0_rs1_use_disp   = i0_rs1_use_rn;
   assign i0_rs2_use_disp   = i0_rs2_use_rn;
   assign i1_rs1_use_disp   = i1_rs1_use_rn;

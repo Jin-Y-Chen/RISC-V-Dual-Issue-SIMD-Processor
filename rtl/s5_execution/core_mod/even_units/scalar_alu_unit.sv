@@ -20,9 +20,9 @@ module scalar_alu (
   assign shamt = operand_b[4:0];
 
   always_comb begin
-    unique case (opcode)
+    case (opcode)
       OPC_OP, OPC_OP_IMM: begin
-        unique case (funct3)
+        case (funct3)
           F3_ADD_SUB: alu_result = (opcode == OPC_OP && funct7 == F7_SUB) ?
                                    (operand_a - operand_b) :
                                    (operand_a + operand_b);

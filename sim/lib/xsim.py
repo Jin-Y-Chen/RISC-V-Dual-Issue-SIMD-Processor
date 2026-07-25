@@ -273,6 +273,12 @@ def run_vivado_sim(
         with log.open("a", encoding="utf-8") as fh:
             fh.write(f"\n=== xvlog ({len(srcs)} sources) ===\n")
 
+        # Sources go in a -f filelist to avoid Windows CreateProcess length limits.
+        # Keep -i include dirs on the command line (few, short); xvlog -f treats
+        # "+incdir+..." lines as filenames on some Vivado builds.
+        xvlog_f = scratch / "xvlog.f"
+        xvlog_f.write_text("\n".join(srcs) + "\n", encoding="utf-8")
+
         xvlog_log = scratch / "xvlog.log"
         cmd = [
             str(xvlog),
@@ -283,7 +289,8 @@ def run_vivado_sim(
             "work",
             *sim_lib,
             *incs,
-            *srcs,
+            "-f",
+            win_path(xvlog_f),
             "--log",
             win_path(xvlog_log),
         ]
