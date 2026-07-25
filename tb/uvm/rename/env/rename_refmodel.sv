@@ -99,9 +99,7 @@ class rename_refmodel extends uvm_object;
     issue[1] = is_issue(req, 1);
     legal[0] = req.valid_rn[0] && req.reg_write[0] && (req.rd[0] != '0);
     legal[1] = req.valid_rn[1] && req.reg_write[1] && (req.rd[1] != '0);
-    go = !(wb.resolve_en && wb.resolve_mispred) &&
-         (occupancy <= ROB_DEPTH - 2) &&
-         (issue[0] || issue[1]);
+    go = (occupancy <= ROB_DEPTH - 2) && (issue[0] || issue[1]);
 
     base = (write_ptr % ROB_DEPTH) & ~(1);
     new_tag[0] = (req.valid_rn[0] && req.reg_write[0]) ? to_prf(base) : '0;

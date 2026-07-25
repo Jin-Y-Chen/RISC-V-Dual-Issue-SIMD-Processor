@@ -196,8 +196,6 @@ class rename_wb_base_seq extends uvm_sequence #(rename_wb_item);
       t.rob_idx[i] = '0;
       t.branch_taken[i] = 0;
     end
-    t.resolve_en = 0;
-    t.resolve_mispred = 0;
     finish_item(t);
   endtask
 
@@ -210,8 +208,6 @@ class rename_wb_base_seq extends uvm_sequence #(rename_wb_item);
     t.rob_idx[1] = prf_addr_t'({1'b1, 5'((pair * 2 + 1) % ROB_DEPTH)});
     t.branch_taken[0] = branch_taken;
     t.branch_taken[1] = 0;
-    t.resolve_en = 0;
-    t.resolve_mispred = 0;
     finish_item(t);
   endtask
 endclass

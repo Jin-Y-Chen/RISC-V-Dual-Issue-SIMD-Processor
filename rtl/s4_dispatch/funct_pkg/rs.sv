@@ -11,8 +11,6 @@ import rv_dis_pkg::*;
   localparam int RS_WAYS   = 16;
   localparam int RS_WAY_AW = 4;
   localparam int RS_SETS   = 1;
-  localparam int RS_SET_AW = 0;
-  localparam int RS_DEPTH  = RS_SETS * RS_WAYS;  // 16
 
   typedef logic [RS_WAY_AW-1:0] rs_way_t;
   typedef logic [RS_WAYS-1:0]   rs_mask_t;
@@ -25,7 +23,6 @@ import rv_dis_pkg::*;
     logic        spec_en;      // 0=path0, 1=path1
     logic        rs1_ready;
     logic        rs2_ready;
-    logic        issue_ready;  // entry eligible to issue
     opcode_t     opcode;
     funct3_t     funct3;
     funct7_t     funct7;
@@ -158,8 +155,6 @@ import rv_dis_pkg::*;
     rs_make_entry.prd     = prd;
     rs_make_entry.imm     = imm;
     rs_make_entry.pc      = pc;
-    rs_make_entry.issue_ready = rs_calc_issue_ready(
-      rs_make_entry, wb0_en, wb0_prd, wb1_en, wb1_prd, wbrack);
   endfunction
 
 endpackage

@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // EX/MEM-WB pipeline registers — 4 lane copies (ev0/ev1 EX bank, od0/od1 MEM bank).
-// Odd lane WB mux + forward tap. Retire candidates (push0/push1) connect directly to GPR ports in top.
+// Odd lane WB mux. push0/push1 are complete candidates → PRF wakeup + ROB mark-done.
 import rv_dis_pkg::*;
 
 module ex_mem_wb (

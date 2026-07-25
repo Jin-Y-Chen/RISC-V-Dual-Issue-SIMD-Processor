@@ -22,7 +22,6 @@ interface rename_if(input logic clk);
   logic      wback0_en, wback1_en;
   prf_addr_t i0_rob_idx_wb, i1_rob_idx_wb;
   logic      i0_brch_taken_wb, i1_brch_taken_wb;
-  logic      resolve_en, resolve_mispred;
 
   logic      stall_id;
   logic      i0_valid_disp, i1_valid_disp;
@@ -64,7 +63,6 @@ interface rename_if(input logic clk);
     default input #1step output #0;
     output wback0_en, wback1_en, i0_rob_idx_wb, i1_rob_idx_wb;
     output i0_brch_taken_wb, i1_brch_taken_wb;
-    output resolve_en, resolve_mispred;
   endclocking
 
   clocking mon_cb @(negedge clk);
@@ -82,7 +80,6 @@ interface rename_if(input logic clk);
     input i0_imm_rn, i0_pc_rn, i1_imm_rn, i1_pc_rn;
     input wback0_en, wback1_en, i0_rob_idx_wb, i1_rob_idx_wb;
     input i0_brch_taken_wb, i1_brch_taken_wb;
-    input resolve_en, resolve_mispred;
     input stall_id;
     input i0_valid_disp, i1_valid_disp;
     input i0_lane_sel_disp, i1_lane_sel_disp;

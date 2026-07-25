@@ -2,8 +2,6 @@ class rename_wb_item extends rv_base_seq_item;
   rand bit         wback_en[2];
   rand prf_addr_t  rob_idx[2];
   rand bit         branch_taken[2];
-  rand bit         resolve_en;
-  rand bit         resolve_mispred;
 
   logic            rst_n;
   logic            flush;
@@ -11,11 +9,6 @@ class rename_wb_item extends rv_base_seq_item;
   logic            retire_en[2];
   gpr_addr_t       commit_rd[2];
   prf_addr_t       commit_prd[2];
-
-  constraint c_resolve {
-    resolve_en dist {0 := 95, 1 := 5};
-    !resolve_en -> resolve_mispred == 0;
-  }
 
   `uvm_object_utils(rename_wb_item)
 
@@ -67,8 +60,6 @@ class rename_wb_driver extends rv_base_driver #(rename_wb_item);
     vif.wb_drv_cb.i1_rob_idx_wb            <= '0;
     vif.wb_drv_cb.i0_brch_taken_wb     <= 1'b0;
     vif.wb_drv_cb.i1_brch_taken_wb     <= 1'b0;
-    vif.wb_drv_cb.resolve_en           <= 1'b0;
-    vif.wb_drv_cb.resolve_mispred      <= 1'b0;
   endtask
 
   task drive(rename_wb_item t);
@@ -78,8 +69,6 @@ class rename_wb_driver extends rv_base_driver #(rename_wb_item);
     vif.wb_drv_cb.i1_rob_idx_wb            <= t.rob_idx[1];
     vif.wb_drv_cb.i0_brch_taken_wb     <= t.branch_taken[0];
     vif.wb_drv_cb.i1_brch_taken_wb     <= t.branch_taken[1];
-    vif.wb_drv_cb.resolve_en           <= t.resolve_en;
-    vif.wb_drv_cb.resolve_mispred      <= t.resolve_mispred;
   endtask
 endclass
 
@@ -104,8 +93,6 @@ class rename_wb_monitor extends rv_base_monitor #(rename_wb_item);
       t.rob_idx[1] = vif.mon_cb.i1_rob_idx_wb;
       t.branch_taken[0] = vif.mon_cb.i0_brch_taken_wb;
       t.branch_taken[1] = vif.mon_cb.i1_brch_taken_wb;
-      t.resolve_en = vif.mon_cb.resolve_en;
-      t.resolve_mispred = vif.mon_cb.resolve_mispred;
       t.commit_en[0] = vif.mon_cb.rrat0_en;
       t.commit_en[1] = vif.mon_cb.rrat1_en;
       t.commit_rd[0] = vif.mon_cb.i0_rd_addr_cmt;

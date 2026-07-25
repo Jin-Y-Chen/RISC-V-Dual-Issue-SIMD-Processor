@@ -81,8 +81,6 @@ module rs_alloc (
           if (!way_n[w].rs2_ready &&
               rs_wb_hit(way_n[w].ps2, wb0_en, wb0_prd, wb1_en, wb1_prd))
             way_n[w].rs2_ready = 1'b1;
-          way_n[w].issue_ready = rs_calc_issue_ready(
-            way_n[w], 1'b0, '0, 1'b0, '0, wbrack);
         end
       end
     end

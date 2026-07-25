@@ -32,8 +32,6 @@ module rename_core_struct (
   input  prf_addr_t   i0_rob_idx_wb, i1_rob_idx_wb,
   input  logic        i0_brch_taken_wb, i1_brch_taken_wb,
 
-  input  logic        resolve_en, resolve_mispred,
-
   output logic        stall_id,
 
   output logic        i0_valid_disp, i1_valid_disp,
@@ -71,8 +69,7 @@ module rename_core_struct (
   wire i0_wr = i0_valid_rn && i0_reg_write_rn;
   wire i1_wr = i1_valid_rn && i1_reg_write_rn;
 
-  wire go = !flush && !stall_rn &&
-            !(resolve_en && resolve_mispred) && !stall &&
+  wire go = !flush && !stall_rn && !stall &&
             (i0_valid_rn || i1_valid_rn);
 
   wire i0_alloc_en = go && i0_wr;

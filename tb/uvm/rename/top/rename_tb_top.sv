@@ -54,8 +54,6 @@ module rename_tb_top;
     .i1_rob_idx_wb(vif.i1_rob_idx_wb),
     .i0_brch_taken_wb(vif.i0_brch_taken_wb),
     .i1_brch_taken_wb(vif.i1_brch_taken_wb),
-    .resolve_en(vif.resolve_en),
-    .resolve_mispred(vif.resolve_mispred),
     .stall_id(vif.stall_id),
     .i0_valid_disp(vif.i0_valid_disp),
     .i1_valid_disp(vif.i1_valid_disp),
@@ -134,8 +132,6 @@ module rename_tb_top;
     vif.i1_rob_idx_wb = '0;
     vif.i0_brch_taken_wb = 0;
     vif.i1_brch_taken_wb = 0;
-    vif.resolve_en = 0;
-    vif.resolve_mispred = 0;
     repeat (4) @(posedge clk);
     vif.rst_n = 1;
   end
