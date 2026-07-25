@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 // Directed smoke: RS issues tags/controls; bank updates on negedge (like ROB WB).
-// Unused sources are p0. wbrack kills path1 (spec_en=1) and allows path0 only.
+// Unused sources are p0.
 import rv_dis_pkg::*;
 
 module reservation_station_tb;
@@ -20,7 +20,7 @@ module reservation_station_tb;
   prf_addr_t i1_ps1_dp, i1_ps2_dp, i1_prd_dp;
   word_t i1_imm_dp, i1_pc_dp;
 
-  logic wb0_en, wb1_en, wbrack;
+  logic wb0_en, wb1_en;
   prf_addr_t wb0_prd, wb1_prd;
   logic issue_en, stall_dp;
 
@@ -74,7 +74,6 @@ module reservation_station_tb;
     rst_n = 0;
     enable = 1;
     flush = 0;
-    wbrack = 0;
     issue_en = 1;
     wb0_en = 0; wb1_en = 0;
     wb0_prd = '0; wb1_prd = '0;
@@ -116,36 +115,6 @@ module reservation_station_tb;
     @(negedge clk);
     #1;
     wb0_en = 0;
-
-    // Path1 entry held; wbrack must kill it and leave path0 issuable.
-    flush = 1;
-    @(negedge clk);
-    #1;
-    flush = 0;
-    issue_en = 0;
-
-    @(posedge clk);
-    i0_valid_dp = 1; i0_reg_write_dp = 1; i0_opcode_dp = OPC_OP;
-    i0_prd_dp = 6'd40; i0_spec_en_dp = 0;
-    i1_valid_dp = 1; i1_reg_write_dp = 1; i1_opcode_dp = OPC_OP;
-    i1_prd_dp = 6'd41; i1_spec_en_dp = 1;
-    commit_and_sample();
-    clear_dispatch();
-
-    wbrack = 1;
-    issue_en = 1;
-    #1;
-    if (!i0_valid_iss || (i0_prd_iss != 6'd40))
-      $error("wbrack did not allow path0 issue");
-    if (i1_valid_iss)
-      $error("wbrack allowed path1 issue");
-    @(negedge clk);
-    #1;
-    wbrack = 0;
-    clear_dispatch();
-    commit_and_sample();
-    if (i0_valid_iss || i1_valid_iss)
-      $error("path1 entry survived wbrack clear");
 
     flush = 1;
     @(negedge clk);

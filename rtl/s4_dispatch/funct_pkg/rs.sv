@@ -61,11 +61,9 @@ import rv_dis_pkg::*;
     input logic      wb0_en,
     input prf_addr_t wb0_prd,
     input logic      wb1_en,
-    input prf_addr_t wb1_prd,
-    input logic      wbrack
+    input prf_addr_t wb1_prd
   );
     return entry.valid &&
-           (!wbrack || !entry.spec_en) &&
            rs_src_ready(entry.ps1, entry.rs1_ready,
                         wb0_en, wb0_prd, wb1_en, wb1_prd) &&
            rs_src_ready(entry.ps2, entry.rs2_ready,
@@ -130,8 +128,7 @@ import rv_dis_pkg::*;
     input logic               wb1_en,
     input prf_addr_t          wb1_prd,
     input logic               force_rs1_unready,
-    input logic               force_rs2_unready,
-    input logic               wbrack
+    input logic               force_rs2_unready
   );
     rs_make_entry = '0;
     if (!valid)

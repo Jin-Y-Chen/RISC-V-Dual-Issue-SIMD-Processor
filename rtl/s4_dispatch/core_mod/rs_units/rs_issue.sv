@@ -13,12 +13,9 @@ module rs_issue (
   input  prf_addr_t   wb0_prd,
   input  logic        wb1_en,
   input  prf_addr_t   wb1_prd,
-  input  logic        wbrack,
 
   input  logic        i0_valid_dp,
-  input  logic        i0_spec_en_dp,
   input  logic        i1_valid_dp,
-  input  logic        i1_spec_en_dp,
   input  logic        issue_en,
 
   output rs_way_t     sel0,
@@ -73,7 +70,7 @@ module rs_issue (
   generate
     for (w = 0; w < RS_WAYS; w++) begin : g_way
       assign ready_m[w] = rs_calc_issue_ready(
-        bank_q[0][w], wb0_en, wb0_prd, wb1_en, wb1_prd, wbrack);
+        bank_q[0][w], wb0_en, wb0_prd, wb1_en, wb1_prd);
       assign ages[w]    = bank_q[0][w].age;
       assign valid_m[w] = bank_q[0][w].valid;
     end
@@ -140,8 +137,7 @@ module rs_issue (
     used = 0;
     for (int i = 0; i < RS_WAYS; i++)
       used += valid_m[i];
-    incoming  = (i0_valid_dp && (!wbrack || !i0_spec_en_dp)) +
-                (i1_valid_dp && (!wbrack || !i1_spec_en_dp));
+    incoming  = i0_valid_dp + i1_valid_dp;
     available = RS_WAYS - used + issue0_fire + issue1_fire;
     stall_dp  = !flush && (incoming > available);
   end

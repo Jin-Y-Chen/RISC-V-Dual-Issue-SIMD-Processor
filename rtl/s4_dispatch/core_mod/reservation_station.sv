@@ -1,7 +1,6 @@
 `timescale 1ns / 1ps
 
 // RS top — 1-set × 16-way bank; dual dispatch / dual issue / dual WB wakeup.
-// wbrack: only RAT path0 may issue; path1 entries are cleared.
 // Negedge bank update (aligned with ROB WB / PRF). No operand storage.
 import rv_dis_pkg::*;
 import rs_pkg::*;
@@ -39,12 +38,11 @@ module reservation_station (
   input  word_t       i1_imm_dp,
   input  word_t       i1_pc_dp,
 
-  // Dual writeback tags + branch-path resolve
+  // Dual writeback tags
   input  logic        wb0_en,
   input  prf_addr_t   wb0_prd,
   input  logic        wb1_en,
   input  prf_addr_t   wb1_prd,
-  input  logic        wbrack,          // 1 → path0 only; kill path1
 
   input  logic        issue_en,        // downstream accept (EX / dp_ex)
   output logic        stall_dp,
@@ -96,8 +94,8 @@ module reservation_station (
   rs_issue u_issue (
     .enable, .flush,
     .bank_q,
-    .wb0_en, .wb0_prd, .wb1_en, .wb1_prd, .wbrack,
-    .i0_valid_dp, .i0_spec_en_dp, .i1_valid_dp, .i1_spec_en_dp,
+    .wb0_en, .wb0_prd, .wb1_en, .wb1_prd,
+    .i0_valid_dp, .i1_valid_dp,
     .issue_en,
     .sel0, .sel1, .sel0_v, .sel1_v, .issue0_fire, .issue1_fire,
     .stall_dp,
@@ -114,7 +112,7 @@ module reservation_station (
   );
 
   rs_alloc u_alloc (
-    .enable, .flush, .stall_dp, .wbrack,
+    .enable, .flush, .stall_dp,
     .bank_q, .prf_ready_q, .age_q,
     .wb0_en, .wb0_prd, .wb1_en, .wb1_prd,
     .sel0, .sel1, .issue0_fire, .issue1_fire,

@@ -20,7 +20,6 @@ module risc_dis_unit #(
 
   logic flush_core;
   logic br_recover;
-  logic wbrack;
   logic stall_rn;
   logic stall_dp;
   logic stall_ex;
@@ -515,7 +514,6 @@ module risc_dis_unit #(
     .wb1_en            (wb_push1_valid),
     .wb1_prd           (wb_push1_rd_addr),
     .wb1_data          (wb_push1_wdata),
-    .wbrack            (wbrack),
     .stall_dp          (stall_dp),
     .ev0_enable_ex     (ev0_enable_ex),
     .ev0_reg_write_ex  (ev0_reg_write_ex),
@@ -710,7 +708,6 @@ module risc_dis_unit #(
   assign i1_pc_execute   = od1_brch_pc_mem;
   assign br_recover      = od0_brch_taken_mem | od1_brch_taken_mem;
   assign flush_core      = flush | br_recover;
-  assign wbrack          = br_recover;
 
   assign i0_btb_pc_wb    = od0_pc_mem;
   assign i1_btb_pc_wb    = od1_pc_mem;

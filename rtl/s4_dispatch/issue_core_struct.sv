@@ -45,7 +45,6 @@ module issue_core_struct (
   input  logic        wb1_en,
   input  prf_addr_t   wb1_prd,
   input  word_t       wb1_data,
-  input  logic        wbrack,
 
   output logic        stall_dp,
 
@@ -135,7 +134,7 @@ module issue_core_struct (
     .i1_opcode_dp, .i1_funct3_dp, .i1_funct7_dp,
     .i1_ps1_dp, .i1_ps2_dp, .i1_prd_dp,
     .i1_imm_dp, .i1_pc_dp,
-    .wb0_en, .wb0_prd, .wb1_en, .wb1_prd, .wbrack,
+    .wb0_en, .wb0_prd, .wb1_en, .wb1_prd,
     .issue_en,
     .stall_dp,
     .i0_rs1_use_prf, .i0_rs2_use_prf, .i0_ps1_prf, .i0_ps2_prf,
