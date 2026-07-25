@@ -2,81 +2,79 @@
 
 Run from repo root:
 
-```bash
-./scripts/run-sim -TOP <name>
-```
-
 ```powershell
-.\scripts\lib\run_yosys.ps1 -Top <name> -Sim
+python sim/run.py <top>          # e.g. pc_tb, rob_tb
+python sim/run.py rename_uvm
+python sim/run.py --list
 ```
 
-Shared utilities: `common/` (`tb_console.svh`, `tb_block_case_loader.svh`). See `common/README.md`.
+C++ goldens live in [`../model/`](../model/). SV only has thin DPI shims under `dpi/shims/`.
 
-Golden models: `gm/` (Verilog, sim) + `tb/gm/` (C++ offline check). See `model/README.md`.
+## Layout
 
-## Conventions (WSL)
-
-- **`tb_advance(clk)`** - `tick` tasks call `@(negedge clk)`; use `always #(CLK_PERIOD/2)` for the clock (not `initial forever`, which can hang some simulators with timing enabled).
-- **Includes** - `` `include "../common/tb_console.svh" `` from `tb/<stage>/*_tb.sv`; paths stay relative to the TB file (`--relative-includes` in the driver).
-- **`tb_summary`** - end every TB with `tb_summary(pass_cnt, fail_cnt)` so `sim.log` prints `*** SUMMARY ***`.
-
-```
+```text
 tb/
-  include/         tb_console.svh, tb_block_case_loader.svh, imem_hex_loader_pkg.sv (.mem)
-  models/         (future BFMs / memory models)
-  s1_fetch/
-    cases/        *.txt case data
-    pc_tb, pc_selector_tb, instruction_cache_tb, target_buffer_tb, fetch_core_struct_tb
-  s2_decode/      if_id_tb, decoder_tb, state_buffer_tb, register_file_tb (+ gm/)
-  s3_execute/     even_lane_tb, odd_lane_tb, id_ex_dispatch_tb
-  s4_memory/      ex_mem_tb, memory_cache_tb
-  s5_wback/       ex_mem_wb_tb
+├── README.md
+├── tb_pkg.sv                 # shared stim/obs types, ROB DPI helpers
+├── tb_top.sv                 # full-core harness (DUT + env + sequences)
+│
+├── common/                   # shared by all stages
+│   ├── interfaces/           # cpu_if, commit_if, memory_if, irq_if
+│   ├── transactions/         # txn helper packages
+│   ├── config/               # env config stubs
+│   └── utils/                # tb_console.svh, imem hex loader
+│
+├── env/                      # full-core verification
+│   ├── cpu_env.sv / cpu_agent.sv / cpu_test.sv
+│   ├── memory_driver.sv / memory_monitor.sv
+│   ├── sequences/            # directed + random stimulus
+│   └── risc_dis_unit_tb.sv   # smoke elaborate of top DUT
+│
+├── uvm/                      # rename_core_struct UVM suite only
+│
+├── dpi/
+│   ├── dpi_pkg.sv            # all DPI-C imports
+│   ├── cpu_dpi.cpp           # optional full-core DPI stub
+│   └── shims/<stage>/        # DUT-port-compatible DPI wrappers
+│
+├── s1_fetch/                 # tests/ + infra/
+├── s2_decode/
+├── s3_rename/                # directed rob_* DPI TBs (+ infra); no rename_* directed TB
+├── s4_dispatch/
+├── s5_execute/
+└── s6_wback/
 ```
 
-## s1_fetch
+Each stage folder is only:
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `pc_tb` | `rtl/s1_fetch/pc.sv` | Reset, +8/+8, +4/+4, stall, enable hold |
-| `pc_selector_tb` | `rtl/s1_fetch/core_mod/pc_selector.sv` | Predict / recover / stall-in-spec |
-| `instruction_cache_tb` | `tb/s1_fetch/models/instruction_cache.sv` | Dual read, miss -> 0 |
-| `target_buffer_tb` | `rtl/s1_fetch/core_mod/target_buffer.sv` | Miss -> 0, WB install hit |
-| `fetch_core_struct_tb` | `rtl/s1_fetch/fetch_core_struct.sv` (+ real `pc` / `pc_selector`, sim I$/BTB models) | Sequential, BTB, predict, stall, recover |
+```text
+sN_*/
+├── tests/     # directed *_tb.sv
+└── infra/     # drivers, monitors, scoreboards, scaffolds
+```
 
-I$/BTB sim lists use behavioral models in `tb/s1_fetch/models/` because `cache_pkg` parameterized functions are not supported by all simulators. Real RTL remains under `rtl/s1_fetch/core_mod/`.
+## Conventions
 
-## s2_decode
+| Kind | Where |
+|------|--------|
+| Directed unit test | `sN_*/tests/*_tb.sv` |
+| Stage helpers | `sN_*/infra/` |
+| DPI shim | `dpi/shims/<stage>/` |
+| Console macros | `` `include "../../common/utils/tb_console.svh" `` from `tests/` |
 
-| TB | DUT | GM | Checks |
-|----|-----|-----|--------|
-| `if_id_tb` | `rtl/s2_decode/if_id.sv` | `gm/if_id_gm.sv` | CLEAR/HOLD/CAPTURE LUT |
-| `decoder_tb` | `rtl/s2_decode/core_mod/decoder.sv` | `gm/decoder_gm.sv` | opcode/funct3 LUTs, imm, flags |
-| `state_buffer_tb` | `rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv` | `gm/state_buffer_gm.sv` | bank + WB bypass |
-| `register_file_tb` | `rtl/s2_decode/core_mod/register_file.sv` | `gm/register_file_gm.sv` | x0, dual WB, bypass |
+End directed TBs with `tb_summary(pass_cnt, fail_cnt)`.
 
-## s3_execute
+## Rename stage
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `even_lane_tb` | `even_lane.sv` + `scalar_alu.sv` | ADD/SUB/AND/OR/XOR |
-| `odd_lane_tb` | `odd_lane.sv`, branch + LSU | branches, JAL/JALR, LW/SW |
-| `id_ex_dispatch_tb` | `rtl/s3_dispatch/dispatch_core_struct.sv` | even/odd dispatch |
+| What | How |
+|------|-----|
+| `rename_core_struct` | **UVM only** — `tb/uvm/rename/`, run `python sim/run.py rename_uvm` |
+| `reorder_buffer` / ROB units | Directed DPI TBs — `tb/s3_rename/tests/{rob,reorder_buffer}_tb.sv` |
 
-## s4_memory
+Do not add a directed `rename_core_struct_tb` or extra `rename_*` infra; that coverage lives in the UVM suite.
 
-| TB | DUT | Checks |
-|----|-----|--------|
-| `ex_mem_tb` | `rtl/s4_memory/ex_mem.sv` | per-lane EX/MEM, stall, flush |
-| `memory_cache_tb` | `rtl/s4_memory/core/memory_cache.sv` | D-cache |
+## UVM rename
 
-## s5_wback
-
-| TB | DUT | Checks |
-|----|-----|--------|
-| `ex_mem_wb_tb` | `rtl/s5_wback/ex_mem_wb.sv` | 4 lane inputs -> 2 GPR writes |
-
-## Not in tree yet
-
-`dispatch_hazard_tb` - listed in `run_yosys.ps1` `-Top` validate set but no `tb/s2_decode/dispatch_hazard_tb.sv` file.
-
-Design context: [../../project_outline.txt](../../project_outline.txt)
+- Sources: `tb/uvm/rename/`
+- Filelist: `sim/filelists/uvm/rename.f`
+- Top: `rename_tb_top` (suite name `rename_uvm`)

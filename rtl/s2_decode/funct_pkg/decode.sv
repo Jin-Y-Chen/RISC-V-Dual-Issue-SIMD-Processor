@@ -60,7 +60,6 @@ import rv_dis_pkg::*;
       OPC_LUI,
       OPC_AUIPC: decode_imm = imm_u(instr);
       OPC_OP:      decode_imm = 32'd0;  // R-type: no immediate
-      // OPC_VEC_MEM: decode_imm = (funct3 == F3_VST128) ? imm_s(instr) : imm_i(instr);
       default: decode_imm = imm_i(instr);
     endcase
   endfunction
@@ -241,6 +240,17 @@ import rv_dis_pkg::*;
         OPC_LOAD:  decode_reg_write = (funct3 == F3_LW);
         default:   decode_reg_write = 1'b0;
       endcase
+  endfunction
+
+  function automatic logic decode_store_en(
+    input logic [6:0] opcode,
+    input logic [2:0] funct3
+  );
+    // RV-DIS scalar memory subset: SW only (matches insn_legal_scalar).
+    unique case (opcode)
+      OPC_STORE: decode_store_en = (funct3 == F3_SW);
+      default:   decode_store_en = 1'b0;
+    endcase
   endfunction
 
 endpackage

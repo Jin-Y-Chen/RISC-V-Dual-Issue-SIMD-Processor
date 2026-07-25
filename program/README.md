@@ -5,7 +5,7 @@ ASM sources, assembled images for testbenches, and the RV-DIS assembler.
 | Folder | Purpose |
 |--------|---------|
 | `asm/` | Source `.asm` files (`demo_instructions.asm` is the main example) |
-| `asm/hazard/`, `asm/dual_issue/`, `asm/simd/` | Placeholders for future programs |
+| `asm/hazard/`, `asm/dual_issue/` | Placeholders for future programs |
 | `bin/` | Assembler output (`.txt`, `.hex`, `.mem`) |
 | `assembler/` | [assembler.py](assembler/assembler.py) — [assembler/README.md](assembler/README.md) |
 

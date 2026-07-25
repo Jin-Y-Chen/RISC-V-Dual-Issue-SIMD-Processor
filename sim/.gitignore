@@ -1,1 +1,10 @@
-out/
+# Build / run artifacts (kept by sim/run.py clean recreating dirs)
+results/*
+!results/.gitkeep
+work/*
+!work/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo

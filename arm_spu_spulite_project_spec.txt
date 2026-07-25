@@ -36,7 +36,7 @@ Issue rules:
 Even Pipeline (Compute Lane):
 - Integer arithmetic operations (ADD, SUB)
 - Logical operations (AND, OR, XOR)
-- Optional multiply and SIMD-style operations
+- Optional multiply operations
 - Primary arithmetic and logic execution
 
 Odd Pipeline (Memory/Control Lane):
@@ -50,7 +50,7 @@ The ISA is a simplified RISC-style instruction set including:
 - Logical: AND, OR, XOR
 - Memory: LOAD, STORE
 - Control: BRANCH, JUMP
-- Optional: Immediate and SIMD-style instructions
+- Optional: Immediate instructions
 
 Each instruction is encoded to allow classification into even or odd pipeline categories.
 
@@ -84,7 +84,7 @@ The decode stage is extended into an issue unit that:
 
 10. Execution Units
 The execution stage is split into two independent units:
-- Even Execution Unit: ALU and optional SIMD/multiply operations
+- Even Execution Unit: ALU and optional multiply operations
 - Odd Execution Unit: Load/store unit, branch unit, and address generation
 
 Both units operate concurrently and independently.

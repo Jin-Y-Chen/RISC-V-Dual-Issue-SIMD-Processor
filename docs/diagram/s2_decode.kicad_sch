@@ -5,7 +5,7 @@
 	(uuid "f8bb78f3-53b1-48bb-976c-7ca56381b79f")
 	(paper "A4")
 	(title_block
-		(title "RISC-V Dual-Issue SIMD Processor")
+		(title "RISC-V Dual-Issue Processor")
 		(date "2026-06-12")
 		(rev "v1.0")
 		(comment 1 "clk_n : 50MHz")

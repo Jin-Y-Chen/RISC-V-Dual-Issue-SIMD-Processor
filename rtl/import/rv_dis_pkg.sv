@@ -2,7 +2,8 @@
 `ifndef RV_DIS_PKG_SV
 `define RV_DIS_PKG_SV
 
-// RV-DIS shared package — RV32I scalar core (dual-issue). Types, geometry, ISA constants.
+// RV-DIS shared package — RV32I dual-issue out-of-order scalar core.
+// Types, geometry, ISA constants.
 // Instruction decode helpers: rtl/s2_decode/core/decode_funct/decode.sv (decode_pkg).
 package rv_dis_pkg;
 
@@ -15,6 +16,8 @@ package rv_dis_pkg;
   // Physical register file (PRF) — arch x0–x31 plus rename temps (e.g. p32+)
   localparam int NUM_PRF = 64;
   localparam int PRF_AW  = $clog2(NUM_PRF);
+  // Reorder buffer flat index width (must match rob_pkg::ROB_INDEX_W)
+  localparam int ROB_AW = 5;
 
   // =========================================================================
   // Memory geometry (byte addressing — one address = 8 bits)
@@ -37,15 +40,8 @@ package rv_dis_pkg;
   typedef logic [2:0]      funct3_t;
   typedef logic [6:0]      funct7_t;
   typedef logic [4:0]      gpr_addr_t;      // ISA x0–x31 (architectural)
-  typedef logic [PRF_AW-1:0] prf_addr_t;    // physical register index p0–p63
+  typedef logic [PRF_AW-1:0] prf_addr_t;    // PRF / rename tag p0–p63 (ROB: p32..p63)
   typedef logic [1:0]      br_state_t;
-  // Branch speculation map: {i1_pred_taken, i0_pred_taken}
-  // 00 none, 01 i0, 10 i1, 11 both (from pc_selector).
-  typedef logic [1:0]      br_map_t;
-  localparam br_map_t BR_MAP_NONE = 2'b00;
-  localparam br_map_t BR_MAP_I0   = 2'b01;
-  localparam br_map_t BR_MAP_I1   = 2'b10;
-  localparam br_map_t BR_MAP_BOTH = 2'b11;
   typedef logic [3:0]      mem_besel_t;
 
   // =========================================================================

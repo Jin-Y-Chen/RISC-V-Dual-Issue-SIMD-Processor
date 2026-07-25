@@ -1,53 +1,46 @@
-# RISC-V Dual-Issue SIMD Processor (RV-DIS)
+# RISC-V Dual-Issue Out-of-Order Processor (RV-DIS)
 
-RV32I scalar (active) + 128-bit SIMD (planned). Static even/odd dual-issue lanes.
+RV32I scalar core with static even/odd dual-issue lanes and out-of-order
+execution (rename, ROB, reservation stations).
 
 Design notes: [project_outline.txt](project_outline.txt). Spec: [arm_spu_spulite_project_spec.txt](arm_spu_spulite_project_spec.txt).
 
-HDL is SystemVerilog under `rtl/`. Verification uses Yosys (WSL) via `scripts/lib/run_yosys.ps1`.
+HDL is SystemVerilog under `rtl/`. Directed and UVM verification run through
+`python sim/run.py` (XSim default; Questa/VCS/Xcelium adapters for UVM).
+C++ golden models live under `model/` and are linked via DPI-C (`tb/dpi/`).
 
 ## Layout
 
 ```
 project/
-├── rtl/              synthesizable design (Yosys input)
-├── tb/               testbenches
-├── sim/              simulation build outputs (logs/, waves/)
-├── synth/            netlists, reports, Yosys run logs
-├── scripts/          lib/, sim/, maint/ — see scripts/README.md
+├── rtl/              synthesizable design
+├── model/            C++ golden models (by pipeline stage)
+├── tb/               directed TBs, env, DPI shims, UVM
+│   ├── common/       interfaces, transactions, utils
+│   ├── env/          full-core harness + sequences
+│   ├── dpi/shims/    stage-grouped DPI wrappers
+│   └── s1_fetch/ … s6_wback/   each: tests/ + infra/
+├── sim/              Python control panel, filelists, results/
 ├── program/          ASM sources, hex images, assembler
-├── docs/             ISA and architecture notes
-└── Makefile          forwards to scripts/Makefile
+└── docs/             ISA and architecture notes
 ```
 
 | Path | Contents |
 |------|----------|
 | `rtl/` | Pipeline RTL — [rtl/README.md](rtl/README.md) |
-| `tb/` | Unit testbenches — [tb/README.md](tb/README.md) |
-| `sim/` | Simulation logs and waveform artifacts per top |
-| `synth/latest/` | Published netlists per top |
-| `synth/reports/runs/` | Yosys run logs (`latest/`, `temp/`) |
-| `scripts/` | Drivers — [scripts/README.md](scripts/README.md) (`run-sim`, `run-synth`, `run-all`, `make`) |
+| `model/` | C++ DPI golden models by stage |
+| `tb/` | Directed TBs + UVM — [tb/README.md](tb/README.md) |
+| `sim/` | Simulation control panel — [sim/README.md](sim/README.md) |
 
 ## Quick start
 
-**One-time (WSL):**
-
-```bash
-sudo apt update && sudo apt install -y yosys build-essential
-```
-
-**Run (repo root):**
-
-```bash
-./scripts/run-synth -TOP pc_tb    # Yosys check
-./scripts/run-sim -TOP pc_tb      # functional TB test
-make sim TOP=pc_tb                # same as run-sim
-```
+Requires Python 3.10+ and Vivado XSim (`VIVADO=.../vivado.bat` if needed):
 
 ```powershell
-.\scripts\run_yosys.ps1 -Top pc_tb -Sim
-make synth TOP=pc_tb
+python sim/run.py doctor
+python sim/run.py --list
+python sim/run.py pc_tb
+python sim/run.py rename_uvm --test rename_smoke_test
 ```
 
-Setup and troubleshooting: [scripts/README.md](scripts/README.md). Sim output: [sim/README.md](sim/README.md). Synth output: [synth/README.md](synth/README.md).
+Details: [sim/README.md](sim/README.md).

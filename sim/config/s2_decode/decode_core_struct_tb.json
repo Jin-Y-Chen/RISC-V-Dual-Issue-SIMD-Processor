@@ -1,0 +1,8 @@
+{
+  "extra_sources": [
+    "rtl/s2_decode/funct_pkg/decode.sv",
+    "rtl/s2_decode/core_mod/decoder.sv",
+    "rtl/s2_decode/core_mod/brch_predict_units/state_buffer.sv",
+    "rtl/s2_decode/core_mod/brch_predict_units/target_predict.sv"
+  ]
+}

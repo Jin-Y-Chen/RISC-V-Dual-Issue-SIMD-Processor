@@ -1,0 +1,10 @@
+{
+  "extra_sources": [
+    "rtl/s2_decode/funct_pkg/decode.sv",
+    "tb/dpi/dpi_pkg.sv",
+    "tb/dpi/shims/s2_decode/decoder_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s2_decode/decoder_gm.cpp"
+  ]
+}
