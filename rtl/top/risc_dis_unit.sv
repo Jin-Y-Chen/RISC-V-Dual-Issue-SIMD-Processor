@@ -23,229 +23,185 @@ module risc_dis_unit #(
   logic stall_rn;
   logic stall_dp;
   logic stall_ex;
-  logic stall_id_rn;
 
   // -------------------------------------------------------------------------
-  // Fetch / IF-ID
+  // Fetch / IF-ID  ([2]: index 0 = I0, 1 = I1)
   // -------------------------------------------------------------------------
-  logic        i0_pred_taken, i1_pred_taken;
-  logic        i0_brch_recover, i1_brch_recover;
-  logic [31:0] i0_pc_execute, i1_pc_execute;
+  logic        pred_taken      [2];
+  logic        brch_recover    [2];
+  word_t       pc_execute      [2];
+  word_t       pc_if           [2];
+  word_t       pc_target_if    [2];
+  instr_t      instr_if        [2];
+  logic        valid_if        [2];
+  logic        target_valid_if [2];
+  logic        spec_en_if      [2];
 
-  logic [31:0] i0_instr_if, i1_instr_if;
-  logic [31:0] i0_pc_if, i1_pc_if;
-  logic [31:0] i0_pc_target_if, i1_pc_target_if;
-  logic        i0_valid_if, i1_valid_if;
-  logic        i0_target_valid_if, i1_target_valid_if;
-  logic        spec0_en_if, spec1_en_if;
+  instr_t      instr_id        [2];
+  word_t       pc_id           [2];
+  word_t       pc_target_id    [2];
+  logic        fetch_valid_id  [2];
+  logic        target_valid_id [2];
+  logic        spec_en_id      [2];
 
-  logic [31:0] i0_instr_id, i1_instr_id;
-  logic [31:0] i0_pc_id, i1_pc_id;
-  logic [31:0] i0_pc_target_id, i1_pc_target_id;
-  logic        i0_valid_id, i1_valid_id;
-  logic        i0_target_valid_id, i1_target_valid_id;
-  logic        spec0_en_id, spec1_en_id;
+  logic        nest_spec_stall [2];
+  logic        pred_valid_wb   [2];
+  word_t       pc_predict      [2];
 
-  logic        i0_spec_stall_dec, i1_spec_stall_dec;
+  // MEM branch resolve → BHT train / fetch recover (BTB train is decode pred_valid_wb)
+  word_t       brch_pc_wb      [2];
+  br_state_t   brch_state_wb   [2];
 
-  logic [31:0] i0_btb_pc_wb, i1_btb_pc_wb;
-  logic [31:0] i0_pc_target_wb, i1_pc_target_wb;
-  br_state_t   i0_target_state_wb, i1_target_state_wb;
-
-  // Declared early: MEM-stage branch taken feeds fetch/decode/rename/recover
+  // Declared early: MEM-stage branch taken feeds fetch recover / rename / BHT
   logic        od0_brch_taken_mem, od1_brch_taken_mem;
 
-  assign i0_pc_if = pc_fetch;
-  assign i1_pc_if = pc_fetch_plus4;
-  assign stall_id = stall_id_rn;
+  assign pc_fetch      = pc_if[0];
+  assign pc_fetch_plus4 = pc_if[1];
 
   s1_fetch_struct #(
     .RESET_PC(RESET_PC)
   ) u_fetch (
-    .clk              (clk),
-    .rst_n            (rst_n),
-    .enable           (enable),
-    .dispatch_stall   (stall_id),
-    .spec0_stall      (i0_spec_stall_dec),
-    .spec1_stall      (i1_spec_stall_dec),
-    .i0_pred_taken    (i0_pred_taken),
-    .i1_pred_taken    (i1_pred_taken),
-    .i0_brch_recover  (i0_brch_recover),
-    .i1_brch_recover  (i1_brch_recover),
-    .i0_pc_execute    (i0_pc_execute),
-    .i1_pc_execute    (i1_pc_execute),
-    .i0_valid_wb      (od0_brch_taken_mem),
-    .i1_valid_wb      (od1_brch_taken_mem),
-    .i0_pc_wb         (i0_btb_pc_wb),
-    .i1_pc_wb         (i1_btb_pc_wb),
-    .i0_pc_target_wb  (i0_pc_target_wb),
-    .i1_pc_target_wb  (i1_pc_target_wb),
-    .pc0              (pc_fetch),
-    .pc1              (pc_fetch_plus4),
-    .i0_pc_target     (i0_pc_target_if),
-    .i1_pc_target     (i1_pc_target_if),
-    .instr0           (i0_instr_if),
-    .instr1           (i1_instr_if),
-    .spec0_en         (spec0_en_if),
-    .spec1_en         (spec1_en_if),
-    .i0_valid         (i0_valid_if),
-    .i1_valid         (i1_valid_if),
-    .i0_target_valid  (i0_target_valid_if),
-    .i1_target_valid  (i1_target_valid_if)
+    .clk            (clk),
+    .rst_n          (rst_n),
+    .enable         (enable),
+    .dispatch_stall (stall_id),
+    .spec_stall     (nest_spec_stall),
+    .pred_taken     (pred_taken),
+    .brch_recover   (brch_recover),
+    .valid_wb       (pred_valid_wb),
+    .pc_execute     (pc_execute),
+    .pc_wb          (pc_id),
+    .pc_target_wb   (pc_predict),
+    .pc_if          (pc_if),
+    .pc_target      (pc_target_if),
+    .instr          (instr_if),
+    .spec_en        (spec_en_if),
+    .valid          (valid_if),
+    .target_valid   (target_valid_if)
   );
 
   if_id u_if_id (
-    .clk                 (clk),
-    .rst_n               (rst_n),
-    .enable              (enable),
-    .flush               (flush_core),
-    .stall               (stall_id),
-    .i0_fetch_valid      (i0_valid_if),
-    .i1_fetch_valid      (i1_valid_if),
-    .i0_target_valid_if  (i0_target_valid_if),
-    .i1_target_valid_if  (i1_target_valid_if),
-    .spec0_en_if         (spec0_en_if),
-    .spec1_en_if         (spec1_en_if),
-    .i0_instr_if         (i0_instr_if),
-    .i1_instr_if         (i1_instr_if),
-    .i0_pc_if            (i0_pc_if),
-    .i1_pc_if            (i1_pc_if),
-    .i0_pc_target_if     (i0_pc_target_if),
-    .i1_pc_target_if     (i1_pc_target_if),
-    .i0_instr_id         (i0_instr_id),
-    .i1_instr_id         (i1_instr_id),
-    .i0_pc_id            (i0_pc_id),
-    .i1_pc_id            (i1_pc_id),
-    .i0_pc_target_id     (i0_pc_target_id),
-    .i1_pc_target_id     (i1_pc_target_id),
-    .i0_valid_id         (i0_valid_id),
-    .i1_valid_id         (i1_valid_id),
-    .i0_target_valid_id  (i0_target_valid_id),
-    .i1_target_valid_id  (i1_target_valid_id),
-    .spec0_en_id         (spec0_en_id),
-    .spec1_en_id         (spec1_en_id)
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .enable          (enable),
+    .flush           (flush_core),
+    .stall           (stall_id),
+    .fetch_valid_if  (valid_if),
+    .target_valid_if (target_valid_if),
+    .spec_en_if      (spec_en_if),
+    .instr_if        (instr_if),
+    .pc_if           (pc_if),
+    .pc_target_if    (pc_target_if),
+    .instr_id        (instr_id),
+    .pc_id           (pc_id),
+    .pc_target_id    (pc_target_id),
+    .fetch_valid_id  (fetch_valid_id),
+    .target_valid_id (target_valid_id),
+    .spec_en_id      (spec_en_id)
   );
 
   // -------------------------------------------------------------------------
-  // Decode
+  // Decode  ([2] arrays through id_rn; rename still scalar dual-slot)
   // -------------------------------------------------------------------------
-  logic        i0_valid_dec, i1_valid_dec;
-  logic        i0_store_en_dec, i1_store_en_dec;
-  logic        i0_lane_sel_dec, i1_lane_sel_dec;
-  logic [6:0]  i0_opcode_dec, i1_opcode_dec;
-  logic [2:0]  i0_funct3_dec, i1_funct3_dec;
-  logic [6:0]  i0_funct7_dec, i1_funct7_dec;
-  logic [4:0]  i0_rd_addr_dec, i1_rd_addr_dec;
-  logic [4:0]  i0_rs1_addr_dec, i1_rs1_addr_dec;
-  logic [4:0]  i0_rs2_addr_dec, i1_rs2_addr_dec;
-  logic [31:0] i0_imm_dec, i1_imm_dec;
-  logic        i0_rs1_use_dec, i1_rs1_use_dec;
-  logic        i0_rs2_use_dec, i1_rs2_use_dec;
-  logic        i0_reg_write_dec, i1_reg_write_dec;
-  br_state_t   i0_target_state, i1_target_state;
+  logic        valid_dec     [2];
+  logic        store_en_dec  [2];
+  logic        brch_en_dec   [2];
+  logic        lane_sel_dec  [2];
+  opcode_t     opcode_dec    [2];
+  funct3_t     funct3_dec    [2];
+  funct7_t     funct7_dec    [2];
+  gpr_addr_t   rd_addr_dec   [2];
+  gpr_addr_t   rs1_addr_dec  [2];
+  gpr_addr_t   rs2_addr_dec  [2];
+  word_t       imm_dec       [2];
+  logic        rs1_use_dec   [2];
+  logic        rs2_use_dec   [2];
+  logic        reg_write_dec [2];
+  br_state_t   brch_state    [2];
+  logic        state_valid_dec [2];
 
   s2_decode_struct u_decode (
-    .clk                (clk),
-    .rst_n              (rst_n),
-    .i0_valid_id        (i0_valid_id),
-    .i1_valid_id        (i1_valid_id),
-    .spec0_en_id        (spec0_en_id),
-    .spec1_en_id        (spec1_en_id),
-    .i0_instr_id        (i0_instr_id),
-    .i1_instr_id        (i1_instr_id),
-    .i0_pc_id           (i0_pc_id),
-    .i1_pc_id           (i1_pc_id),
-    .i0_pc_target_id    (i0_pc_target_id),
-    .i1_pc_target_id    (i1_pc_target_id),
-    .i0_target_valid_id (i0_target_valid_id),
-    .i1_target_valid_id (i1_target_valid_id),
-    .i0_brch_valid_wb   (od0_brch_taken_mem),
-    .i1_brch_valid_wb   (od1_brch_taken_mem),
-    .i0_brch_pc_wb      (i0_btb_pc_wb),
-    .i1_brch_pc_wb      (i1_btb_pc_wb),
-    .i0_brch_state_wb   (i0_target_state_wb),
-    .i1_brch_state_wb   (i1_target_state_wb),
-    .i0_lane_sel        (i0_lane_sel_dec),
-    .i0_opcode          (i0_opcode_dec),
-    .i0_funct3          (i0_funct3_dec),
-    .i0_funct7          (i0_funct7_dec),
-    .i0_rd_addr         (i0_rd_addr_dec),
-    .i0_rs1_addr        (i0_rs1_addr_dec),
-    .i0_rs2_addr        (i0_rs2_addr_dec),
-    .i0_imm             (i0_imm_dec),
-    .i1_lane_sel        (i1_lane_sel_dec),
-    .i1_opcode          (i1_opcode_dec),
-    .i1_funct3          (i1_funct3_dec),
-    .i1_funct7          (i1_funct7_dec),
-    .i1_rd_addr         (i1_rd_addr_dec),
-    .i1_rs1_addr        (i1_rs1_addr_dec),
-    .i1_rs2_addr        (i1_rs2_addr_dec),
-    .i1_imm             (i1_imm_dec),
-    .i0_valid           (i0_valid_dec),
-    .i0_brch_en         (),
-    .i0_jump_en         (),
-    .i0_store_en        (i0_store_en_dec),
-    .i0_rs1_use         (i0_rs1_use_dec),
-    .i0_rs2_use         (i0_rs2_use_dec),
-    .i0_reg_write       (i0_reg_write_dec),
-    .i1_valid           (i1_valid_dec),
-    .i1_brch_en         (),
-    .i1_jump_en         (),
-    .i1_store_en        (i1_store_en_dec),
-    .i1_rs1_use         (i1_rs1_use_dec),
-    .i1_rs2_use         (i1_rs2_use_dec),
-    .i1_reg_write       (i1_reg_write_dec),
-    .i0_brch_state      (i0_target_state),
-    .i1_brch_state      (i1_target_state),
-    .i0_pc_predict      (),
-    .i1_pc_predict      (),
-    .i0_pred_taken      (i0_pred_taken),
-    .i1_pred_taken      (i1_pred_taken),
-    .i0_pred_valid_wb   (),
-    .i1_pred_valid_wb   (),
-    .i0_nest_spec_stall (i0_spec_stall_dec),
-    .i1_nest_spec_stall (i1_spec_stall_dec)
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .fetch_valid_id  (fetch_valid_id),
+    .spec_en_id      (spec_en_id),
+    .instr_id        (instr_id),
+    .pc_id           (pc_id),
+    .pc_target_id    (pc_target_id),
+    .target_valid_id (target_valid_id),
+    .brch_valid_wb   (brch_recover),
+    .brch_pc_wb      (brch_pc_wb),
+    .brch_state_wb   (brch_state_wb),
+    .lane_sel        (lane_sel_dec),
+    .opcode          (opcode_dec),
+    .funct3          (funct3_dec),
+    .funct7          (funct7_dec),
+    .rd_addr         (rd_addr_dec),
+    .rs1_addr        (rs1_addr_dec),
+    .rs2_addr        (rs2_addr_dec),
+    .imm             (imm_dec),
+    .valid           (valid_dec),
+    .brch_en         (brch_en_dec),
+    .store_en        (store_en_dec),
+    .rs1_use         (rs1_use_dec),
+    .rs2_use         (rs2_use_dec),
+    .reg_write       (reg_write_dec),
+    .brch_state      (brch_state),
+    .state_valid     (state_valid_dec),
+    .pc_predict      (pc_predict),
+    .pred_taken      (pred_taken),
+    .pred_valid_wb   (pred_valid_wb),
+    .nest_spec_stall (nest_spec_stall)
   );
 
   // -------------------------------------------------------------------------
   // ID/RN → Rename → RN/DP → Issue
   // -------------------------------------------------------------------------
-  logic        i0_valid_rn, i1_valid_rn;
-  logic        i0_lane_sel_rn, i1_lane_sel_rn;
-  logic        i0_reg_write_rn, i1_reg_write_rn;
-  logic        i0_store_en_rn, i1_store_en_rn;
-  logic        i0_rs1_use_rn, i0_rs2_use_rn;
-  logic        i1_rs1_use_rn, i1_rs2_use_rn;
-  logic        spec0_en_rn, spec1_en_rn;
-  opcode_t     i0_opcode_rn, i1_opcode_rn;
-  funct3_t     i0_funct3_rn, i1_funct3_rn;
-  funct7_t     i0_funct7_rn, i1_funct7_rn;
-  gpr_addr_t   i0_rd_addr_rn, i1_rd_addr_rn;
-  gpr_addr_t   i0_rs1_addr_rn, i1_rs1_addr_rn;
-  gpr_addr_t   i0_rs2_addr_rn, i1_rs2_addr_rn;
-  word_t       i0_imm_rn, i1_imm_rn, i0_pc_rn, i1_pc_rn;
+  // id_rn / rename / rn_dp / issue use [2] arrays; EX demux stays ev*/od*.
+  logic        valid_rn     [2];
+  logic        lane_sel_rn  [2];
+  logic        reg_write_rn [2];
+  logic        store_en_rn  [2];
+  logic        brch_en_rn   [2];
+  logic        state_valid_rn [2];
+  br_state_t   brch_state_rn  [2];
+  logic        rs1_use_rn   [2];
+  logic        rs2_use_rn   [2];
+  logic        spec_en_rn   [2];
+  opcode_t     opcode_rn    [2];
+  funct3_t     funct3_rn    [2];
+  funct7_t     funct7_rn    [2];
+  gpr_addr_t   rd_addr_rn   [2];
+  gpr_addr_t   rs1_addr_rn  [2];
+  gpr_addr_t   rs2_addr_rn  [2];
+  word_t       imm_rn       [2];
+  word_t       pc_rn        [2];
 
-  logic        i0_valid_disp, i1_valid_disp;
-  logic        i0_lane_sel_disp, i1_lane_sel_disp;
-  logic        i0_reg_write_disp, i1_reg_write_disp;
-  logic        i0_spec_en_disp, i1_spec_en_disp;
-  opcode_t     i0_opcode_disp, i1_opcode_disp;
-  funct3_t     i0_funct3_disp, i1_funct3_disp;
-  funct7_t     i0_funct7_disp, i1_funct7_disp;
-  prf_addr_t   i0_ps1_disp, i0_ps2_disp, i0_prd_disp;
-  prf_addr_t   i1_ps1_disp, i1_ps2_disp, i1_prd_disp;
-  word_t       i0_imm_disp, i1_imm_disp, i0_pc_disp, i1_pc_disp;
+  logic        valid_rs       [2];
+  logic        spec_en_rs     [2];
+  prf_addr_t   ps1_rs         [2];
+  prf_addr_t   ps2_rs         [2];
+  logic        tag1_valid_rs  [2];
+  logic        tag2_valid_rs  [2];
+  prf_addr_t   prd_rs         [2];
 
-  logic        i0_valid_dp, i1_valid_dp;
-  logic        i0_lane_sel_dp, i1_lane_sel_dp;
-  logic        i0_reg_write_dp, i1_reg_write_dp;
-  logic        i0_spec_en_dp, i1_spec_en_dp;
-  opcode_t     i0_opcode_dp, i1_opcode_dp;
-  funct3_t     i0_funct3_dp, i1_funct3_dp;
-  funct7_t     i0_funct7_dp, i1_funct7_dp;
-  prf_addr_t   i0_ps1_dp, i0_ps2_dp, i0_prd_dp;
-  prf_addr_t   i1_ps1_dp, i1_ps2_dp, i1_prd_dp;
-  word_t       i0_imm_dp, i1_imm_dp, i0_pc_dp, i1_pc_dp;
+  logic        wback_en       [2];
+  prf_addr_t   rob_idx_wb     [2];
+  logic        brch_taken_wb   [2];
+
+  logic        valid_dp       [2];
+  logic        lane_sel_dp    [2];
+  logic        spec_en_dp     [2];
+  opcode_t     opcode_dp      [2];
+  funct3_t     funct3_dp      [2];
+  funct7_t     funct7_dp      [2];
+  prf_addr_t   ps1_dp         [2];
+  prf_addr_t   ps2_dp         [2];
+  logic        tag1_valid_dp  [2];
+  logic        tag2_valid_dp  [2];
+  prf_addr_t   prd_dp         [2];
+  word_t       imm_dp         [2];
+  word_t       pc_dp          [2];
 
   logic        ev0_enable_ex, ev1_enable_ex, od0_enable_ex, od1_enable_ex;
   logic        ev0_reg_write_ex, ev1_reg_write_ex;
@@ -266,73 +222,67 @@ module risc_dis_unit #(
   prf_addr_t   wb_push0_rd_addr, wb_push1_rd_addr;
   logic [31:0] wb_push0_wdata, wb_push1_wdata;
 
+  logic        wb_en_iss   [2];
+  prf_addr_t   wb_prd_iss  [2];
+  word_t       wb_data_iss [2];
+
+  assign wb_en_iss[0]   = wb_push0_valid;
+  assign wb_en_iss[1]   = wb_push1_valid;
+  assign wb_prd_iss[0]  = wb_push0_rd_addr;
+  assign wb_prd_iss[1]  = wb_push1_rd_addr;
+  assign wb_data_iss[0] = wb_push0_wdata;
+  assign wb_data_iss[1] = wb_push1_wdata;
+
   id_rn u_id_rn (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .enable          (enable),
-    .flush           (flush_core),
-    .stall           (stall_id),
-    .i0_valid_id     (i0_valid_dec),
-    .i0_lane_sel_id  (i0_lane_sel_dec),
-    .i0_reg_write_id (i0_reg_write_dec),
-    .i0_store_en_id  (i0_store_en_dec),
-    .i0_rs1_use_id   (i0_rs1_use_dec),
-    .i0_rs2_use_id   (i0_rs2_use_dec),
-    .spec0_en_id     (spec0_en_id),
-    .i1_valid_id     (i1_valid_dec),
-    .i1_lane_sel_id  (i1_lane_sel_dec),
-    .i1_reg_write_id (i1_reg_write_dec),
-    .i1_store_en_id  (i1_store_en_dec),
-    .i1_rs1_use_id   (i1_rs1_use_dec),
-    .i1_rs2_use_id   (i1_rs2_use_dec),
-    .spec1_en_id     (spec1_en_id),
-    .i0_opcode_id    (i0_opcode_dec),
-    .i0_funct3_id    (i0_funct3_dec),
-    .i0_funct7_id    (i0_funct7_dec),
-    .i0_rd_addr_id   (i0_rd_addr_dec),
-    .i0_rs1_addr_id  (i0_rs1_addr_dec),
-    .i0_rs2_addr_id  (i0_rs2_addr_dec),
-    .i0_imm_id       (i0_imm_dec),
-    .i0_pc_id        (i0_pc_id),
-    .i1_opcode_id    (i1_opcode_dec),
-    .i1_funct3_id    (i1_funct3_dec),
-    .i1_funct7_id    (i1_funct7_dec),
-    .i1_rd_addr_id   (i1_rd_addr_dec),
-    .i1_rs1_addr_id  (i1_rs1_addr_dec),
-    .i1_rs2_addr_id  (i1_rs2_addr_dec),
-    .i1_imm_id       (i1_imm_dec),
-    .i1_pc_id        (i1_pc_id),
-    .i0_valid_rn     (i0_valid_rn),
-    .i0_lane_sel_rn  (i0_lane_sel_rn),
-    .i0_reg_write_rn (i0_reg_write_rn),
-    .i0_store_en_rn  (i0_store_en_rn),
-    .i0_rs1_use_rn   (i0_rs1_use_rn),
-    .i0_rs2_use_rn   (i0_rs2_use_rn),
-    .spec0_en_rn     (spec0_en_rn),
-    .i1_valid_rn     (i1_valid_rn),
-    .i1_lane_sel_rn  (i1_lane_sel_rn),
-    .i1_reg_write_rn (i1_reg_write_rn),
-    .i1_store_en_rn  (i1_store_en_rn),
-    .i1_rs1_use_rn   (i1_rs1_use_rn),
-    .i1_rs2_use_rn   (i1_rs2_use_rn),
-    .spec1_en_rn     (spec1_en_rn),
-    .i0_opcode_rn    (i0_opcode_rn),
-    .i0_funct3_rn    (i0_funct3_rn),
-    .i0_funct7_rn    (i0_funct7_rn),
-    .i0_rd_addr_rn   (i0_rd_addr_rn),
-    .i0_rs1_addr_rn  (i0_rs1_addr_rn),
-    .i0_rs2_addr_rn  (i0_rs2_addr_rn),
-    .i0_imm_rn       (i0_imm_rn),
-    .i0_pc_rn        (i0_pc_rn),
-    .i1_opcode_rn    (i1_opcode_rn),
-    .i1_funct3_rn    (i1_funct3_rn),
-    .i1_funct7_rn    (i1_funct7_rn),
-    .i1_rd_addr_rn   (i1_rd_addr_rn),
-    .i1_rs1_addr_rn  (i1_rs1_addr_rn),
-    .i1_rs2_addr_rn  (i1_rs2_addr_rn),
-    .i1_imm_rn       (i1_imm_rn),
-    .i1_pc_rn        (i1_pc_rn)
+    .clk          (clk),
+    .rst_n        (rst_n),
+    .enable       (enable),
+    .flush        (flush_core),
+    .stall        (stall_id),
+    .decode_valid_id (valid_dec),
+    .lane_sel_id     (lane_sel_dec),
+    .reg_write_id    (reg_write_dec),
+    .store_en_id     (store_en_dec),
+    .brch_en_id      (brch_en_dec),
+    .state_valid_id  (state_valid_dec),
+    .brch_state_id   (brch_state),
+    .rs1_use_id      (rs1_use_dec),
+    .rs2_use_id      (rs2_use_dec),
+    .spec_en_id      (spec_en_id),
+    .opcode_id       (opcode_dec),
+    .funct3_id       (funct3_dec),
+    .funct7_id       (funct7_dec),
+    .rd_addr_id      (rd_addr_dec),
+    .rs1_addr_id     (rs1_addr_dec),
+    .rs2_addr_id     (rs2_addr_dec),
+    .imm_id          (imm_dec),
+    .pc_id           (pc_id),
+    .valid_rn        (valid_rn),
+    .lane_sel_rn     (lane_sel_rn),
+    .reg_write_rn    (reg_write_rn),
+    .store_en_rn     (store_en_rn),
+    .brch_en_rn      (brch_en_rn),
+    .state_valid_rn  (state_valid_rn),
+    .brch_state_rn   (brch_state_rn),
+    .rs1_use_rn      (rs1_use_rn),
+    .rs2_use_rn      (rs2_use_rn),
+    .spec_en_rn      (spec_en_rn),
+    .opcode_rn       (opcode_rn),
+    .funct3_rn       (funct3_rn),
+    .funct7_rn       (funct7_rn),
+    .rd_addr_rn      (rd_addr_rn),
+    .rs1_addr_rn     (rs1_addr_rn),
+    .rs2_addr_rn     (rs2_addr_rn),
+    .imm_rn          (imm_rn),
+    .pc_rn           (pc_rn)
   );
+
+  assign wback_en[0]       = wb_push0_valid;
+  assign wback_en[1]       = wb_push1_valid;
+  assign rob_idx_wb[0]     = wb_push0_rd_addr;
+  assign rob_idx_wb[1]     = wb_push1_rd_addr;
+  assign brch_taken_wb[0]  = od0_brch_taken_mem;
+  assign brch_taken_wb[1]  = od1_brch_taken_mem;
 
   rename_core_struct u_rename (
     .clk               (clk),
@@ -340,87 +290,32 @@ module risc_dis_unit #(
     .flush             (flush_core),
     .stall_rn          (stall_rn),
     .enable            (enable),
-    .spec0_en_rn       (spec0_en_rn),
-    .spec1_en_rn       (spec1_en_rn),
-    .i0_valid_rn       (i0_valid_rn),
-    .i1_valid_rn       (i1_valid_rn),
-    .i0_lane_sel_rn    (i0_lane_sel_rn),
-    .i1_lane_sel_rn    (i1_lane_sel_rn),
-    .i0_reg_write_rn   (i0_reg_write_rn),
-    .i1_reg_write_rn   (i1_reg_write_rn),
-    .i0_store_en_rn    (i0_store_en_rn),
-    .i1_store_en_rn    (i1_store_en_rn),
-    .i0_rs1_use_rn     (i0_rs1_use_rn),
-    .i0_rs2_use_rn     (i0_rs2_use_rn),
-    .i1_rs1_use_rn     (i1_rs1_use_rn),
-    .i1_rs2_use_rn     (i1_rs2_use_rn),
-    .i0_opcode_rn      (i0_opcode_rn),
-    .i1_opcode_rn      (i1_opcode_rn),
-    .i0_funct3_rn      (i0_funct3_rn),
-    .i1_funct3_rn      (i1_funct3_rn),
-    .i0_funct7_rn      (i0_funct7_rn),
-    .i1_funct7_rn      (i1_funct7_rn),
-    .i0_rd_addr_rn     (i0_rd_addr_rn),
-    .i0_rs1_addr_rn    (i0_rs1_addr_rn),
-    .i0_rs2_addr_rn    (i0_rs2_addr_rn),
-    .i1_rd_addr_rn     (i1_rd_addr_rn),
-    .i1_rs1_addr_rn    (i1_rs1_addr_rn),
-    .i1_rs2_addr_rn    (i1_rs2_addr_rn),
-    .i0_imm_rn         (i0_imm_rn),
-    .i0_pc_rn          (i0_pc_rn),
-    .i1_imm_rn         (i1_imm_rn),
-    .i1_pc_rn          (i1_pc_rn),
-    .wback0_en         (wb_push0_valid),
-    .wback1_en         (wb_push1_valid),
-    .i0_rob_idx_wb     (wb_push0_rd_addr),
-    .i1_rob_idx_wb     (wb_push1_rd_addr),
-    .i0_brch_taken_wb  (od0_brch_taken_mem),
-    .i1_brch_taken_wb  (od1_brch_taken_mem),
-    .stall_id          (stall_id_rn),
-    .i0_valid_disp     (i0_valid_disp),
-    .i1_valid_disp     (i1_valid_disp),
-    .i0_lane_sel_disp  (i0_lane_sel_disp),
-    .i1_lane_sel_disp  (i1_lane_sel_disp),
-    .i0_reg_write_disp (i0_reg_write_disp),
-    .i1_reg_write_disp (i1_reg_write_disp),
-    .i0_spec_en_disp   (i0_spec_en_disp),
-    .i1_spec_en_disp   (i1_spec_en_disp),
-    .i0_rs1_use_disp   (),
-    .i0_rs2_use_disp   (),
-    .i1_rs1_use_disp   (),
-    .i1_rs2_use_disp   (),
-    .i0_opcode_disp    (i0_opcode_disp),
-    .i1_opcode_disp    (i1_opcode_disp),
-    .i0_funct3_disp    (i0_funct3_disp),
-    .i1_funct3_disp    (i1_funct3_disp),
-    .i0_funct7_disp    (i0_funct7_disp),
-    .i1_funct7_disp    (i1_funct7_disp),
-    .i0_rd_addr_disp   (),
-    .i1_rd_addr_disp   (),
-    .i0_ps1_disp       (i0_ps1_disp),
-    .i0_ps2_disp       (i0_ps2_disp),
-    .i0_prd_disp       (i0_prd_disp),
-    .i1_ps1_disp       (i1_ps1_disp),
-    .i1_ps2_disp       (i1_ps2_disp),
-    .i1_prd_disp       (i1_prd_disp),
-    .i0_rob_idx_disp   (),
-    .i1_rob_idx_disp   (),
-    .i0_imm_disp       (i0_imm_disp),
-    .i1_imm_disp       (i1_imm_disp),
-    .i0_pc_disp        (i0_pc_disp),
-    .i1_pc_disp        (i1_pc_disp),
-    .retire0_en        (),
-    .retire1_en        (),
-    .rrat0_en          (),
-    .rrat1_en          (),
-    .i0_rd_addr_cmt    (),
-    .i1_rd_addr_cmt    (),
-    .i0_rob_idx_cmt    (),
-    .i1_rob_idx_cmt    (),
-    .stb0_en           (),
-    .stb1_en           ()
+    .spec_en_rn        (spec_en_rn),
+    .valid_rn          (valid_rn),
+    .reg_write_rn      (reg_write_rn),
+    .store_en_rn       (store_en_rn),
+    .brch_en_rn        (brch_en_rn),
+    .state_valid_rn    (state_valid_rn),
+    .brch_state_rn     (brch_state_rn),
+    .rs1_use_rn        (rs1_use_rn),
+    .rs2_use_rn        (rs2_use_rn),
+    .rd_addr_rn        (rd_addr_rn),
+    .rs1_addr_rn       (rs1_addr_rn),
+    .rs2_addr_rn       (rs2_addr_rn),
+    .wback_en          (wback_en),
+    .rob_idx_wb        (rob_idx_wb),
+    .brch_taken_wb     (brch_taken_wb),
+    .stall             (stall_id),
+    .valid_rs          (valid_rs),
+    .spec_en_rs        (spec_en_rs),
+    .ps1_rs            (ps1_rs),
+    .ps2_rs            (ps2_rs),
+    .tag1_valid_rs     (tag1_valid_rs),
+    .tag2_valid_rs     (tag2_valid_rs),
+    .prd_rs            (prd_rs)
   );
 
+  // Decode payload bypasses rename (ROB stall holds id_rn aligned with valid_rs).
   rn_dp u_rn_dp (
     .clk             (clk),
     .rst_n           (rst_n),
@@ -428,54 +323,32 @@ module risc_dis_unit #(
     .flush           (flush_core),
     .stall_dp        (stall_dp),
     .stall_rn        (stall_rn),
-    .i0_valid_rn     (i0_valid_disp),
-    .i0_lane_sel_rn  (i0_lane_sel_disp),
-    .i0_reg_write_rn (i0_reg_write_disp),
-    .i0_spec_en_rn   (i0_spec_en_disp),
-    .i0_opcode_rn    (i0_opcode_disp),
-    .i0_funct3_rn    (i0_funct3_disp),
-    .i0_funct7_rn    (i0_funct7_disp),
-    .i0_ps1_rn       (i0_ps1_disp),
-    .i0_ps2_rn       (i0_ps2_disp),
-    .i0_prd_rn       (i0_prd_disp),
-    .i0_imm_rn       (i0_imm_disp),
-    .i0_pc_rn        (i0_pc_disp),
-    .i1_valid_rn     (i1_valid_disp),
-    .i1_lane_sel_rn  (i1_lane_sel_disp),
-    .i1_reg_write_rn (i1_reg_write_disp),
-    .i1_spec_en_rn   (i1_spec_en_disp),
-    .i1_opcode_rn    (i1_opcode_disp),
-    .i1_funct3_rn    (i1_funct3_disp),
-    .i1_funct7_rn    (i1_funct7_disp),
-    .i1_ps1_rn       (i1_ps1_disp),
-    .i1_ps2_rn       (i1_ps2_disp),
-    .i1_prd_rn       (i1_prd_disp),
-    .i1_imm_rn       (i1_imm_disp),
-    .i1_pc_rn        (i1_pc_disp),
-    .i0_valid_dp     (i0_valid_dp),
-    .i0_lane_sel_dp  (i0_lane_sel_dp),
-    .i0_reg_write_dp (i0_reg_write_dp),
-    .i0_spec_en_dp   (i0_spec_en_dp),
-    .i0_opcode_dp    (i0_opcode_dp),
-    .i0_funct3_dp    (i0_funct3_dp),
-    .i0_funct7_dp    (i0_funct7_dp),
-    .i0_ps1_dp       (i0_ps1_dp),
-    .i0_ps2_dp       (i0_ps2_dp),
-    .i0_prd_dp       (i0_prd_dp),
-    .i0_imm_dp       (i0_imm_dp),
-    .i0_pc_dp        (i0_pc_dp),
-    .i1_valid_dp     (i1_valid_dp),
-    .i1_lane_sel_dp  (i1_lane_sel_dp),
-    .i1_reg_write_dp (i1_reg_write_dp),
-    .i1_spec_en_dp   (i1_spec_en_dp),
-    .i1_opcode_dp    (i1_opcode_dp),
-    .i1_funct3_dp    (i1_funct3_dp),
-    .i1_funct7_dp    (i1_funct7_dp),
-    .i1_ps1_dp       (i1_ps1_dp),
-    .i1_ps2_dp       (i1_ps2_dp),
-    .i1_prd_dp       (i1_prd_dp),
-    .i1_imm_dp       (i1_imm_dp),
-    .i1_pc_dp        (i1_pc_dp)
+    .valid_rn        (valid_rs),
+    .lane_sel_rn     (lane_sel_rn),
+    .spec_en_rn      (spec_en_rs),
+    .opcode_rn       (opcode_rn),
+    .funct3_rn       (funct3_rn),
+    .funct7_rn       (funct7_rn),
+    .ps1_rn          (ps1_rs),
+    .ps2_rn          (ps2_rs),
+    .tag1_valid_rn   (tag1_valid_rs),
+    .tag2_valid_rn   (tag2_valid_rs),
+    .prd_rn          (prd_rs),
+    .imm_rn          (imm_rn),
+    .pc_rn           (pc_rn),
+    .valid_dp,
+    .lane_sel_dp,
+    .spec_en_dp,
+    .opcode_dp,
+    .funct3_dp,
+    .funct7_dp,
+    .ps1_dp,
+    .ps2_dp,
+    .tag1_valid_dp,
+    .tag2_valid_dp,
+    .prd_dp,
+    .imm_dp,
+    .pc_dp
   );
 
   issue_core_struct u_issue (
@@ -484,36 +357,22 @@ module risc_dis_unit #(
     .enable            (enable),
     .flush             (flush_core),
     .stall_ex          (stall_ex),
-    .i0_valid_dp       (i0_valid_dp),
-    .i0_lane_sel_dp    (i0_lane_sel_dp),
-    .i0_reg_write_dp   (i0_reg_write_dp),
-    .i0_spec_en_dp     (i0_spec_en_dp),
-    .i0_opcode_dp      (i0_opcode_dp),
-    .i0_funct3_dp      (i0_funct3_dp),
-    .i0_funct7_dp      (i0_funct7_dp),
-    .i0_ps1_dp         (i0_ps1_dp),
-    .i0_ps2_dp         (i0_ps2_dp),
-    .i0_prd_dp         (i0_prd_dp),
-    .i0_imm_dp         (i0_imm_dp),
-    .i0_pc_dp          (i0_pc_dp),
-    .i1_valid_dp       (i1_valid_dp),
-    .i1_lane_sel_dp    (i1_lane_sel_dp),
-    .i1_reg_write_dp   (i1_reg_write_dp),
-    .i1_spec_en_dp     (i1_spec_en_dp),
-    .i1_opcode_dp      (i1_opcode_dp),
-    .i1_funct3_dp      (i1_funct3_dp),
-    .i1_funct7_dp      (i1_funct7_dp),
-    .i1_ps1_dp         (i1_ps1_dp),
-    .i1_ps2_dp         (i1_ps2_dp),
-    .i1_prd_dp         (i1_prd_dp),
-    .i1_imm_dp         (i1_imm_dp),
-    .i1_pc_dp          (i1_pc_dp),
-    .wb0_en            (wb_push0_valid),
-    .wb0_prd           (wb_push0_rd_addr),
-    .wb0_data          (wb_push0_wdata),
-    .wb1_en            (wb_push1_valid),
-    .wb1_prd           (wb_push1_rd_addr),
-    .wb1_data          (wb_push1_wdata),
+    .valid_dp,
+    .lane_sel_dp,
+    .spec_en_dp,
+    .opcode_dp,
+    .funct3_dp,
+    .funct7_dp,
+    .ps1_dp,
+    .ps2_dp,
+    .tag1_valid_dp,
+    .tag2_valid_dp,
+    .prd_dp,
+    .imm_dp,
+    .pc_dp,
+    .wb_en             (wb_en_iss),
+    .wb_prd            (wb_prd_iss),
+    .wb_data           (wb_data_iss),
     .stall_dp          (stall_dp),
     .ev0_enable_ex     (ev0_enable_ex),
     .ev0_reg_write_ex  (ev0_reg_write_ex),
@@ -702,28 +561,26 @@ module risc_dis_unit #(
   );
 
   // Branch recover / flush (MEM-stage taken → fetch redirect + core flush)
-  assign i0_brch_recover = od0_brch_taken_mem;
-  assign i1_brch_recover = od1_brch_taken_mem;
-  assign i0_pc_execute   = od0_brch_pc_mem;
-  assign i1_pc_execute   = od1_brch_pc_mem;
-  assign br_recover      = od0_brch_taken_mem | od1_brch_taken_mem;
+  // BTB train is decode pred_valid_wb + pc_predict; BHT still trains on MEM taken
+  assign brch_recover[0] = od0_brch_taken_mem;
+  assign brch_recover[1] = od1_brch_taken_mem;
+  assign pc_execute[0]   = od0_brch_pc_mem;
+  assign pc_execute[1]   = od1_brch_pc_mem;
+  assign brch_pc_wb[0]   = od0_pc_mem;
+  assign brch_pc_wb[1]   = od1_pc_mem;
+  assign br_recover      = brch_recover[0] | brch_recover[1];
   assign flush_core      = flush | br_recover;
 
-  assign i0_btb_pc_wb    = od0_pc_mem;
-  assign i1_btb_pc_wb    = od1_pc_mem;
-  assign i0_pc_target_wb = od0_brch_pc_mem;
-  assign i1_pc_target_wb = od1_brch_pc_mem;
-
   state_LUT u_state_lut0 (
-    .state      (i0_target_state),
-    .pc_sctrl   (od0_brch_taken_mem),
-    .next_state (i0_target_state_wb)
+    .state      (brch_state[0]),
+    .pc_sctrl   (brch_recover[0]),
+    .next_state (brch_state_wb[0])
   );
 
   state_LUT u_state_lut1 (
-    .state      (i1_target_state),
-    .pc_sctrl   (od1_brch_taken_mem),
-    .next_state (i1_target_state_wb)
+    .state      (brch_state[1]),
+    .pc_sctrl   (brch_recover[1]),
+    .next_state (brch_state_wb[1])
   );
 
   s5_memory_struct u_memory (

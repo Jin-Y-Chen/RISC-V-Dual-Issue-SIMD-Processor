@@ -11,21 +11,44 @@ module reorder_buffer_tb;
   localparam int CLK_PERIOD = 10;
 
   logic        clk, rst_n, flush;
+  // Scalar stim (legacy test sequences) packed into [2] for DUT/GM
   logic        alloc0_en, alloc1_en;
   logic        i0_reg_write, i1_reg_write;
   logic        i0_is_brnch, i1_is_brnch;
   logic        i0_is_store, i1_is_store;
   logic        i0_spec_en, i1_spec_en;
+  logic        i0_state_valid, i1_state_valid;
+  br_state_t   i0_brch_state, i1_brch_state;
   gpr_addr_t   i0_rd_addr, i1_rd_addr;
-  prf_addr_t   i0_rob_idx, i1_rob_idx;
-  logic        stall;
-
   logic        wback0_en, wback1_en;
   prf_addr_t   i0_rob_idx_wb, i1_rob_idx_wb;
   logic        i0_brch_taken_wb, i1_brch_taken_wb;
-
   logic        retire0_en, retire1_en;
-  logic        i0_can_retire, i1_can_retire;
+
+  logic        alloc_en      [2];
+  logic        reg_write     [2];
+  logic        is_brnch      [2];
+  logic        is_store      [2];
+  logic        spec_en       [2];
+  logic        state_valid   [2];
+  br_state_t   brch_state    [2];
+  gpr_addr_t   rd_addr       [2];
+  prf_addr_t   rob_idx       [2];
+  logic        stall;
+  logic        wback_en      [2];
+  prf_addr_t   rob_idx_wb    [2];
+  logic        brch_taken_wb [2];
+  logic        retire_en     [2];
+  logic        idx_valid     [2];
+  logic        rrat_en       [2];
+  gpr_addr_t   rd_addr_cmt   [2];
+  prf_addr_t   rob_idx_cmt   [2];
+  logic        rat_en        [2];
+  logic        path_sel      [2];
+  logic        stb_en        [2];
+
+  // Scalar views of DUT outputs (for existing check helpers)
+  prf_addr_t   i0_rob_idx, i1_rob_idx;
   logic        rrat0_en, rrat1_en;
   gpr_addr_t   i0_rd_addr_cmt, i1_rd_addr_cmt;
   prf_addr_t   i0_rob_idx_cmt, i1_rob_idx_cmt;
@@ -33,8 +56,17 @@ module reorder_buffer_tb;
   logic        i0_path_sel, i1_path_sel;
   logic        stb0_en, stb1_en;
 
-  prf_addr_t   ref_i0_rob_idx, ref_i1_rob_idx;
+  prf_addr_t   ref_rob_idx     [2];
   logic        ref_stall;
+  logic        ref_can_retire  [2];
+  logic        ref_rrat_en     [2];
+  gpr_addr_t   ref_rd_addr_cmt [2];
+  prf_addr_t   ref_rob_idx_cmt [2];
+  logic        ref_rat_en      [2];
+  logic        ref_path_sel    [2];
+  logic        ref_stb_en      [2];
+
+  prf_addr_t   ref_i0_rob_idx, ref_i1_rob_idx;
   logic        ref_i0_can_retire, ref_i1_can_retire;
   logic        ref_rrat0_en, ref_rrat1_en;
   gpr_addr_t   ref_i0_rd_addr_cmt, ref_i1_rd_addr_cmt;
@@ -45,50 +77,77 @@ module reorder_buffer_tb;
 
   int pass_cnt, fail_cnt;
 
+  always_comb begin
+    alloc_en[0] = alloc0_en;           alloc_en[1] = alloc1_en;
+    reg_write[0] = i0_reg_write;       reg_write[1] = i1_reg_write;
+    is_brnch[0] = i0_is_brnch;         is_brnch[1] = i1_is_brnch;
+    is_store[0] = i0_is_store;         is_store[1] = i1_is_store;
+    spec_en[0] = i0_spec_en;           spec_en[1] = i1_spec_en;
+    state_valid[0] = i0_state_valid;   state_valid[1] = i1_state_valid;
+    brch_state[0] = i0_brch_state;     brch_state[1] = i1_brch_state;
+    rd_addr[0] = i0_rd_addr;           rd_addr[1] = i1_rd_addr;
+    wback_en[0] = wback0_en;           wback_en[1] = wback1_en;
+    rob_idx_wb[0] = i0_rob_idx_wb;     rob_idx_wb[1] = i1_rob_idx_wb;
+    brch_taken_wb[0] = i0_brch_taken_wb; brch_taken_wb[1] = i1_brch_taken_wb;
+    retire_en[0] = retire0_en;         retire_en[1] = retire1_en;
+  end
+
+  assign i0_rob_idx       = rob_idx[0];
+  assign i1_rob_idx       = rob_idx[1];
+  assign rrat0_en         = rrat_en[0];
+  assign rrat1_en         = rrat_en[1];
+  assign i0_rd_addr_cmt   = rd_addr_cmt[0];
+  assign i1_rd_addr_cmt   = rd_addr_cmt[1];
+  assign i0_rob_idx_cmt   = rob_idx_cmt[0];
+  assign i1_rob_idx_cmt   = rob_idx_cmt[1];
+  assign rat0_en          = rat_en[0];
+  assign rat1_en          = rat_en[1];
+  assign i0_path_sel      = path_sel[0];
+  assign i1_path_sel      = path_sel[1];
+  assign stb0_en          = stb_en[0];
+  assign stb1_en          = stb_en[1];
+
+  assign ref_i0_rob_idx     = ref_rob_idx[0];
+  assign ref_i1_rob_idx     = ref_rob_idx[1];
+  assign ref_i0_can_retire  = ref_can_retire[0];
+  assign ref_i1_can_retire  = ref_can_retire[1];
+  assign ref_rrat0_en       = ref_rrat_en[0];
+  assign ref_rrat1_en       = ref_rrat_en[1];
+  assign ref_i0_rd_addr_cmt = ref_rd_addr_cmt[0];
+  assign ref_i1_rd_addr_cmt = ref_rd_addr_cmt[1];
+  assign ref_i0_rob_idx_cmt = ref_rob_idx_cmt[0];
+  assign ref_i1_rob_idx_cmt = ref_rob_idx_cmt[1];
+  assign ref_rat0_en        = ref_rat_en[0];
+  assign ref_rat1_en        = ref_rat_en[1];
+  assign ref_i0_path_sel    = ref_path_sel[0];
+  assign ref_i1_path_sel    = ref_path_sel[1];
+  assign ref_stb0_en        = ref_stb_en[0];
+  assign ref_stb1_en        = ref_stb_en[1];
+
   reorder_buffer dut (
     .clk, .rst_n, .flush,
-    .alloc0_en, .alloc1_en,
-    .i0_reg_write, .i1_reg_write,
-    .i0_is_brnch, .i1_is_brnch,
-    .i0_is_store, .i1_is_store,
-    .i0_spec_en, .i1_spec_en,
-    .i0_rd_addr, .i1_rd_addr,
-    .i0_rob_idx, .i1_rob_idx,
-    .stall,
-    .wback0_en, .wback1_en,
-    .i0_rob_idx_wb, .i1_rob_idx_wb,
-    .i0_brch_taken_wb, .i1_brch_taken_wb,
-    .retire0_en, .retire1_en,
-    .i0_can_retire, .i1_can_retire,
-    .rrat0_en, .rrat1_en,
-    .i0_rd_addr_cmt, .i1_rd_addr_cmt,
-    .i0_rob_idx_cmt, .i1_rob_idx_cmt,
-    .rat0_en, .rat1_en,
-    .i0_path_sel, .i1_path_sel,
-    .stb0_en, .stb1_en
+    .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
+    .state_valid, .brch_state, .rd_addr, .rob_idx, .idx_valid, .stall,
+    .wback_en, .rob_idx_wb, .brch_taken_wb,
+    .retire_en,
+    .rrat_en, .rd_addr_cmt, .rob_idx_cmt,
+    .rat_en, .path_sel, .stb_en
   );
 
   reorder_buffer_gm u_gm (
     .clk, .rst_n, .flush,
-    .alloc0_en, .alloc1_en,
-    .i0_reg_write, .i1_reg_write,
-    .i0_is_brnch, .i1_is_brnch,
-    .i0_is_store, .i1_is_store,
-    .i0_spec_en, .i1_spec_en,
-    .i0_rd_addr, .i1_rd_addr,
-    .i0_rob_idx(ref_i0_rob_idx), .i1_rob_idx(ref_i1_rob_idx),
-    .stall(ref_stall),
-    .wback0_en, .wback1_en,
-    .i0_rob_idx_wb, .i1_rob_idx_wb,
-    .i0_brch_taken_wb, .i1_brch_taken_wb,
-    .retire0_en, .retire1_en,
-    .i0_can_retire(ref_i0_can_retire), .i1_can_retire(ref_i1_can_retire),
-    .rrat0_en(ref_rrat0_en), .rrat1_en(ref_rrat1_en),
-    .i0_rd_addr_cmt(ref_i0_rd_addr_cmt), .i1_rd_addr_cmt(ref_i1_rd_addr_cmt),
-    .i0_rob_idx_cmt(ref_i0_rob_idx_cmt), .i1_rob_idx_cmt(ref_i1_rob_idx_cmt),
-    .rat0_en(ref_rat0_en), .rat1_en(ref_rat1_en),
-    .i0_path_sel(ref_i0_path_sel), .i1_path_sel(ref_i1_path_sel),
-    .stb0_en(ref_stb0_en), .stb1_en(ref_stb1_en)
+    .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
+    .state_valid, .brch_state, .rd_addr,
+    .rob_idx(ref_rob_idx), .stall(ref_stall),
+    .wback_en, .rob_idx_wb, .brch_taken_wb,
+    .retire_en,
+    .can_retire(ref_can_retire),
+    .rrat_en(ref_rrat_en),
+    .rd_addr_cmt(ref_rd_addr_cmt),
+    .rob_idx_cmt(ref_rob_idx_cmt),
+    .rat_en(ref_rat_en),
+    .path_sel(ref_path_sel),
+    .stb_en(ref_stb_en)
   );
 
   initial clk = 0;
@@ -106,6 +165,10 @@ module reorder_buffer_tb;
     i1_is_store      = 0;
     i0_spec_en       = 0;
     i1_spec_en       = 0;
+    i0_state_valid   = 0;
+    i1_state_valid   = 0;
+    i0_brch_state    = '0;
+    i1_brch_state    = '0;
     i0_rd_addr       = '0;
     i1_rd_addr       = '0;
     wback0_en        = 0;
@@ -122,8 +185,6 @@ module reorder_buffer_tb;
     bit pass;
     pass = (i0_rob_idx === ref_i0_rob_idx) && (i1_rob_idx === ref_i1_rob_idx)
         && (stall === ref_stall)
-        && (i0_can_retire === ref_i0_can_retire)
-        && (i1_can_retire === ref_i1_can_retire)
         && (rrat0_en === ref_rrat0_en) && (rrat1_en === ref_rrat1_en)
         && (i0_rd_addr_cmt === ref_i0_rd_addr_cmt)
         && (i1_rd_addr_cmt === ref_i1_rd_addr_cmt)
@@ -166,8 +227,6 @@ module reorder_buffer_tb;
     tb_field_u32("i0_rob_idx",     i0_rob_idx,     ref_i0_rob_idx);
     tb_field_u32("i1_rob_idx",     i1_rob_idx,     ref_i1_rob_idx);
     tb_field_bit("stall",          stall,          ref_stall);
-    tb_field_bit("i0_can_retire",  i0_can_retire,  ref_i0_can_retire);
-    tb_field_bit("i1_can_retire",  i1_can_retire,  ref_i1_can_retire);
     tb_field_bit("rrat0_en",       rrat0_en,       ref_rrat0_en);
     tb_field_bit("rrat1_en",       rrat1_en,       ref_rrat1_en);
     tb_field_u32("i0_rd_addr_cmt", i0_rd_addr_cmt, ref_i0_rd_addr_cmt);
@@ -297,7 +356,7 @@ module reorder_buffer_tb;
     @(posedge clk);
     wback0_en = 1; i0_rob_idx_wb = rob_to_prf(5'd2);
     #0;
-    retire0_en = i0_can_retire;
+    retire0_en = ref_i0_can_retire;
     #0;
     check_outs("commit_single_alu", "commit head ALU (rd=3)");
     cycle_hold;
@@ -305,7 +364,7 @@ module reorder_buffer_tb;
     @(posedge clk);
     wback0_en = 1; i0_rob_idx_wb = rob_to_prf(5'd3);
     #0;
-    retire0_en = i0_can_retire;
+    retire0_en = ref_i0_can_retire;
     #0;
     check_outs("commit_store", "stb0_en on store commit");
     cycle_hold;
@@ -327,7 +386,7 @@ module reorder_buffer_tb;
       i0_rob_idx_wb    = br_tag;
       i0_brch_taken_wb = 1;
       #0;
-      retire0_en = i0_can_retire;
+      retire0_en = ref_i0_can_retire;
       #0;
       check_outs("branch_taken_commit", "rat0_en + path_sel=1");
       cycle_hold;

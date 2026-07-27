@@ -4,52 +4,49 @@ import rv_dis_pkg::*;
 import tb_pkg::*;
 
 // Global ROB stimulus driver (hold values through DUT negedge sample).
+// Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
 module rob_driver (
   output logic        flush,
-  output logic        alloc0_en,
-  output logic        alloc1_en,
-  output logic        i0_reg_write,
-  output logic        i1_reg_write,
-  output logic        i0_is_brnch,
-  output logic        i1_is_brnch,
-  output logic        i0_is_store,
-  output logic        i1_is_store,
-  output logic        i0_spec_en,
-  output logic        i1_spec_en,
-  output gpr_addr_t   i0_rd_addr,
-  output gpr_addr_t   i1_rd_addr,
-  output logic        wback0_en,
-  output logic        wback1_en,
-  output prf_addr_t   i0_rob_idx_wb,
-  output prf_addr_t   i1_rob_idx_wb,
-  output logic        i0_brch_taken_wb,
-  output logic        i1_brch_taken_wb,
-  output logic        retire0_en,
-  output logic        retire1_en
+  output logic        alloc_en      [2],
+  output logic        reg_write     [2],
+  output logic        is_brnch      [2],
+  output logic        is_store      [2],
+  output logic        spec_en       [2],
+  output logic        state_valid   [2],
+  output br_state_t   brch_state    [2],
+  output gpr_addr_t   rd_addr       [2],
+  output logic        wback_en      [2],
+  output prf_addr_t   rob_idx_wb    [2],
+  output logic        brch_taken_wb [2],
+  output logic        retire_en     [2]
 );
 
   task automatic drive(input rob_stim_t s);
     flush            = s.flush;
-    alloc0_en        = s.alloc0_en;
-    alloc1_en        = s.alloc1_en;
-    i0_reg_write     = s.i0_reg_write;
-    i1_reg_write     = s.i1_reg_write;
-    i0_is_brnch      = s.i0_is_brnch;
-    i1_is_brnch      = s.i1_is_brnch;
-    i0_is_store      = s.i0_is_store;
-    i1_is_store      = s.i1_is_store;
-    i0_spec_en       = s.i0_spec_en;
-    i1_spec_en       = s.i1_spec_en;
-    i0_rd_addr       = s.i0_rd_addr;
-    i1_rd_addr       = s.i1_rd_addr;
-    wback0_en        = s.wback0_en;
-    wback1_en        = s.wback1_en;
-    i0_rob_idx_wb    = s.i0_rob_idx_wb;
-    i1_rob_idx_wb    = s.i1_rob_idx_wb;
-    i0_brch_taken_wb = s.i0_brch_taken_wb;
-    i1_brch_taken_wb = s.i1_brch_taken_wb;
-    retire0_en       = s.retire0_en;
-    retire1_en       = s.retire1_en;
+    alloc_en[0]      = s.alloc0_en;
+    alloc_en[1]      = s.alloc1_en;
+    reg_write[0]     = s.i0_reg_write;
+    reg_write[1]     = s.i1_reg_write;
+    is_brnch[0]      = s.i0_is_brnch;
+    is_brnch[1]      = s.i1_is_brnch;
+    is_store[0]      = s.i0_is_store;
+    is_store[1]      = s.i1_is_store;
+    spec_en[0]       = s.i0_spec_en;
+    spec_en[1]       = s.i1_spec_en;
+    state_valid[0]   = s.i0_state_valid;
+    state_valid[1]   = s.i1_state_valid;
+    brch_state[0]    = s.i0_brch_state;
+    brch_state[1]    = s.i1_brch_state;
+    rd_addr[0]       = s.i0_rd_addr;
+    rd_addr[1]       = s.i1_rd_addr;
+    wback_en[0]      = s.wback0_en;
+    wback_en[1]      = s.wback1_en;
+    rob_idx_wb[0]    = s.i0_rob_idx_wb;
+    rob_idx_wb[1]    = s.i1_rob_idx_wb;
+    brch_taken_wb[0] = s.i0_brch_taken_wb;
+    brch_taken_wb[1] = s.i1_brch_taken_wb;
+    retire_en[0]     = s.retire0_en;
+    retire_en[1]     = s.retire1_en;
   endtask
 
   task automatic clear();

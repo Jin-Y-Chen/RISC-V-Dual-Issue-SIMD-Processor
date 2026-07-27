@@ -21,6 +21,8 @@ import rv_dis_pkg::*;
     logic        lane_sel;
     logic        reg_write;
     logic        spec_en;      // 0=path0, 1=path1
+    logic        tag1_valid;   // RAT: rs1 needs a PRF operand
+    logic        tag2_valid;
     logic        rs1_ready;
     logic        rs2_ready;
     opcode_t     opcode;
@@ -33,41 +35,130 @@ import rv_dis_pkg::*;
     word_t       pc;
   } rs_entry_t;
 
+  // Dual-dispatch insn (shared by alloc / issue; packed in RS top).
+  typedef struct packed {
+    logic      valid;
+    logic      lane_sel;
+    logic      reg_write;
+    logic      spec_en;
+    logic      tag1_valid;
+    logic      tag2_valid;
+    opcode_t   opcode;
+    funct3_t   funct3;
+    funct7_t   funct7;
+    prf_addr_t ps1;
+    prf_addr_t ps2;
+    prf_addr_t prd;
+    word_t     imm;
+    word_t     pc;
+  } rs_disp_insn_t;
+
+  typedef struct packed {
+    rs_disp_insn_t i0;
+    rs_disp_insn_t i1;
+  } rs_disp_pair_t;
+
+  typedef struct packed {
+    logic      en;
+    prf_addr_t prd;
+  } rs_wb_tag_t;
+
+  typedef struct packed {
+    rs_wb_tag_t wb0;
+    rs_wb_tag_t wb1;
+  } rs_wb_pair_t;
+
+  // Issued insn → dp_ex / PRF read (unpacked at RS top).
+  typedef struct packed {
+    logic      valid;
+    logic      lane_sel;
+    logic      reg_write;
+    opcode_t   opcode;
+    funct3_t   funct3;
+    funct7_t   funct7;
+    prf_addr_t ps1;
+    prf_addr_t ps2;
+    prf_addr_t prd;
+    word_t     imm;
+    word_t     pc;
+  } rs_iss_insn_t;
+
+  typedef struct packed {
+    rs_iss_insn_t i0;
+    rs_iss_insn_t i1;
+  } rs_iss_pair_t;
+
+  typedef struct packed {
+    logic      rs1_use;
+    logic      rs2_use;
+    prf_addr_t ps1;
+    prf_addr_t ps2;
+  } rs_prf_rd_t;
+
+  typedef struct packed {
+    rs_prf_rd_t i0;
+    rs_prf_rd_t i1;
+  } rs_prf_rd_pair_t;
+
+  typedef struct packed {
+    rs_way_t sel0;       // bank way if src0==BANK
+    rs_way_t sel1;
+    logic    sel0_v;
+    logic    sel1_v;
+    logic    fire0;
+    logic    fire1;
+    logic    src0_disp;  // 1 → issue slot from disp (bypass)
+    logic    src1_disp;
+    logic    src0_d1;    // which disp lane when src*_disp (0=i0, 1=i1)
+    logic    src1_d1;
+    logic    bypass0;    // disp.i0 issued this cycle — do not allocate
+    logic    bypass1;    // disp.i1 issued this cycle — do not allocate
+  } rs_pick_t;
+
   function automatic logic rs_wb_hit(
-    input prf_addr_t tag,
-    input logic      wb0_en,
-    input prf_addr_t wb0_prd,
-    input logic      wb1_en,
-    input prf_addr_t wb1_prd
+    input prf_addr_t   tag,
+    input rs_wb_pair_t wb
   );
-    return (wb0_en && (wb0_prd == tag)) ||
-           (wb1_en && (wb1_prd == tag));
+    return (wb.wb0.en && (wb.wb0.prd == tag)) ||
+           (wb.wb1.en && (wb.wb1.prd == tag));
   endfunction
 
   function automatic logic rs_src_ready(
-    input prf_addr_t tag,
-    input logic      ready_bit,
-    input logic      wb0_en,
-    input prf_addr_t wb0_prd,
-    input logic      wb1_en,
-    input prf_addr_t wb1_prd
+    input logic        tag_valid,
+    input prf_addr_t   tag,
+    input logic        ready_bit,
+    input rs_wb_pair_t wb
   );
-    return (tag == '0) || ready_bit ||
-           rs_wb_hit(tag, wb0_en, wb0_prd, wb1_en, wb1_prd);
+    return !tag_valid || ready_bit || rs_wb_hit(tag, wb);
   endfunction
 
   function automatic logic rs_calc_issue_ready(
-    input rs_entry_t entry,
-    input logic      wb0_en,
-    input prf_addr_t wb0_prd,
-    input logic      wb1_en,
-    input prf_addr_t wb1_prd
+    input rs_entry_t   entry,
+    input rs_wb_pair_t wb
   );
     return entry.valid &&
-           rs_src_ready(entry.ps1, entry.rs1_ready,
-                        wb0_en, wb0_prd, wb1_en, wb1_prd) &&
-           rs_src_ready(entry.ps2, entry.rs2_ready,
-                        wb0_en, wb0_prd, wb1_en, wb1_prd);
+           rs_src_ready(entry.tag1_valid, entry.ps1, entry.rs1_ready, wb) &&
+           rs_src_ready(entry.tag2_valid, entry.ps2, entry.rs2_ready, wb);
+  endfunction
+
+  // Dispatch-path wakeup: PRF ready bits + same-cycle WB broadcast.
+  function automatic logic rs_disp_ready(
+    input rs_disp_insn_t      d,
+    input logic [NUM_PRF-1:0] prf_ready,
+    input rs_wb_pair_t        wb,
+    input logic               force_rs1_unready,
+    input logic               force_rs2_unready
+  );
+    logic r1, r2;
+    if (!d.valid)
+      return 1'b0;
+    r1 = !d.tag1_valid ||
+         (!force_rs1_unready &&
+          (prf_ready[d.ps1] || rs_wb_hit(d.ps1, wb)));
+    r2 = !d.tag2_valid ||
+         (!force_rs2_unready &&
+          (prf_ready[d.ps2] || rs_wb_hit(d.ps2, wb)));
+    return r1 && r2;
   endfunction
 
   // Lowest-set-bit priority encode (way index).
@@ -109,49 +200,37 @@ import rv_dis_pkg::*;
   endfunction
 
   function automatic rs_entry_t rs_make_entry(
-    input logic               valid,
-    input logic               lane_sel,
-    input logic               reg_write,
-    input logic               spec_en,
-    input opcode_t            opcode,
-    input funct3_t            funct3,
-    input funct7_t            funct7,
-    input prf_addr_t          ps1,
-    input prf_addr_t          ps2,
-    input prf_addr_t          prd,
-    input word_t              imm,
-    input word_t              pc,
+    input rs_disp_insn_t      d,
     input logic [31:0]        age,
     input logic [NUM_PRF-1:0] prf_ready,
-    input logic               wb0_en,
-    input prf_addr_t          wb0_prd,
-    input logic               wb1_en,
-    input prf_addr_t          wb1_prd,
+    input rs_wb_pair_t        wb,
     input logic               force_rs1_unready,
     input logic               force_rs2_unready
   );
     rs_make_entry = '0;
-    if (!valid)
+    if (!d.valid)
       return rs_make_entry;
     rs_make_entry.valid     = 1'b1;
     rs_make_entry.age       = age;
-    rs_make_entry.lane_sel  = lane_sel;
-    rs_make_entry.reg_write = reg_write;
-    rs_make_entry.spec_en   = spec_en;
-    rs_make_entry.rs1_ready = (ps1 == '0) ||
+    rs_make_entry.lane_sel  = d.lane_sel;
+    rs_make_entry.reg_write = d.reg_write;
+    rs_make_entry.spec_en   = d.spec_en;
+    rs_make_entry.tag1_valid = d.tag1_valid;
+    rs_make_entry.tag2_valid = d.tag2_valid;
+    rs_make_entry.rs1_ready = !d.tag1_valid ||
       (!force_rs1_unready &&
-       (prf_ready[ps1] || rs_wb_hit(ps1, wb0_en, wb0_prd, wb1_en, wb1_prd)));
-    rs_make_entry.rs2_ready = (ps2 == '0) ||
+       (prf_ready[d.ps1] || rs_wb_hit(d.ps1, wb)));
+    rs_make_entry.rs2_ready = !d.tag2_valid ||
       (!force_rs2_unready &&
-       (prf_ready[ps2] || rs_wb_hit(ps2, wb0_en, wb0_prd, wb1_en, wb1_prd)));
-    rs_make_entry.opcode  = opcode;
-    rs_make_entry.funct3  = funct3;
-    rs_make_entry.funct7  = funct7;
-    rs_make_entry.ps1     = ps1;
-    rs_make_entry.ps2     = ps2;
-    rs_make_entry.prd     = prd;
-    rs_make_entry.imm     = imm;
-    rs_make_entry.pc      = pc;
+       (prf_ready[d.ps2] || rs_wb_hit(d.ps2, wb)));
+    rs_make_entry.opcode  = d.opcode;
+    rs_make_entry.funct3  = d.funct3;
+    rs_make_entry.funct7  = d.funct7;
+    rs_make_entry.ps1     = d.ps1;
+    rs_make_entry.ps2     = d.ps2;
+    rs_make_entry.prd     = d.prd;
+    rs_make_entry.imm     = d.imm;
+    rs_make_entry.pc      = d.pc;
   endfunction
 
 endpackage

@@ -6,15 +6,17 @@ import rv_dis_pkg::*;
 module dp_ex_tb;
   logic clk, rst_n, enable, flush, stall;
 
-  logic        i0_valid_iss, i1_valid_iss;
-  logic        i0_lane_sel_iss, i1_lane_sel_iss;
-  logic        i0_reg_write_iss, i1_reg_write_iss;
-  opcode_t     i0_opcode_iss, i1_opcode_iss;
-  funct3_t     i0_funct3_iss, i1_funct3_iss;
-  funct7_t     i0_funct7_iss, i1_funct7_iss;
-  prf_addr_t   i0_prd_iss, i1_prd_iss;
-  word_t       i0_imm_iss, i0_pc_iss, i1_imm_iss, i1_pc_iss;
-  word_t       i0_rs1_data, i0_rs2_data, i1_rs1_data, i1_rs2_data;
+  logic        valid_iss     [2];
+  logic        lane_sel_iss  [2];
+  logic        reg_write_iss [2];
+  opcode_t     opcode_iss    [2];
+  funct3_t     funct3_iss    [2];
+  funct7_t     funct7_iss    [2];
+  prf_addr_t   prd_iss       [2];
+  word_t       imm_iss       [2];
+  word_t       pc_iss        [2];
+  word_t       rs1_data      [2];
+  word_t       rs2_data      [2];
 
   logic        ev0_enable_ex, ev1_enable_ex, od0_enable_ex, od1_enable_ex;
   logic        ev0_reg_write_ex, ev1_reg_write_ex, od0_reg_write_ex, od1_reg_write_ex;
@@ -35,17 +37,19 @@ module dp_ex_tb;
   always #5 clk = ~clk;
 
   task automatic clear_iss;
-    i0_valid_iss = 0; i1_valid_iss = 0;
-    i0_lane_sel_iss = 0; i1_lane_sel_iss = 0;
-    i0_reg_write_iss = 0; i1_reg_write_iss = 0;
-    i0_opcode_iss = '0; i1_opcode_iss = '0;
-    i0_funct3_iss = '0; i1_funct3_iss = '0;
-    i0_funct7_iss = '0; i1_funct7_iss = '0;
-    i0_prd_iss = '0; i1_prd_iss = '0;
-    i0_imm_iss = '0; i1_imm_iss = '0;
-    i0_pc_iss = '0; i1_pc_iss = '0;
-    i0_rs1_data = '0; i0_rs2_data = '0;
-    i1_rs1_data = '0; i1_rs2_data = '0;
+    for (int i = 0; i < N_DUAL; i++) begin
+      valid_iss[i]     = 0;
+      lane_sel_iss[i]  = 0;
+      reg_write_iss[i] = 0;
+      opcode_iss[i]    = '0;
+      funct3_iss[i]    = '0;
+      funct7_iss[i]    = '0;
+      prd_iss[i]       = '0;
+      imm_iss[i]       = '0;
+      pc_iss[i]        = '0;
+      rs1_data[i]      = '0;
+      rs2_data[i]      = '0;
+    end
   endtask
 
   initial begin
@@ -55,12 +59,12 @@ module dp_ex_tb;
     rst_n = 1;
 
     @(negedge clk);
-    i0_valid_iss = 1; i0_lane_sel_iss = 0; i0_reg_write_iss = 1;
-    i0_opcode_iss = OPC_OP; i0_prd_iss = 6'd32;
-    i0_rs1_data = 32'hA000_0001; i0_rs2_data = 32'hA000_0002;
-    i1_valid_iss = 1; i1_lane_sel_iss = 0; i1_reg_write_iss = 1;
-    i1_opcode_iss = OPC_OP; i1_prd_iss = 6'd33;
-    i1_rs1_data = 32'hB000_0001; i1_rs2_data = 32'hB000_0002;
+    valid_iss[0] = 1; lane_sel_iss[0] = 0; reg_write_iss[0] = 1;
+    opcode_iss[0] = OPC_OP; prd_iss[0] = 6'd32;
+    rs1_data[0] = 32'hA000_0001; rs2_data[0] = 32'hA000_0002;
+    valid_iss[1] = 1; lane_sel_iss[1] = 0; reg_write_iss[1] = 1;
+    opcode_iss[1] = OPC_OP; prd_iss[1] = 6'd33;
+    rs1_data[1] = 32'hB000_0001; rs2_data[1] = 32'hB000_0002;
     @(posedge clk);
     #1;
     if (!ev0_enable_ex || !ev1_enable_ex || od0_enable_ex || od1_enable_ex)
@@ -72,10 +76,10 @@ module dp_ex_tb;
 
     @(negedge clk);
     clear_iss();
-    i0_valid_iss = 1; i0_lane_sel_iss = 0; i0_prd_iss = 6'd40;
-    i0_rs1_data = 32'h1;
-    i1_valid_iss = 1; i1_lane_sel_iss = 1; i1_prd_iss = 6'd41;
-    i1_opcode_iss = OPC_LOAD; i1_rs1_data = 32'h2;
+    valid_iss[0] = 1; lane_sel_iss[0] = 0; prd_iss[0] = 6'd40;
+    rs1_data[0] = 32'h1;
+    valid_iss[1] = 1; lane_sel_iss[1] = 1; prd_iss[1] = 6'd41;
+    opcode_iss[1] = OPC_LOAD; rs1_data[1] = 32'h2;
     @(posedge clk);
     #1;
     if (!ev0_enable_ex || ev1_enable_ex || !od0_enable_ex || od1_enable_ex)
@@ -85,8 +89,8 @@ module dp_ex_tb;
 
     @(negedge clk);
     clear_iss();
-    i0_valid_iss = 1; i0_lane_sel_iss = 1; i0_prd_iss = 6'd50;
-    i1_valid_iss = 1; i1_lane_sel_iss = 1; i1_prd_iss = 6'd51;
+    valid_iss[0] = 1; lane_sel_iss[0] = 1; prd_iss[0] = 6'd50;
+    valid_iss[1] = 1; lane_sel_iss[1] = 1; prd_iss[1] = 6'd51;
     @(posedge clk);
     #1;
     if (ev0_enable_ex || ev1_enable_ex || !od0_enable_ex || !od1_enable_ex)

@@ -33,6 +33,14 @@ import rv_dis_pkg::*;
       rat_src_lookup = rat_map_read(arch, spec_en, map_br0, map_br1);
   endfunction
 
+  // True when the operand is renamed to a live PRF tag (not x0 / unused).
+  function automatic logic rat_src_tag_valid(
+    input logic      use_en,
+    input gpr_addr_t arch
+  );
+    rat_src_tag_valid = use_en && !arch_maps_to_x0(arch);
+  endfunction
+
   function automatic prf_addr_t rat_i1_src_lookup(
     input logic       use_en,
     input gpr_addr_t  arch,

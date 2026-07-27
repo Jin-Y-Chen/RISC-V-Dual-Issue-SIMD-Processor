@@ -16,67 +16,62 @@ module allis_table (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        flush,
-  input  logic        spec0_en,
-  input  logic        spec1_en,
+  input  logic        spec_en       [2],
 
   // source rename
-  input  logic        i0_rs1_use,
-  input  logic        i0_rs2_use,
-  input  logic        i1_rs1_use,
-  input  logic        i1_rs2_use,
-  input  gpr_addr_t   i0_rs1_addr,
-  input  gpr_addr_t   i0_rs2_addr,
-  input  gpr_addr_t   i1_rs1_addr,
-  input  gpr_addr_t   i1_rs2_addr,
-  output prf_addr_t   i0_ps1_tag,
-  output prf_addr_t   i0_ps2_tag,
-  output prf_addr_t   i1_ps1_tag,
-  output prf_addr_t   i1_ps2_tag,
+  input  logic        rs1_use       [2],
+  input  logic        rs2_use       [2],
+  input  gpr_addr_t   rs1_addr      [2],
+  input  gpr_addr_t   rs2_addr      [2],
+  output prf_addr_t   ps1_tag       [2],
+  output prf_addr_t   ps2_tag       [2],
+  output logic        tag1_valid    [2],
+  output logic        tag2_valid    [2],
 
   // dest rename (arch rd + ROB-derived ntag)
-  input  logic        i0_alloc_en,
-  input  logic        i1_alloc_en,
-  input  gpr_addr_t   i0_alloc_rd_addr,
-  input  gpr_addr_t   i1_alloc_rd_addr,
-  input  prf_addr_t   i0_alloc_ntag,
-  input  prf_addr_t   i1_alloc_ntag,
+  input  logic        alloc_en      [2],
+  input  gpr_addr_t   alloc_rd_addr [2],
+  input  prf_addr_t   alloc_rob_tag [2],
 
   // RRAT architectural commit from ROB
-  input  logic        rrat0_en,
-  input  logic        rrat1_en,
-  input  gpr_addr_t   i0_rd_addr_cmt,
-  input  gpr_addr_t   i1_rd_addr_cmt,
-  input  prf_addr_t   i0_rob_idx_cmt,
-  input  prf_addr_t   i1_rob_idx_cmt,
+  input  logic        rrat_en       [2],
+  input  gpr_addr_t   rd_addr_cmt   [2],
+  input  prf_addr_t   rob_idx_cmt   [2],
 
   // Committed branch path select; lane 1 is younger and has final priority.
   // path_sel: 0→path0/map_br1, 1→path1/map_br0
-  input  logic        rat0_en,
-  input  logic        rat1_en,
-  input  logic        i0_path_sel,
-  input  logic        i1_path_sel
+  input  logic        rat_en        [2],
+  input  logic        path_sel      [2]
 );
 
   prf_addr_t rrat_q    [NUM_GPR];
   prf_addr_t map_br0_q [NUM_GPR];
   prf_addr_t map_br1_q [NUM_GPR];
 
-  wire i0_rd_legal = i0_alloc_en && !arch_maps_to_x0(i0_alloc_rd_addr);
-  wire i1_rd_legal = i1_alloc_en && !arch_maps_to_x0(i1_alloc_rd_addr);
+  wire rd_legal [2];
+  wire rrat_wr  [2];
 
-  assign i0_ps1_tag = rat_src_lookup(
-      i0_rs1_use, i0_rs1_addr, spec0_en, map_br0_q, map_br1_q);
-  assign i0_ps2_tag = rat_src_lookup(
-      i0_rs2_use, i0_rs2_addr, spec0_en, map_br0_q, map_br1_q);
-  assign i1_ps1_tag = rat_i1_src_lookup(
-      i1_rs1_use, i1_rs1_addr, i0_rd_legal, i0_alloc_rd_addr, i0_alloc_ntag,
-      spec0_en, spec1_en, map_br0_q, map_br1_q);
-  assign i1_ps2_tag = rat_i1_src_lookup(
-      i1_rs2_use, i1_rs2_addr, i0_rd_legal, i0_alloc_rd_addr, i0_alloc_ntag,
-      spec0_en, spec1_en, map_br0_q, map_br1_q);
+  assign rd_legal[0] = alloc_en[0] && !arch_maps_to_x0(alloc_rd_addr[0]);
+  assign rd_legal[1] = alloc_en[1] && !arch_maps_to_x0(alloc_rd_addr[1]);
 
-  wire rrat0_wr = rrat0_en && !arch_maps_to_x0(i0_rd_addr_cmt);
-  wire rrat1_wr = rrat1_en && !arch_maps_to_x0(i1_rd_addr_cmt);
+  assign ps1_tag[0] = rat_src_lookup(
+      rs1_use[0], rs1_addr[0], spec_en[0], map_br0_q, map_br1_q);
+  assign ps2_tag[0] = rat_src_lookup(
+      rs2_use[0], rs2_addr[0], spec_en[0], map_br0_q, map_br1_q);
+  assign ps1_tag[1] = rat_i1_src_lookup(
+      rs1_use[1], rs1_addr[1], rd_legal[0], alloc_rd_addr[0], alloc_rob_tag[0],
+      spec_en[0], spec_en[1], map_br0_q, map_br1_q);
+  assign ps2_tag[1] = rat_i1_src_lookup(
+      rs2_use[1], rs2_addr[1], rd_legal[0], alloc_rd_addr[0], alloc_rob_tag[0],
+      spec_en[0], spec_en[1], map_br0_q, map_br1_q);
+
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_tag_valid
+    assign tag1_valid[i] = rat_src_tag_valid(rs1_use[i], rs1_addr[i]);
+    assign tag2_valid[i] = rat_src_tag_valid(rs2_use[i], rs2_addr[i]);
+  end
+
+  assign rrat_wr[0] = rrat_en[0] && !arch_maps_to_x0(rd_addr_cmt[0]);
+  assign rrat_wr[1] = rrat_en[1] && !arch_maps_to_x0(rd_addr_cmt[1]);
 
   integer i;
   always_ff @(negedge clk or negedge rst_n) begin
@@ -95,33 +90,33 @@ module allis_table (
         map_br1_q[i] <= rrat_q[i];
       end
     end else begin
-      if (rat1_en) begin
+      if (rat_en[1]) begin
         // If both branches resolve, the younger branch selects the final path.
-        if (i1_path_sel == 1'b1)
+        if (path_sel[1] == 1'b1)
           for (i = 0; i < NUM_GPR; i++) map_br1_q[i] <= map_br0_q[i];
         else
           for (i = 0; i < NUM_GPR; i++) map_br0_q[i] <= map_br1_q[i];
-      end else if (rat0_en) begin
-        if (i0_path_sel == 1'b1)
+      end else if (rat_en[0]) begin
+        if (path_sel[0] == 1'b1)
           for (i = 0; i < NUM_GPR; i++) map_br1_q[i] <= map_br0_q[i];
         else
           for (i = 0; i < NUM_GPR; i++) map_br0_q[i] <= map_br1_q[i];
       end
 
       // Commit the exact ROB tag; do not overwrite younger speculative maps.
-      if (rrat0_wr) begin
-        rrat_q[i0_rd_addr_cmt] <= i0_rob_idx_cmt;
+      if (rrat_wr[0]) begin
+        rrat_q[rd_addr_cmt[0]] <= rob_idx_cmt[0];
       end
-      if (rrat1_wr) begin
-        rrat_q[i1_rd_addr_cmt] <= i1_rob_idx_cmt;
+      if (rrat_wr[1]) begin
+        rrat_q[rd_addr_cmt[1]] <= rob_idx_cmt[1];
       end
 
-      if (i0_rd_legal)
-        if (spec0_en) map_br0_q[i0_alloc_rd_addr] <= i0_alloc_ntag;
-        else          map_br1_q[i0_alloc_rd_addr] <= i0_alloc_ntag;
-      if (i1_rd_legal)
-        if (spec1_en) map_br0_q[i1_alloc_rd_addr] <= i1_alloc_ntag;
-        else          map_br1_q[i1_alloc_rd_addr] <= i1_alloc_ntag;
+      if (rd_legal[0])
+        if (spec_en[0]) map_br0_q[alloc_rd_addr[0]] <= alloc_rob_tag[0];
+        else            map_br1_q[alloc_rd_addr[0]] <= alloc_rob_tag[0];
+      if (rd_legal[1])
+        if (spec_en[1]) map_br0_q[alloc_rd_addr[1]] <= alloc_rob_tag[1];
+        else            map_br1_q[alloc_rd_addr[1]] <= alloc_rob_tag[1];
     end
   end
 

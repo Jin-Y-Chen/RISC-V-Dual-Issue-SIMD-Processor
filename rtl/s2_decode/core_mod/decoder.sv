@@ -9,6 +9,7 @@ import decode_pkg::*;
 module decoder (
   // input data
   input  instr_t      instr,
+  input  logic        fetch_valid, // I$ hit from IF/ID; 0 => bubble (valid=0)
 
   // output data
   output opcode_t     opcode,
@@ -20,7 +21,7 @@ module decoder (
   output word_t       imm,
 
   // output controls
-  output logic        valid,     // 1 when insn is legal for RV-DIS scalar decode
+  output logic        valid,     // legal RV-DIS decode and fetch_valid
   output logic        rs1_use,
   output logic        rs2_use,
   output logic        lane_sel,
@@ -33,6 +34,7 @@ module decoder (
 
   opcode_t    opcode_raw;
   funct3_t    funct3_raw;
+  logic       legal;
 
   assign opcode_raw = decode_opcode(instr);
   assign funct3_raw = decode_funct3(instr);
@@ -45,7 +47,8 @@ module decoder (
   assign imm        = decode_imm(opcode_raw, funct3_raw, instr);
 
   assign lane_sel   = decode_lane_sel(opcode_raw);
-  assign valid      = insn_legal_scalar(opcode_raw, funct3_raw);
+  assign legal      = insn_legal_scalar(opcode_raw, funct3_raw);
+  assign valid      = fetch_valid && legal;
   assign brch_en    = valid && decode_brch_en(opcode_raw);
   assign jump_en    = valid && decode_jump_en(opcode_raw);
   assign store_en   = valid && decode_store_en(opcode_raw, funct3_raw);

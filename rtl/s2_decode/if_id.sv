@@ -1,109 +1,50 @@
 `timescale 1ns / 1ps
 
-// IF/ID pipeline register — dual-issue insn pair per cycle (project_outline decode stage).
-// i*_fetch_valid = I$ hit; i*_target_valid_if = BTB hit from fetch.
-// miss/rst/flush => INSTR_NOP bubble (addi x0, x0, 0).
+// IF/ID pipeline register — dual-issue pair ([2]: index 0 = I0, 1 = I1).
+// Maps IF → ID every enabled cycle (no per-lane fetch_valid gate).
+// fetch_valid_if = I$ hit; target_valid_if = BTB hit. rst/flush => bubble.
 import rv_dis_pkg::*;
 
 module if_id (
-  // external controls
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,
-
-  // internal controls
   input  logic        flush,
   input  logic        stall,
-  input  logic        i0_fetch_valid,
-  input  logic        i1_fetch_valid,
-  input  logic        i0_target_valid_if,
-  input  logic        i1_target_valid_if,
-  input  logic        spec0_en_if,
-  input  logic        spec1_en_if,
 
-  // input data
-  input  instr_t      i0_instr_if,
-  input  instr_t      i1_instr_if,
-  input  word_t       i0_pc_if,
-  input  word_t       i1_pc_if,
-  input  word_t       i0_pc_target_if,
-  input  word_t       i1_pc_target_if,
+  input  logic        fetch_valid_if  [2],
+  input  logic        target_valid_if [2],
+  input  logic        spec_en_if      [2],
+  input  instr_t      instr_if        [2],
+  input  word_t       pc_if           [2],
+  input  word_t       pc_target_if    [2],
 
-  // output data
-  output instr_t      i0_instr_id,
-  output instr_t      i1_instr_id,
-  output word_t       i0_pc_id,
-  output word_t       i1_pc_id,
-  output word_t       i0_pc_target_id,
-  output word_t       i1_pc_target_id,
-
-  // output controls
-  output logic        i0_valid_id,
-  output logic        i1_valid_id,
-  output logic        i0_target_valid_id,
-  output logic        i1_target_valid_id,
-  output logic        spec0_en_id,
-  output logic        spec1_en_id
+  output instr_t      instr_id         [2],
+  output word_t       pc_id            [2],
+  output word_t       pc_target_id     [2],
+  output logic        fetch_valid_id   [2],
+  output logic        target_valid_id  [2],
+  output logic        spec_en_id       [2]
 );
 
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      i0_instr_id        <= INSTR_NOP;
-      i1_instr_id        <= INSTR_NOP;
-      i0_pc_id           <= '0;
-      i1_pc_id           <= '0;
-      i0_pc_target_id    <= '0;
-      i1_pc_target_id    <= '0;
-      i0_valid_id        <= 1'b0;
-      i1_valid_id        <= 1'b0;
-      i0_target_valid_id <= 1'b0;
-      i1_target_valid_id <= 1'b0;
-      spec0_en_id        <= 1'b0;
-      spec1_en_id        <= 1'b0;
-    end else if (flush) begin
-      i0_instr_id        <= INSTR_NOP;
-      i1_instr_id        <= INSTR_NOP;
-      i0_pc_id           <= '0;
-      i1_pc_id           <= '0;
-      i0_pc_target_id    <= '0;
-      i1_pc_target_id    <= '0;
-      i0_valid_id        <= 1'b0;
-      i1_valid_id        <= 1'b0;
-      i0_target_valid_id <= 1'b0;
-      i1_target_valid_id <= 1'b0;
-      spec0_en_id        <= 1'b0;
-      spec1_en_id        <= 1'b0;
-    end else if (enable && !stall) begin
-      if (i0_fetch_valid) begin
-        i0_instr_id        <= i0_instr_if;
-        i0_pc_id           <= i0_pc_if;
-        i0_pc_target_id    <= i0_pc_target_if;
-        i0_valid_id        <= 1'b1;
-        i0_target_valid_id <= i0_target_valid_if;
-        spec0_en_id        <= spec0_en_if;
-      end else begin
-        i0_instr_id        <= INSTR_NOP;
-        i0_pc_id           <= '0;
-        i0_pc_target_id    <= '0;
-        i0_valid_id        <= 1'b0;
-        i0_target_valid_id <= 1'b0;
-        spec0_en_id        <= 1'b0;
+    if (!rst_n || flush) begin
+      for (int i = 0; i < N_DUAL; i++) begin
+        instr_id[i]        <= INSTR_NOP;
+        pc_id[i]           <= '0;
+        pc_target_id[i]    <= '0;
+        fetch_valid_id[i]  <= 1'b0;
+        target_valid_id[i] <= 1'b0;
+        spec_en_id[i]      <= 1'b0;
       end
-
-      if (i1_fetch_valid) begin
-        i1_instr_id        <= i1_instr_if;
-        i1_pc_id           <= i1_pc_if;
-        i1_pc_target_id    <= i1_pc_target_if;
-        i1_valid_id        <= 1'b1;
-        i1_target_valid_id <= i1_target_valid_if;
-        spec1_en_id        <= spec1_en_if;
-      end else begin
-        i1_instr_id        <= INSTR_NOP;
-        i1_pc_id           <= '0;
-        i1_pc_target_id    <= '0;
-        i1_valid_id        <= 1'b0;
-        i1_target_valid_id <= 1'b0;
-        spec1_en_id        <= 1'b0;
+    end else if (enable && !stall) begin
+      for (int i = 0; i < N_DUAL; i++) begin
+        instr_id[i]        <= instr_if[i];
+        pc_id[i]           <= pc_if[i];
+        pc_target_id[i]    <= pc_target_if[i];
+        fetch_valid_id[i]  <= fetch_valid_if[i];
+        target_valid_id[i] <= target_valid_if[i];
+        spec_en_id[i]      <= spec_en_if[i];
       end
     end
   end

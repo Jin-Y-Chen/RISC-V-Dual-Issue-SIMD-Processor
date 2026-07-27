@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
 
+import rv_dis_pkg::*;
+
 `include "../../common/utils/tb_console.svh"
 
 // state_buffer_tb - DUT vs gm/state_buffer_gm.sv (bank replica + WB bypass).
@@ -17,14 +19,16 @@ module state_buffer_tb;
   localparam logic [31:0] PC1   = 32'h0000_1004;
   localparam logic [31:0] BR_PC = 32'h0000_2000;
 
-  logic [31:0] i0_pc, i1_pc;
-  logic        i0_brch_en, i1_brch_en;
-  logic        i0_valid_wb, i1_valid_wb;
-  logic [31:0] i0_brch_pc_wb, i1_brch_pc_wb;
-  logic [1:0]  i0_brch_state_wb, i1_brch_state_wb;
-  logic [1:0]  i0_brch_state, i1_brch_state;
-  logic [1:0]  ref_i0_brch_state, ref_i1_brch_state;
-  logic        clk, rst_n;
+  word_t     pc            [2];
+  logic      brch_en       [2];
+  logic      valid_wb      [2];
+  word_t     brch_pc_wb    [2];
+  br_state_t brch_state_wb [2];
+  br_state_t brch_state    [2];
+  logic      state_valid   [2];
+  br_state_t ref_brch_state  [2];
+  logic      ref_state_valid [2];
+  logic      clk, rst_n;
 
   int pass_cnt;
   int fail_cnt;
@@ -34,20 +38,8 @@ module state_buffer_tb;
     .DATA_W (DATA_W),
     .WAYS   (WAYS)
   ) dut (
-    .clk                (clk),
-    .rst_n              (rst_n),
-    .i0_pc              (i0_pc),
-    .i1_pc              (i1_pc),
-    .i0_brch_en         (i0_brch_en),
-    .i1_brch_en         (i1_brch_en),
-    .i0_valid_wb        (i0_valid_wb),
-    .i1_valid_wb        (i1_valid_wb),
-    .i0_brch_pc_wb      (i0_brch_pc_wb),
-    .i1_brch_pc_wb      (i1_brch_pc_wb),
-    .i0_brch_state_wb   (i0_brch_state_wb),
-    .i1_brch_state_wb   (i1_brch_state_wb),
-    .i0_brch_state      (i0_brch_state),
-    .i1_brch_state      (i1_brch_state)
+    .clk, .rst_n, .pc, .brch_en, .valid_wb, .brch_pc_wb, .brch_state_wb,
+    .brch_state, .state_valid
   );
 
   state_buffer_gm #(
@@ -55,33 +47,18 @@ module state_buffer_tb;
     .DATA_W (DATA_W),
     .WAYS   (WAYS)
   ) u_state_buffer_gm (
-    .clk                (clk),
-    .rst_n              (rst_n),
-    .i0_pc              (i0_pc),
-    .i1_pc              (i1_pc),
-    .i0_brch_en         (i0_brch_en),
-    .i1_brch_en         (i1_brch_en),
-    .i0_valid_wb        (i0_valid_wb),
-    .i1_valid_wb        (i1_valid_wb),
-    .i0_brch_pc_wb      (i0_brch_pc_wb),
-    .i1_brch_pc_wb      (i1_brch_pc_wb),
-    .i0_brch_state_wb   (i0_brch_state_wb),
-    .i1_brch_state_wb   (i1_brch_state_wb),
-    .i0_brch_state      (ref_i0_brch_state),
-    .i1_brch_state      (ref_i1_brch_state)
+    .clk, .rst_n, .pc, .brch_en, .valid_wb, .brch_pc_wb, .brch_state_wb,
+    .brch_state(ref_brch_state), .state_valid(ref_state_valid)
   );
 
-  // Map (set, way) -> word-aligned PC used by pc_set / pc_way.
   function automatic logic [31:0] pc_of(input int set_i, input int way_i);
     pc_of = (set_i << (WAY_AW + 2)) | (way_i << 2);
   endfunction
 
-  // Cycle SN/WN/WT/ST across the bank for a readable dump pattern.
   function automatic logic [1:0] state_of(input int set_i, input int way_i);
     state_of = (set_i + way_i) & 2'h3;
   endfunction
 
-  // Stimulus helper - same transition table as rtl/s5_memory/core/state_lookup.sv.
   function automatic logic [1:0] state_lut_next(
     input logic [1:0] state,
     input logic       taken
@@ -99,7 +76,6 @@ module state_buffer_tb;
     endcase
   endfunction
 
-  // DATA_W=2 => valid at bank[][][2], saturating counter in [1:0].
   task automatic dump_state_txt(input string path);
     int fd;
     bit set_hit;
@@ -145,88 +121,90 @@ module state_buffer_tb;
 
   task automatic check_states(input string name, input string detail);
     bit pass;
-    pass = (i0_brch_state === ref_i0_brch_state) &&
-           (i1_brch_state === ref_i1_brch_state);
+    pass = (brch_state[0] === ref_brch_state[0]) &&
+           (brch_state[1] === ref_brch_state[1]) &&
+           (state_valid[0] === ref_state_valid[0]) &&
+           (state_valid[1] === ref_state_valid[1]);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
     tb_field_in_bit("clk",              clk);
     tb_field_in_bit("rst_n",            rst_n);
-    tb_field_in_u32("i0_pc",            i0_pc);
-    tb_field_in_u32("i1_pc",            i1_pc);
-    tb_field_in_bit("i0_brch_en",       i0_brch_en);
-    tb_field_in_bit("i1_brch_en",       i1_brch_en);
-    tb_field_in_bit("i0_valid_wb",      i0_valid_wb);
-    tb_field_in_bit("i1_valid_wb",      i1_valid_wb);
-    tb_field_in_u32("i0_brch_pc_wb",    i0_brch_pc_wb);
-    tb_field_in_u32("i1_brch_pc_wb",    i1_brch_pc_wb);
-    tb_field_in_u2 ("i0_brch_state_wb", i0_brch_state_wb);
-    tb_field_in_u2 ("i1_brch_state_wb", i1_brch_state_wb);
+    tb_field_in_u32("pc[0]",            pc[0]);
+    tb_field_in_u32("pc[1]",            pc[1]);
+    tb_field_in_bit("brch_en[0]",       brch_en[0]);
+    tb_field_in_bit("brch_en[1]",       brch_en[1]);
+    tb_field_in_bit("valid_wb[0]",      valid_wb[0]);
+    tb_field_in_bit("valid_wb[1]",      valid_wb[1]);
+    tb_field_in_u32("brch_pc_wb[0]",    brch_pc_wb[0]);
+    tb_field_in_u32("brch_pc_wb[1]",    brch_pc_wb[1]);
+    tb_field_in_u2 ("brch_state_wb[0]", brch_state_wb[0]);
+    tb_field_in_u2 ("brch_state_wb[1]", brch_state_wb[1]);
     $display("");
     tb_log_section("check");
-    tb_field_u2("i0_brch_state", i0_brch_state, ref_i0_brch_state);
-    tb_field_u2("i1_brch_state", i1_brch_state, ref_i1_brch_state);
+    tb_field_u2("brch_state[0]", brch_state[0], ref_brch_state[0]);
+    tb_field_u2("brch_state[1]", brch_state[1], ref_brch_state[1]);
+    tb_field_bit("state_valid[0]", state_valid[0], ref_state_valid[0]);
+    tb_field_bit("state_valid[1]", state_valid[1], ref_state_valid[1]);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
 
-  // Dual-port train on one negedge (independent set/way slots).
   task automatic write_dual(
     input logic [31:0] pc0,
     input logic [1:0]  st0,
     input logic [31:0] pc1,
     input logic [1:0]  st1
   );
-    i0_brch_pc_wb    = pc0;
-    i0_brch_state_wb = st0;
-    i1_brch_pc_wb    = pc1;
-    i1_brch_state_wb = st1;
-    i0_valid_wb      = 1'b1;
-    i1_valid_wb      = 1'b1;
+    brch_pc_wb[0]    = pc0;
+    brch_state_wb[0] = st0;
+    brch_pc_wb[1]    = pc1;
+    brch_state_wb[1] = st1;
+    valid_wb[0]      = 1'b1;
+    valid_wb[1]      = 1'b1;
     @(negedge clk);
     @(posedge clk);
-    i0_valid_wb = 1'b0;
-    i1_valid_wb = 1'b0;
+    valid_wb[0] = 1'b0;
+    valid_wb[1] = 1'b0;
   endtask
 
   task automatic write_state(
-    input logic [31:0] pc,
+    input logic [31:0] pc_v,
     input logic [1:0]  state
   );
-    i0_brch_pc_wb    = pc;
-    i0_brch_state_wb = state;
-    i0_valid_wb      = 1'b1;
-    i1_valid_wb      = 1'b0;
+    brch_pc_wb[0]    = pc_v;
+    brch_state_wb[0] = state;
+    valid_wb[0]      = 1'b1;
+    valid_wb[1]      = 1'b0;
     @(negedge clk);
     @(posedge clk);
-    i0_valid_wb = 1'b0;
+    valid_wb[0] = 1'b0;
   endtask
 
   task automatic fsm_step(
-    input logic [31:0] pc,
+    input logic [31:0] pc_v,
     input logic        taken
   );
     logic [1:0] cur;
     logic [1:0] nxt;
 
-    i0_valid_wb = 1'b0;
-    i1_valid_wb = 1'b0;
-    i0_pc       = pc;
-    i0_brch_en  = 1'b1;
+    valid_wb[0] = 1'b0;
+    valid_wb[1] = 1'b0;
+    pc[0]       = pc_v;
+    brch_en[0]  = 1'b1;
     #0;
-    cur = i0_brch_state;
+    cur = brch_state[0];
     nxt = state_lut_next(cur, taken);
-    write_state(pc, nxt);
+    write_state(pc_v, nxt);
   endtask
 
-  // Fill every set/way with a distinct PC and 2-bit state; spot-check lookups.
   task automatic fill_and_check_bank;
-    int s0, w0, s1, w1;
+    int s0, w0, w1;
     logic [31:0] pc0_v, pc1_v;
     logic [1:0]  st0_v, st1_v;
 
     for (s0 = 0; s0 < SETS; s0++) begin
       for (w0 = 0; w0 < WAYS; w0 += 2) begin
-        w1   = w0 + 1;
+        w1    = w0 + 1;
         pc0_v = pc_of(s0, w0);
         st0_v = state_of(s0, w0);
         pc1_v = pc_of(s0, w1);
@@ -235,13 +213,12 @@ module state_buffer_tb;
       end
     end
 
-    // Spot-check a few (set, way) hits after the bank is full.
     for (s0 = 0; s0 < SETS; s0++) begin
       w0 = (s0 * 5) % WAYS;
-      i0_pc      = pc_of(s0, w0);
-      i1_pc      = pc_of(s0, (w0 + 1) % WAYS);
-      i0_brch_en = 1'b1;
-      i1_brch_en = 1'b1;
+      pc[0]      = pc_of(s0, w0);
+      pc[1]      = pc_of(s0, (w0 + 1) % WAYS);
+      brch_en[0] = 1'b1;
+      brch_en[1] = 1'b1;
       #0;
       check_states(
         $sformatf("fill_s%0d_w%0d", s0, w0),
@@ -259,16 +236,16 @@ module state_buffer_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
-    i0_brch_en         = 1'b1;
-    i1_brch_en         = 1'b0;
-    i0_valid_wb        = 1'b0;
-    i1_valid_wb        = 1'b0;
-    i0_brch_pc_wb    = '0;
-    i1_brch_pc_wb    = '0;
-    i0_brch_state_wb = 2'b01;
-    i1_brch_state_wb = 2'b01;
-    i0_pc              = PC0;
-    i1_pc              = PC1;
+    brch_en[0]       = 1'b1;
+    brch_en[1]       = 1'b0;
+    valid_wb[0]      = 1'b0;
+    valid_wb[1]      = 1'b0;
+    brch_pc_wb[0]    = '0;
+    brch_pc_wb[1]    = '0;
+    brch_state_wb[0] = 2'b01;
+    brch_state_wb[1] = 2'b01;
+    pc[0]            = PC0;
+    pc[1]            = PC1;
 
     rst_n = 1'b0;
     repeat (2) @(posedge clk);
@@ -277,21 +254,21 @@ module state_buffer_tb;
 
     tb_banner("state_buffer_tb: DUT vs state_buffer_gm.sv");
 
-    check_states("cold_miss", "no valid entry => default 10");
+    check_states("cold_miss", "no valid entry => default 10, state_valid=0");
 
-    i0_pc = BR_PC;
+    pc[0] = BR_PC;
     #0;
     check_states("cold_branch_pc", "branch PC still default before train");
 
-    i0_brch_en = 1'b0;
+    brch_en[0] = 1'b0;
     #0;
     check_states("brch_en_off", "non-branch lookup forced to default");
-    i0_brch_en = 1'b1;
+    brch_en[0] = 1'b1;
 
     fsm_step(BR_PC, 1'b0);
-    i0_pc = BR_PC;
+    pc[0] = BR_PC;
     #0;
-    check_states("train_not_taken", "10 + not taken => 00");
+    check_states("train_not_taken", "10 + not taken => 00, state_valid=1");
 
     fsm_step(BR_PC, 1'b1);
     #0;

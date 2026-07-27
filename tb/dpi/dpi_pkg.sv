@@ -87,8 +87,8 @@ package dpi_pkg;
   import "DPI-C" function void    ifid_dpi_eval(
     input chandle h,
     output int i0_instr, output int i1_instr, output int i0_pc, output int i1_pc,
-    output int i0_tgt, output int i1_tgt, output int i0_tv, output int i1_tv,
-    output int s0, output int s1);
+    output int i0_tgt, output int i1_tgt, output int i0_fv, output int i1_fv,
+    output int i0_tv, output int i1_tv, output int s0, output int s1);
   import "DPI-C" function void    ifid_dpi_commit(
     input chandle h, input int rst_n, input int enable, input int flush, input int stall,
     input int i0_fv, input int i1_fv, input int i0_tv, input int i1_tv,
@@ -104,7 +104,7 @@ package dpi_pkg;
     input int i0_brch_en, input int i1_brch_en,
     input int i0_valid_wb, input int i1_valid_wb,
     input int i0_pc_wb, input int i1_pc_wb, input int i0_st_wb, input int i1_st_wb,
-    output int i0_st, output int i1_st);
+    output int i0_st, output int i1_st, output int i0_sv, output int i1_sv);
   import "DPI-C" function void    sbuf_dpi_commit(
     input chandle h, input int i0_valid_wb, input int i1_valid_wb,
     input int i0_pc_wb, input int i1_pc_wb, input int i0_st_wb, input int i1_st_wb);
@@ -128,6 +128,8 @@ package dpi_pkg;
     input  int i0_is_brnch, input int i1_is_brnch,
     input  int i0_is_store, input int i1_is_store,
     input  int i0_spec_en, input int i1_spec_en,
+    input  int i0_state_valid, input int i1_state_valid,
+    input  int i0_brch_state, input int i1_brch_state,
     input  int i0_rd_addr, input int i1_rd_addr,
     input  int wback0_en, input int wback1_en,
     input  int i0_rob_idx_wb, input int i1_rob_idx_wb,
@@ -152,6 +154,8 @@ package dpi_pkg;
     input int i0_is_brnch, input int i1_is_brnch,
     input int i0_is_store, input int i1_is_store,
     input int i0_spec_en, input int i1_spec_en,
+    input int i0_state_valid, input int i1_state_valid,
+    input int i0_brch_state, input int i1_brch_state,
     input int i0_rd_addr, input int i1_rd_addr,
     input int wback0_en, input int wback1_en,
     input int i0_rob_idx_wb, input int i1_rob_idx_wb,

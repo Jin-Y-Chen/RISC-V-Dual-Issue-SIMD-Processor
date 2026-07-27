@@ -18,6 +18,8 @@ struct Entry {
   bool     is_branch = false;
   bool     is_store  = false;
   bool     spec_en   = false;
+  bool     state_valid = false;
+  uint8_t  brch_state  = 0;
   uint8_t  rd        = 0;
   bool     br_taken  = false;
 };
@@ -34,6 +36,10 @@ struct Stim {
   bool     i1_is_store      = false;
   bool     i0_spec_en       = false;
   bool     i1_spec_en       = false;
+  bool     i0_state_valid   = false;
+  bool     i1_state_valid   = false;
+  uint8_t  i0_brch_state    = 0;
+  uint8_t  i1_brch_state    = 0;
   uint8_t  i0_rd_addr       = 0;
   uint8_t  i1_rd_addr       = 0;
   bool     wback0_en        = false;
@@ -124,6 +130,8 @@ void rob_dpi_eval(
     int i0_is_brnch, int i1_is_brnch,
     int i0_is_store, int i1_is_store,
     int i0_spec_en, int i1_spec_en,
+    int i0_state_valid, int i1_state_valid,
+    int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
     int i0_rob_idx_wb, int i1_rob_idx_wb,
@@ -149,6 +157,8 @@ void rob_dpi_commit(
     int i0_is_brnch, int i1_is_brnch,
     int i0_is_store, int i1_is_store,
     int i0_spec_en, int i1_spec_en,
+    int i0_state_valid, int i1_state_valid,
+    int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
     int i0_rob_idx_wb, int i1_rob_idx_wb,

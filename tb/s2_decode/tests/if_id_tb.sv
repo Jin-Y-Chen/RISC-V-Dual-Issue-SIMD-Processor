@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// if_id_tb - DUT vs gm/if_id_gm.sv (flush/stall/enable + per-lane fetch_valid).
+// if_id_tb - DUT vs gm/if_id_gm.sv (flush/stall/enable; IF→ID map).
 
 import rv_dis_pkg::*;
 
@@ -15,24 +15,25 @@ module if_id_tb;
   logic        enable;
   logic        stall;
   logic        flush;
-  logic        i0_fetch_valid, i1_fetch_valid;
-  logic        i0_target_valid_if, i1_target_valid_if;
-  logic        spec0_en_if, spec1_en_if;
-  logic [31:0] i0_instr_if, i1_instr_if;
-  logic [31:0] i0_pc_if, i1_pc_if;
-  logic [31:0] i0_pc_target_if, i1_pc_target_if;
-  logic [31:0] i0_instr_id, i1_instr_id;
-  logic [31:0] i0_pc_id, i1_pc_id;
-  logic [31:0] i0_pc_target_id, i1_pc_target_id;
-  logic        i0_valid_id, i1_valid_id;
-  logic        i0_target_valid_id, i1_target_valid_id;
-  logic        spec0_en_id, spec1_en_id;
+  logic        fetch_valid_if  [2];
+  logic        target_valid_if [2];
+  logic        spec_en_if      [2];
+  instr_t      instr_if        [2];
+  word_t       pc_if           [2];
+  word_t       pc_target_if    [2];
+  instr_t      instr_id         [2];
+  word_t       pc_id            [2];
+  word_t       pc_target_id     [2];
+  logic        fetch_valid_id   [2];
+  logic        target_valid_id  [2];
+  logic        spec_en_id       [2];
 
-  logic [31:0] ref_i0_instr_id, ref_i1_instr_id;
-  logic [31:0] ref_i0_pc_id, ref_i1_pc_id;
-  logic [31:0] ref_i0_pc_target_id, ref_i1_pc_target_id;
-  logic        ref_i0_target_valid_id, ref_i1_target_valid_id;
-  logic        ref_spec0_en_id, ref_spec1_en_id;
+  instr_t      ref_instr_id         [2];
+  word_t       ref_pc_id            [2];
+  word_t       ref_pc_target_id     [2];
+  logic        ref_fetch_valid_id   [2];
+  logic        ref_target_valid_id  [2];
+  logic        ref_spec_en_id       [2];
 
   int pass_cnt;
   int fail_cnt;
@@ -40,33 +41,23 @@ module if_id_tb;
   if_id dut (.*);
 
   if_id_gm u_if_id_gm (
-    .clk                 (clk),
-    .rst_n               (rst_n),
-    .enable              (enable),
-    .flush               (flush),
-    .stall               (stall),
-    .i0_fetch_valid      (i0_fetch_valid),
-    .i1_fetch_valid      (i1_fetch_valid),
-    .i0_target_valid_if  (i0_target_valid_if),
-    .i1_target_valid_if  (i1_target_valid_if),
-    .spec0_en_if         (spec0_en_if),
-    .spec1_en_if         (spec1_en_if),
-    .i0_instr_if         (i0_instr_if),
-    .i1_instr_if         (i1_instr_if),
-    .i0_pc_if            (i0_pc_if),
-    .i1_pc_if            (i1_pc_if),
-    .i0_pc_target_if     (i0_pc_target_if),
-    .i1_pc_target_if     (i1_pc_target_if),
-    .i0_instr_id         (ref_i0_instr_id),
-    .i1_instr_id         (ref_i1_instr_id),
-    .i0_pc_id            (ref_i0_pc_id),
-    .i1_pc_id            (ref_i1_pc_id),
-    .i0_pc_target_id     (ref_i0_pc_target_id),
-    .i1_pc_target_id     (ref_i1_pc_target_id),
-    .i0_target_valid_id  (ref_i0_target_valid_id),
-    .i1_target_valid_id  (ref_i1_target_valid_id),
-    .spec0_en_id         (ref_spec0_en_id),
-    .spec1_en_id         (ref_spec1_en_id)
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .enable          (enable),
+    .flush           (flush),
+    .stall           (stall),
+    .fetch_valid_if  (fetch_valid_if),
+    .target_valid_if (target_valid_if),
+    .spec_en_if      (spec_en_if),
+    .instr_if        (instr_if),
+    .pc_if           (pc_if),
+    .pc_target_if    (pc_target_if),
+    .instr_id        (ref_instr_id),
+    .pc_id           (ref_pc_id),
+    .pc_target_id    (ref_pc_target_id),
+    .fetch_valid_id  (ref_fetch_valid_id),
+    .target_valid_id (ref_target_valid_id),
+    .spec_en_id      (ref_spec_en_id)
   );
 
   initial clk = 1'b0;
@@ -77,45 +68,47 @@ module if_id_tb;
   endtask
 
   task automatic drive_if(
-    input logic        i0_fv,
-    input logic        i1_fv,
-    input logic        i0_tv,
-    input logic        i1_tv,
+    input logic        fv0,
+    input logic        fv1,
+    input logic        tv0,
+    input logic        tv1,
     input logic        spec0_v,
     input logic        spec1_v,
-    input logic [31:0] i0_instr_v,
-    input logic [31:0] i1_instr_v,
-    input logic [31:0] i0_pc_v,
-    input logic [31:0] i1_pc_v,
-    input logic [31:0] i0_pc_target_v,
-    input logic [31:0] i1_pc_target_v
+    input logic [31:0] instr0_v,
+    input logic [31:0] instr1_v,
+    input logic [31:0] pc0_v,
+    input logic [31:0] pc1_v,
+    input logic [31:0] pct0_v,
+    input logic [31:0] pct1_v
   );
-    i0_fetch_valid     = i0_fv;
-    i1_fetch_valid     = i1_fv;
-    i0_target_valid_if = i0_tv;
-    i1_target_valid_if = i1_tv;
-    spec0_en_if     = spec0_v;
-    spec1_en_if     = spec1_v;
-    i0_instr_if     = i0_instr_v;
-    i1_instr_if     = i1_instr_v;
-    i0_pc_if        = i0_pc_v;
-    i1_pc_if        = i1_pc_v;
-    i0_pc_target_if = i0_pc_target_v;
-    i1_pc_target_if = i1_pc_target_v;
+    fetch_valid_if[0]  = fv0;
+    fetch_valid_if[1]  = fv1;
+    target_valid_if[0] = tv0;
+    target_valid_if[1] = tv1;
+    spec_en_if[0]      = spec0_v;
+    spec_en_if[1]      = spec1_v;
+    instr_if[0]        = instr0_v;
+    instr_if[1]        = instr1_v;
+    pc_if[0]           = pc0_v;
+    pc_if[1]           = pc1_v;
+    pc_target_if[0]    = pct0_v;
+    pc_target_if[1]    = pct1_v;
   endtask
 
   task automatic check_id(input string name, input string detail);
     bit pass;
-    pass = (i0_instr_id === ref_i0_instr_id) &&
-           (i1_instr_id === ref_i1_instr_id) &&
-           (i0_pc_id === ref_i0_pc_id) &&
-           (i1_pc_id === ref_i1_pc_id) &&
-           (i0_pc_target_id === ref_i0_pc_target_id) &&
-           (i1_pc_target_id === ref_i1_pc_target_id) &&
-           (i0_target_valid_id === ref_i0_target_valid_id) &&
-           (i1_target_valid_id === ref_i1_target_valid_id) &&
-           (spec0_en_id === ref_spec0_en_id) &&
-           (spec1_en_id === ref_spec1_en_id);
+    pass = (instr_id[0] === ref_instr_id[0]) &&
+           (instr_id[1] === ref_instr_id[1]) &&
+           (pc_id[0] === ref_pc_id[0]) &&
+           (pc_id[1] === ref_pc_id[1]) &&
+           (pc_target_id[0] === ref_pc_target_id[0]) &&
+           (pc_target_id[1] === ref_pc_target_id[1]) &&
+           (fetch_valid_id[0] === ref_fetch_valid_id[0]) &&
+           (fetch_valid_id[1] === ref_fetch_valid_id[1]) &&
+           (target_valid_id[0] === ref_target_valid_id[0]) &&
+           (target_valid_id[1] === ref_target_valid_id[1]) &&
+           (spec_en_id[0] === ref_spec_en_id[0]) &&
+           (spec_en_id[1] === ref_spec_en_id[1]);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
     tb_field_in_bit("clk",                clk);
@@ -123,30 +116,32 @@ module if_id_tb;
     tb_field_in_bit("enable",             enable);
     tb_field_in_bit("flush",              flush);
     tb_field_in_bit("stall",              stall);
-    tb_field_in_bit("i0_fetch_valid",     i0_fetch_valid);
-    tb_field_in_bit("i1_fetch_valid",     i1_fetch_valid);
-    tb_field_in_bit("i0_target_valid_if", i0_target_valid_if);
-    tb_field_in_bit("i1_target_valid_if", i1_target_valid_if);
-    tb_field_in_bit("spec0_en_if",        spec0_en_if);
-    tb_field_in_bit("spec1_en_if",        spec1_en_if);
-    tb_field_in_u32("i0_instr_if",        i0_instr_if);
-    tb_field_in_u32("i1_instr_if",        i1_instr_if);
-    tb_field_in_u32("i0_pc_if",           i0_pc_if);
-    tb_field_in_u32("i1_pc_if",           i1_pc_if);
-    tb_field_in_u32("i0_pc_target_if",    i0_pc_target_if);
-    tb_field_in_u32("i1_pc_target_if",    i1_pc_target_if);
+    tb_field_in_bit("fetch_valid_if[0]",  fetch_valid_if[0]);
+    tb_field_in_bit("fetch_valid_if[1]",  fetch_valid_if[1]);
+    tb_field_in_bit("target_valid_if[0]", target_valid_if[0]);
+    tb_field_in_bit("target_valid_if[1]", target_valid_if[1]);
+    tb_field_in_bit("spec_en_if[0]",      spec_en_if[0]);
+    tb_field_in_bit("spec_en_if[1]",      spec_en_if[1]);
+    tb_field_in_u32("instr_if[0]",        instr_if[0]);
+    tb_field_in_u32("instr_if[1]",        instr_if[1]);
+    tb_field_in_u32("pc_if[0]",           pc_if[0]);
+    tb_field_in_u32("pc_if[1]",           pc_if[1]);
+    tb_field_in_u32("pc_target_if[0]",    pc_target_if[0]);
+    tb_field_in_u32("pc_target_if[1]",    pc_target_if[1]);
     $display("");
     tb_log_section("check");
-    tb_field_bit("i0_target_valid_id", i0_target_valid_id, ref_i0_target_valid_id);
-    tb_field_bit("i1_target_valid_id", i1_target_valid_id, ref_i1_target_valid_id);
-    tb_field_bit("spec0_en_id", spec0_en_id, ref_spec0_en_id);
-    tb_field_bit("spec1_en_id", spec1_en_id, ref_spec1_en_id);
-    tb_field_u32("i0_instr_id", i0_instr_id, ref_i0_instr_id);
-    tb_field_u32("i1_instr_id", i1_instr_id, ref_i1_instr_id);
-    tb_field_u32("i0_pc_id", i0_pc_id, ref_i0_pc_id);
-    tb_field_u32("i1_pc_id", i1_pc_id, ref_i1_pc_id);
-    tb_field_u32("i0_pc_target_id", i0_pc_target_id, ref_i0_pc_target_id);
-    tb_field_u32("i1_pc_target_id", i1_pc_target_id, ref_i1_pc_target_id);
+    tb_field_bit("fetch_valid_id[0]", fetch_valid_id[0], ref_fetch_valid_id[0]);
+    tb_field_bit("fetch_valid_id[1]", fetch_valid_id[1], ref_fetch_valid_id[1]);
+    tb_field_bit("target_valid_id[0]", target_valid_id[0], ref_target_valid_id[0]);
+    tb_field_bit("target_valid_id[1]", target_valid_id[1], ref_target_valid_id[1]);
+    tb_field_bit("spec_en_id[0]", spec_en_id[0], ref_spec_en_id[0]);
+    tb_field_bit("spec_en_id[1]", spec_en_id[1], ref_spec_en_id[1]);
+    tb_field_u32("instr_id[0]", instr_id[0], ref_instr_id[0]);
+    tb_field_u32("instr_id[1]", instr_id[1], ref_instr_id[1]);
+    tb_field_u32("pc_id[0]", pc_id[0], ref_pc_id[0]);
+    tb_field_u32("pc_id[1]", pc_id[1], ref_pc_id[1]);
+    tb_field_u32("pc_target_id[0]", pc_target_id[0], ref_pc_target_id[0]);
+    tb_field_u32("pc_target_id[1]", pc_target_id[1], ref_pc_target_id[1]);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -172,7 +167,7 @@ module if_id_tb;
              32'h00C5_8633, 32'h0052_0213, 32'h0000_1000, 32'h0000_1004,
              32'h0000_1200, 32'h0000_1300);
     tick();
-    check_id("capture_both", "both fetch_valid clocks both lanes");
+    check_id("capture_both", "both lanes map IF → ID");
 
     stall = 1'b1;
     drive_if(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1,
@@ -203,13 +198,13 @@ module if_id_tb;
              32'h0052_0213, 32'h00C5_8633, 32'h0000_1004, 32'h0000_1008,
              32'h0000_1300, 32'h0000_1400);
     tick();
-    check_id("capture_i0_only", "i1 miss: i1 -> INSTR_NOP bubble");
+    check_id("map_i1_miss_flag", "I1 fetch_valid_if=0 still maps payload; flag latched");
 
     drive_if(1'b0, 1'b1, 1'b0, 1'b1, 1'b1, 1'b0,
              32'h1111_1111, 32'h00A0_0293, 32'h0000_2000, 32'h0000_2004,
              32'h0000_2100, 32'h0000_2200);
     tick();
-    check_id("capture_i1_only", "i0 miss: i0 -> INSTR_NOP bubble");
+    check_id("map_i0_miss_flag", "I0 fetch_valid_if=0 still maps payload; flag latched");
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

@@ -6,6 +6,7 @@ import dpi_pkg::*;
 // DPI shim — model/s2_decode/decoder_gm.cpp
 module decoder_gm (
   input  instr_t      instr,
+  input  logic        fetch_valid,
   output logic        lane_sel,
   output logic        brch_en,
   output logic        jump_en,
@@ -28,8 +29,6 @@ module decoder_gm (
   always @(*) begin
     decoder_dpi_eval(int'(instr), ls, be, je, op, f3, f7, rd, rs1, rs2, im, v, u1, u2, st, rw);
     lane_sel  = ls[0];
-    brch_en   = be[0];
-    jump_en   = je[0];
     opcode    = op[6:0];
     funct3    = f3[2:0];
     funct7    = f7[6:0];
@@ -37,11 +36,14 @@ module decoder_gm (
     rs1_addr  = rs1[4:0];
     rs2_addr  = rs2[4:0];
     imm       = im[31:0];
-    valid     = v[0];
     rs1_use   = u1[0];
     rs2_use   = u2[0];
-    store_en  = st[0];
     reg_write = rw[0];
+    // Match RTL: fetch miss clears valid and valid-gated controls
+    valid     = v[0] && fetch_valid;
+    brch_en   = be[0] && fetch_valid;
+    jump_en   = je[0] && fetch_valid;
+    store_en  = st[0] && fetch_valid;
   end
 
 endmodule

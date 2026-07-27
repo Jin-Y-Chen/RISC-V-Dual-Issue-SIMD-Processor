@@ -17,8 +17,6 @@ module rob_scoreboard;
     ok = (dut.i0_rob_idx     === exp.i0_rob_idx)
       && (dut.i1_rob_idx     === exp.i1_rob_idx)
       && (dut.stall          === exp.stall)
-      && (dut.i0_can_retire  === exp.i0_can_retire)
-      && (dut.i1_can_retire  === exp.i1_can_retire)
       && (dut.rrat0_en       === exp.rrat0_en)
       && (dut.rrat1_en       === exp.rrat1_en)
       && (dut.i0_rd_addr_cmt === exp.i0_rd_addr_cmt)
@@ -47,10 +45,6 @@ module rob_scoreboard;
       $display("  EXP: %s", obs_str(exp));
       if (dut.stall !== exp.stall)
         $display("    mismatch stall: dut=%0d exp=%0d", dut.stall, exp.stall);
-      if (dut.i0_can_retire !== exp.i0_can_retire || dut.i1_can_retire !== exp.i1_can_retire)
-        $display("    mismatch can_retire: dut=%0d%0d exp=%0d%0d",
-                 dut.i0_can_retire, dut.i1_can_retire,
-                 exp.i0_can_retire, exp.i1_can_retire);
       if (dut.head !== exp.head || dut.tail !== exp.tail || dut.occ !== exp.occ)
         $display("    mismatch ptr: dut h/t/o=%0d/%0d/%0d exp=%0d/%0d/%0d",
                  dut.head, dut.tail, dut.occ, exp.head, exp.tail, exp.occ);

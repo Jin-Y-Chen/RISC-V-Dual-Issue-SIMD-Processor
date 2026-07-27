@@ -88,7 +88,6 @@ rtl/s6_memory/core/memory_cache.sv
 rtl/s6_memory/core/state_lookup.sv
 rtl/s6_memory/ex_mem.sv
 rtl/s6_memory/memory_core_struct.sv
-rtl/s7_wback/core/retire.sv
 rtl/s7_wback/ex_mem_wb.sv
 rtl/top/risc_dis_unit.sv
 

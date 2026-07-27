@@ -15,27 +15,29 @@ module rob_tb;
 
   logic clk, rst_n;
 
-  // DUT I/O
+  // DUT I/O — [2] arrays (index 0 = I0, 1 = I1)
   logic        flush;
-  logic        alloc0_en, alloc1_en;
-  logic        i0_reg_write, i1_reg_write;
-  logic        i0_is_brnch, i1_is_brnch;
-  logic        i0_is_store, i1_is_store;
-  logic        i0_spec_en, i1_spec_en;
-  gpr_addr_t   i0_rd_addr, i1_rd_addr;
-  prf_addr_t   i0_rob_idx, i1_rob_idx;
+  logic        alloc_en      [2];
+  logic        reg_write     [2];
+  logic        is_brnch      [2];
+  logic        is_store      [2];
+  logic        spec_en       [2];
+  logic        state_valid   [2];
+  br_state_t   brch_state    [2];
+  gpr_addr_t   rd_addr       [2];
+  prf_addr_t   rob_idx       [2];
   logic        stall;
-  logic        wback0_en, wback1_en;
-  prf_addr_t   i0_rob_idx_wb, i1_rob_idx_wb;
-  logic        i0_brch_taken_wb, i1_brch_taken_wb;
-  logic        retire0_en, retire1_en;
-  logic        i0_can_retire, i1_can_retire;
-  logic        rrat0_en, rrat1_en;
-  gpr_addr_t   i0_rd_addr_cmt, i1_rd_addr_cmt;
-  prf_addr_t   i0_rob_idx_cmt, i1_rob_idx_cmt;
-  logic        rat0_en, rat1_en;
-  logic        i0_path_sel, i1_path_sel;
-  logic        stb0_en, stb1_en;
+  logic        wback_en      [2];
+  prf_addr_t   rob_idx_wb    [2];
+  logic        brch_taken_wb [2];
+  logic        retire_en     [2];
+  logic        idx_valid     [2];
+  logic        rrat_en       [2];
+  gpr_addr_t   rd_addr_cmt   [2];
+  prf_addr_t   rob_idx_cmt   [2];
+  logic        rat_en        [2];
+  logic        path_sel      [2];
+  logic        stb_en        [2];
 
   chandle gm;
   int     cycle_id;
@@ -43,49 +45,24 @@ module rob_tb;
 
   reorder_buffer dut (
     .clk, .rst_n, .flush,
-    .alloc0_en, .alloc1_en,
-    .i0_reg_write, .i1_reg_write,
-    .i0_is_brnch, .i1_is_brnch,
-    .i0_is_store, .i1_is_store,
-    .i0_spec_en, .i1_spec_en,
-    .i0_rd_addr, .i1_rd_addr,
-    .i0_rob_idx, .i1_rob_idx,
-    .stall,
-    .wback0_en, .wback1_en,
-    .i0_rob_idx_wb, .i1_rob_idx_wb,
-    .i0_brch_taken_wb, .i1_brch_taken_wb,
-    .retire0_en, .retire1_en,
-    .i0_can_retire, .i1_can_retire,
-    .rrat0_en, .rrat1_en,
-    .i0_rd_addr_cmt, .i1_rd_addr_cmt,
-    .i0_rob_idx_cmt, .i1_rob_idx_cmt,
-    .rat0_en, .rat1_en,
-    .i0_path_sel, .i1_path_sel,
-    .stb0_en, .stb1_en
+    .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
+    .state_valid, .brch_state, .rd_addr, .rob_idx, .idx_valid, .stall,
+    .wback_en, .rob_idx_wb, .brch_taken_wb,
+    .retire_en,
+    .rrat_en, .rd_addr_cmt, .rob_idx_cmt,
+    .rat_en, .path_sel, .stb_en
   );
 
   rob_driver u_drv (
-    .flush, .alloc0_en, .alloc1_en,
-    .i0_reg_write, .i1_reg_write,
-    .i0_is_brnch, .i1_is_brnch,
-    .i0_is_store, .i1_is_store,
-    .i0_spec_en, .i1_spec_en,
-    .i0_rd_addr, .i1_rd_addr,
-    .wback0_en, .wback1_en,
-    .i0_rob_idx_wb, .i1_rob_idx_wb,
-    .i0_brch_taken_wb, .i1_brch_taken_wb,
-    .retire0_en, .retire1_en
+    .flush, .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
+    .state_valid, .brch_state, .rd_addr,
+    .wback_en, .rob_idx_wb, .brch_taken_wb, .retire_en
   );
 
   rob_monitor u_mon (
-    .i0_rob_idx, .i1_rob_idx, .stall,
-    .i0_can_retire, .i1_can_retire,
-    .rrat0_en, .rrat1_en,
-    .i0_rd_addr_cmt, .i1_rd_addr_cmt,
-    .i0_rob_idx_cmt, .i1_rob_idx_cmt,
-    .rat0_en, .rat1_en,
-    .i0_path_sel, .i1_path_sel,
-    .stb0_en, .stb1_en,
+    .rob_idx, .stall,
+    .rrat_en, .rd_addr_cmt, .rob_idx_cmt,
+    .rat_en, .path_sel, .stb_en,
     .head_q(dut.head_q),
     .tail_q(dut.tail_q),
     .occ(dut.occ),
@@ -96,15 +73,16 @@ module rob_tb;
 
   // Protocol assertions (registered-state retire; no WB bypass)
   assert property (@(posedge clk) disable iff (!rst_n)
-    i1_can_retire |-> i0_can_retire)
+    dut.u_retire.ready[1] |-> dut.u_retire.ready[0])
     else $error("protocol: i1_can_retire without i0_can_retire");
 
   assert property (@(posedge clk) disable iff (!rst_n)
-    (rrat0_en || stb0_en || rat0_en) |-> retire0_en)
+    (rrat_en[0] || stb_en[0] || rat_en[0]) |-> retire_en[0])
     else $error("protocol: lane0 commit without retire0_en");
 
   assert property (@(posedge clk) disable iff (!rst_n)
-    (rrat1_en || stb1_en || rat1_en) |-> (retire0_en && retire1_en && i0_can_retire))
+    (rrat_en[1] || stb_en[1] || rat_en[1]) |->
+      (retire_en[0] && retire_en[1] && dut.u_retire.ready[0]))
     else $error("protocol: lane1 commit without dual-retire handshake");
 
   assert property (@(posedge clk) disable iff (!rst_n)
@@ -244,7 +222,7 @@ module rob_tb;
            "Allocate, idle several cycles, then WB; retire one cycle later.");
     do_flush();
     alloc_reg(0, 5'd5, 5'd0, "T4.alloc");
-    tag0 = i0_rob_idx; // sampled after clear — need capture before clear
+    tag0 = rob_idx[0]; // sampled after clear — need capture before clear
     // Re-capture via known mapping: first alloc after flush → p32
     tag0 = rob_to_prf(5'd0);
     do_idle("T4.lat1");

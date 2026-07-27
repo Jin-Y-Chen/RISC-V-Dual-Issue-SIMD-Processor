@@ -53,6 +53,8 @@ typedef struct packed {
   logic       is_branch;
   logic       is_store;
   logic       spec_en;    // 0→path0/map_br1, 1→path1/map_br0
+  logic       state_valid; // BHT hit at decode (0 = default state)
+  br_state_t  brch_state;  // predicted BHT state snapshot
   gpr_addr_t  rd;
   logic       br_taken;
 } rob_payload_t;
@@ -67,15 +69,19 @@ function automatic rob_payload_t rob_entry(
   input logic       is_branch,
   input logic       is_store,
   input logic       spec_en,
+  input logic       state_valid,
+  input br_state_t  brch_state,
   input gpr_addr_t  rd
 );
-  rob_entry.complete  = 1'b0;
-  rob_entry.reg_write = reg_write;
-  rob_entry.is_branch = is_branch;
-  rob_entry.is_store  = is_store;
-  rob_entry.spec_en   = spec_en;
-  rob_entry.rd        = rd;
-  rob_entry.br_taken  = 1'b0;
+  rob_entry.complete    = 1'b0;
+  rob_entry.reg_write   = reg_write;
+  rob_entry.is_branch   = is_branch;
+  rob_entry.is_store    = is_store;
+  rob_entry.spec_en     = spec_en;
+  rob_entry.state_valid = state_valid;
+  rob_entry.brch_state  = brch_state;
+  rob_entry.rd          = rd;
+  rob_entry.br_taken    = 1'b0;
 endfunction
 
 function automatic rob_line_t rob_write(

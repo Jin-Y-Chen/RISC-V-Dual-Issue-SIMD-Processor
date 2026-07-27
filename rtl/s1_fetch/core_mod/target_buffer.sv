@@ -4,7 +4,7 @@ import cache_pkg::*;
 
 // Branch target buffer — combinational dual lookup with same-cycle WB forwarding;
 // bank trains on negedge clk. 8192 entries over 32 KiB I$ (PC[14:2]); 512 sets x 16 ways.
-// Miss / invalid entry => i*_valid=0 and i*_pc_target=32'h0; ports independent.
+// Miss / invalid entry => valid=0 and pc_target=32'h0; ports independent.
 module target_buffer #(
   parameter integer INDEX_W = 13,
   parameter integer DATA_W  = 32,
@@ -15,22 +15,16 @@ module target_buffer #(
   input  wire        rst_n,
 
   //internal controls
-  input  wire        i0_valid_wb,
-  input  wire        i1_valid_wb,
+  input  logic       valid_wb     [2],
 
-  //input data
-  input  word_t      i0_pc,
-  input  word_t      i1_pc,
-  input  word_t      i0_pc_wb,
-  input  word_t      i1_pc_wb,
-  input  word_t      i0_pc_target_wb,
-  input  word_t      i1_pc_target_wb,
+  //input data (dual-issue slot pair)
+  input  word_t      pc           [2],
+  input  word_t      pc_wb        [2],
+  input  word_t      pc_target_wb [2],
 
   //output data
-  output wire        i0_valid,
-  output wire        i1_valid,
-  output wire [31:0] i0_pc_target,
-  output wire [31:0] i1_pc_target
+  output logic       valid        [2],
+  output word_t      pc_target    [2]
 );
 
   localparam integer WAY_AW = (WAYS <= 1) ? 0 : $clog2(WAYS);
@@ -39,60 +33,44 @@ module target_buffer #(
 
   reg [32:0] bank [0:SETS-1][0:WAYS-1];
 
-  wire [15:0] i0_lookup_set;
-  wire [15:0] i0_lookup_way;
-  wire [15:0] i1_lookup_set;
-  wire [15:0] i1_lookup_way;
-  wire [15:0] wb0_set;
-  wire [15:0] wb0_way;
-  wire [15:0] wb1_set;
-  wire [15:0] wb1_way;
-
-  wire [32:0] wb0_entry;
-  wire [32:0] wb1_entry;
-  logic [32:0] i0_entry_fwd;
-  logic [32:0] i1_entry_fwd;
-
-  assign i0_lookup_set = pc_set(i0_pc, WAY_AW, SET_AW);
-  assign i0_lookup_way = pc_way(i0_pc, WAY_AW);
-  assign i1_lookup_set = pc_set(i1_pc, WAY_AW, SET_AW);
-  assign i1_lookup_way = pc_way(i1_pc, WAY_AW);
-  assign wb0_set       = pc_set(i0_pc_wb, WAY_AW, SET_AW);
-  assign wb0_way       = pc_way(i0_pc_wb, WAY_AW);
-  assign wb1_set       = pc_set(i1_pc_wb, WAY_AW, SET_AW);
-  assign wb1_way       = pc_way(i1_pc_wb, WAY_AW);
-  assign wb0_entry     = cache_set_write(1'b1, imm_align4(i0_pc_target_wb), DATA_W);
-  assign wb1_entry     = cache_set_write(1'b1, imm_align4(i1_pc_target_wb), DATA_W);
+  logic [15:0] lookup_set [2];
+  logic [15:0] lookup_way [2];
+  logic [15:0] wb_set     [2];
+  logic [15:0] wb_way     [2];
+  logic [32:0] wb_entry   [2];
+  logic [32:0] entry_fwd  [2];
 
   // -------------------------------------------------------------------------
   // 1. Combinational dual read with forwarding
   // -------------------------------------------------------------------------
   // always_comb (not assign+function): XSim must see full WB sensitivity.
   always_comb begin
-    i0_entry_fwd = bank[i0_lookup_set][i0_lookup_way];
-    if (i0_valid_wb && (wb0_set == i0_lookup_set) && (wb0_way == i0_lookup_way))
-      i0_entry_fwd = wb0_entry;
-    else if (i1_valid_wb && (wb1_set == i0_lookup_set) && (wb1_way == i0_lookup_way))
-      i0_entry_fwd = wb1_entry;
+    for (int i = 0; i < N_DUAL; i++) begin
+      lookup_set[i] = pc_set(pc[i], WAY_AW, SET_AW);
+      lookup_way[i] = pc_way(pc[i], WAY_AW);
+      wb_set[i]     = pc_set(pc_wb[i], WAY_AW, SET_AW);
+      wb_way[i]     = pc_way(pc_wb[i], WAY_AW);
+      wb_entry[i]   = cache_set_write(1'b1, imm_align4(pc_target_wb[i]), DATA_W);
+    end
 
-    i1_entry_fwd = bank[i1_lookup_set][i1_lookup_way];
-    if (i0_valid_wb && (wb0_set == i1_lookup_set) && (wb0_way == i1_lookup_way))
-      i1_entry_fwd = wb0_entry;
-    else if (i1_valid_wb && (wb1_set == i1_lookup_set) && (wb1_way == i1_lookup_way))
-      i1_entry_fwd = wb1_entry;
+    // Per-port hit: bank miss or stored valid=0 => valid=0 and target=0.
+    for (int i = 0; i < N_DUAL; i++) begin
+      entry_fwd[i] = bank[lookup_set[i]][lookup_way[i]];
+      if (valid_wb[0] && (wb_set[0] == lookup_set[i]) && (wb_way[0] == lookup_way[i]))
+        entry_fwd[i] = wb_entry[0];
+      else if (valid_wb[1] && (wb_set[1] == lookup_set[i]) && (wb_way[1] == lookup_way[i]))
+        entry_fwd[i] = wb_entry[1];
+
+      valid[i]     = entry_fwd[i][DATA_W];
+      pc_target[i] = cache_way_read(entry_fwd[i], 32'h0, DATA_W);
+    end
   end
-
-  // Per-port hit: bank miss or stored valid=0 => valid=0 and target=0.
-  assign i0_valid     = i0_entry_fwd[DATA_W];
-  assign i1_valid     = i1_entry_fwd[DATA_W];
-  assign i0_pc_target = cache_way_read(i0_entry_fwd, 32'h0, DATA_W);
-  assign i1_pc_target = cache_way_read(i1_entry_fwd, 32'h0, DATA_W);
 
   // -------------------------------------------------------------------------
   // 2. Sequential falling-edge dual writeback
   // -------------------------------------------------------------------------
   // Training commits on negedge clk. Dual WB can update two slots; same set/way
-  // => both NBAs fire and I1 is the final value. Forwarding above exposes the
+  // => both NBAs fire and lane 1 is the final value. Forwarding above exposes the
   // new target on outputs in the train cycle before the bank register updates.
   integer s;
   integer w;
@@ -104,10 +82,10 @@ module target_buffer #(
         end
       end
     end else begin
-      if (i0_valid_wb)
-        bank[wb0_set][wb0_way] <= wb0_entry;
-      if (i1_valid_wb)
-        bank[wb1_set][wb1_way] <= wb1_entry;
+      if (valid_wb[0])
+        bank[wb_set[0]][wb_way[0]] <= wb_entry[0];
+      if (valid_wb[1])
+        bank[wb_set[1]][wb_way[1]] <= wb_entry[1];
     end
   end
 

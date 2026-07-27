@@ -75,7 +75,6 @@ module s4_execute_struct (
     .rs1_data   (ev0_rs1_data_ex),
     .rs2_data   (ev0_rs2_data_ex),
     .imm        (ev0_imm_ex),
-    .reg_write  (),
     .alu_result (ev0_alu_result)
   );
 
@@ -87,7 +86,6 @@ module s4_execute_struct (
     .rs1_data   (ev1_rs1_data_ex),
     .rs2_data   (ev1_rs2_data_ex),
     .imm        (ev1_imm_ex),
-    .reg_write  (),
     .alu_result (ev1_alu_result)
   );
 

@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 
 // S4 issue: reservation station + PRF + dp_ex demux.
+// Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
 // RS issues tags/controls; PRF supplies operand data; dp_ex buffers data and
 // routes the dual issue pair onto ev0/ev1/od0/od1 by lane_sel.
 // prd is the ROB-owned dest tag (same as ROB index).
@@ -13,38 +14,23 @@ module issue_core_struct (
   input  logic        flush,
   input  logic        stall_ex,
 
-  input  logic        i0_valid_dp,
-  input  logic        i0_lane_sel_dp,
-  input  logic        i0_reg_write_dp,
-  input  logic        i0_spec_en_dp,
-  input  opcode_t     i0_opcode_dp,
-  input  funct3_t     i0_funct3_dp,
-  input  funct7_t     i0_funct7_dp,
-  input  prf_addr_t   i0_ps1_dp,
-  input  prf_addr_t   i0_ps2_dp,
-  input  prf_addr_t   i0_prd_dp,
-  input  word_t       i0_imm_dp,
-  input  word_t       i0_pc_dp,
+  input  logic        valid_dp      [2],
+  input  logic        lane_sel_dp   [2],
+  input  logic        spec_en_dp    [2],
+  input  opcode_t     opcode_dp     [2],
+  input  funct3_t     funct3_dp     [2],
+  input  funct7_t     funct7_dp     [2],
+  input  prf_addr_t   ps1_dp        [2],
+  input  prf_addr_t   ps2_dp        [2],
+  input  logic        tag1_valid_dp [2],
+  input  logic        tag2_valid_dp [2],
+  input  prf_addr_t   prd_dp        [2],
+  input  word_t       imm_dp        [2],
+  input  word_t       pc_dp         [2],
 
-  input  logic        i1_valid_dp,
-  input  logic        i1_lane_sel_dp,
-  input  logic        i1_reg_write_dp,
-  input  logic        i1_spec_en_dp,
-  input  opcode_t     i1_opcode_dp,
-  input  funct3_t     i1_funct3_dp,
-  input  funct7_t     i1_funct7_dp,
-  input  prf_addr_t   i1_ps1_dp,
-  input  prf_addr_t   i1_ps2_dp,
-  input  prf_addr_t   i1_prd_dp,
-  input  word_t       i1_imm_dp,
-  input  word_t       i1_pc_dp,
-
-  input  logic        wb0_en,
-  input  prf_addr_t   wb0_prd,
-  input  word_t       wb0_data,
-  input  logic        wb1_en,
-  input  prf_addr_t   wb1_prd,
-  input  word_t       wb1_data,
+  input  logic        wb_en         [2],
+  input  prf_addr_t   wb_prd        [2],
+  input  word_t       wb_data       [2],
 
   output logic        stall_dp,
 
@@ -91,67 +77,55 @@ module issue_core_struct (
   output word_t       od1_rs2_data_ex
 );
 
-  logic      i0_rs1_use_prf, i0_rs2_use_prf;
-  logic      i1_rs1_use_prf, i1_rs2_use_prf;
-  prf_addr_t i0_ps1_prf, i0_ps2_prf, i1_ps1_prf, i1_ps2_prf;
+  logic      rs1_use_prf [2];
+  logic      rs2_use_prf [2];
+  prf_addr_t ps1_prf     [2];
+  prf_addr_t ps2_prf     [2];
 
-  logic      i0_valid_iss, i1_valid_iss;
-  logic      i0_lane_sel_iss, i1_lane_sel_iss;
-  logic      i0_reg_write_iss, i1_reg_write_iss;
-  opcode_t   i0_opcode_iss, i1_opcode_iss;
-  funct3_t   i0_funct3_iss, i1_funct3_iss;
-  funct7_t   i0_funct7_iss, i1_funct7_iss;
-  prf_addr_t i0_ps1_iss, i0_ps2_iss, i0_prd_iss;
-  prf_addr_t i1_ps1_iss, i1_ps2_iss, i1_prd_iss;
-  word_t     i0_imm_iss, i0_pc_iss, i1_imm_iss, i1_pc_iss;
+  // Rename zeros prd when !reg_write; recover the flag for RS / dp_ex.
+  logic      reg_write_dp [2];
 
-  logic      rs1_use [2], rs2_use [2];
-  prf_addr_t rs1_addr [2], rs2_addr [2];
-  logic      wb_en [2];
-  prf_addr_t wb_prd [2];
-  word_t     wb_data [2];
+  logic      valid_iss     [2];
+  logic      lane_sel_iss  [2];
+  logic      reg_write_iss [2];
+  opcode_t   opcode_iss    [2];
+  funct3_t   funct3_iss    [2];
+  funct7_t   funct7_iss    [2];
+  prf_addr_t prd_iss       [2];
+  word_t     imm_iss       [2];
+  word_t     pc_iss        [2];
+
   word_t     rs1_data [2], rs2_data [2];
 
   logic issue_en;
   assign issue_en = !stall_ex;
 
-  always_comb begin
-    rs1_use[0]  = i0_rs1_use_prf;  rs2_use[0]  = i0_rs2_use_prf;
-    rs1_addr[0] = i0_ps1_prf;      rs2_addr[0] = i0_ps2_prf;
-    rs1_use[1]  = i1_rs1_use_prf;  rs2_use[1]  = i1_rs2_use_prf;
-    rs1_addr[1] = i1_ps1_prf;      rs2_addr[1] = i1_ps2_prf;
-    wb_en[0] = wb0_en; wb_prd[0] = wb0_prd; wb_data[0] = wb0_data;
-    wb_en[1] = wb1_en; wb_prd[1] = wb1_prd; wb_data[1] = wb1_data;
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_rw
+    assign reg_write_dp[i] = (prd_dp[i] != '0);
   end
 
   reservation_station u_rs (
     .clk, .rst_n, .enable, .flush,
-    .i0_valid_dp, .i0_lane_sel_dp, .i0_reg_write_dp, .i0_spec_en_dp,
-    .i0_opcode_dp, .i0_funct3_dp, .i0_funct7_dp,
-    .i0_ps1_dp, .i0_ps2_dp, .i0_prd_dp,
-    .i0_imm_dp, .i0_pc_dp,
-    .i1_valid_dp, .i1_lane_sel_dp, .i1_reg_write_dp, .i1_spec_en_dp,
-    .i1_opcode_dp, .i1_funct3_dp, .i1_funct7_dp,
-    .i1_ps1_dp, .i1_ps2_dp, .i1_prd_dp,
-    .i1_imm_dp, .i1_pc_dp,
-    .wb0_en, .wb0_prd, .wb1_en, .wb1_prd,
+    .valid_dp, .lane_sel_dp, .reg_write_dp, .spec_en_dp,
+    .opcode_dp, .funct3_dp, .funct7_dp,
+    .ps1_dp, .ps2_dp, .tag1_valid_dp, .tag2_valid_dp, .prd_dp,
+    .imm_dp, .pc_dp,
+    .wb_en, .wb_prd,
     .issue_en,
     .stall_dp,
-    .i0_rs1_use_prf, .i0_rs2_use_prf, .i0_ps1_prf, .i0_ps2_prf,
-    .i1_rs1_use_prf, .i1_rs2_use_prf, .i1_ps1_prf, .i1_ps2_prf,
-    .i0_valid_iss, .i0_lane_sel_iss, .i0_reg_write_iss,
-    .i0_opcode_iss, .i0_funct3_iss, .i0_funct7_iss,
-    .i0_ps1_iss, .i0_ps2_iss, .i0_prd_iss,
-    .i0_imm_iss, .i0_pc_iss,
-    .i1_valid_iss, .i1_lane_sel_iss, .i1_reg_write_iss,
-    .i1_opcode_iss, .i1_funct3_iss, .i1_funct7_iss,
-    .i1_ps1_iss, .i1_ps2_iss, .i1_prd_iss,
-    .i1_imm_iss, .i1_pc_iss
+    .rs1_use_prf, .rs2_use_prf, .ps1_prf, .ps2_prf,
+    .valid_iss, .lane_sel_iss, .reg_write_iss,
+    .opcode_iss, .funct3_iss, .funct7_iss,
+    .ps1_iss(), .ps2_iss(), .prd_iss,
+    .imm_iss, .pc_iss
   );
 
   p_register_file u_prf (
     .clk, .rst_n,
-    .rs1_use, .rs2_use, .rs1_addr, .rs2_addr,
+    .rs1_use  (rs1_use_prf),
+    .rs2_use  (rs2_use_prf),
+    .rs1_addr (ps1_prf),
+    .rs2_addr (ps2_prf),
     .wb_en, .wb_prd, .wb_data,
     .rs1_data, .rs2_data
   );
@@ -159,14 +133,10 @@ module issue_core_struct (
   dp_ex u_dp_ex (
     .clk, .rst_n, .enable, .flush,
     .stall(stall_ex),
-    .i0_valid_iss, .i0_lane_sel_iss, .i0_reg_write_iss,
-    .i0_opcode_iss, .i0_funct3_iss, .i0_funct7_iss,
-    .i0_prd_iss, .i0_imm_iss, .i0_pc_iss,
-    .i0_rs1_data(rs1_data[0]), .i0_rs2_data(rs2_data[0]),
-    .i1_valid_iss, .i1_lane_sel_iss, .i1_reg_write_iss,
-    .i1_opcode_iss, .i1_funct3_iss, .i1_funct7_iss,
-    .i1_prd_iss, .i1_imm_iss, .i1_pc_iss,
-    .i1_rs1_data(rs1_data[1]), .i1_rs2_data(rs2_data[1]),
+    .valid_iss, .lane_sel_iss, .reg_write_iss,
+    .opcode_iss, .funct3_iss, .funct7_iss,
+    .prd_iss, .imm_iss, .pc_iss,
+    .rs1_data, .rs2_data,
     .ev0_enable_ex, .ev0_reg_write_ex,
     .ev0_opcode_ex, .ev0_funct3_ex, .ev0_funct7_ex,
     .ev0_prd_ex, .ev0_imm_ex, .ev0_pc_ex,

@@ -2,6 +2,9 @@
 
 Main outline: [../../project_outline.txt](../../project_outline.txt).
 
+Cross-module connectivity (origin / owner / consumers / purpose):
+[../signal_map](../signal_map).
+
 Topics covered there and in spec §16:
 
 - Dual-issue even/odd split with out-of-order execution (rename, ROB, RS)

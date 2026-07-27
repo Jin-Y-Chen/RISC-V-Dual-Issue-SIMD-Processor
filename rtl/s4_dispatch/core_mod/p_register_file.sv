@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 
 // Dual-issue PRF: NUM_PRF x RLEN, 4 read + 2 write ports.
+// Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
 // p0 hardwired zero; same-prd dual WB prefers I1 (younger of the pair).
 //
 // Negedge commit; combo reads with same-cycle WB bypass.

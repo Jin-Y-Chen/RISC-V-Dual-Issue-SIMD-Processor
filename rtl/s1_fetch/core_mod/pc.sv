@@ -3,8 +3,8 @@
 import rv_dis_pkg::*;
 
 // PC unit — registered dual-issue addresses + per-lane speculation flags.
-// mode is local: spec0_in ^ spec1_in => +4/+4 split; else +8/+8.
-// Stall sources: dispatch back-pressure and decode nested-speculation (spec*_stall).
+// mode is local: spec_in[0] ^ spec_in[1] => +4/+4 split; else +8/+8.
+// Stall sources: dispatch back-pressure and decode nested-speculation (spec_stall).
 module pc #(
   parameter word_t RESET_PC = RESET_PC_INIT
 ) (
@@ -15,65 +15,46 @@ module pc #(
 
   // internal controls
   input  logic          dispatch_stall,
-  input  logic          spec0_stall,
-  input  logic          spec1_stall,
-  input  logic          spec0_in,
-  input  logic          spec1_in,
+  input  logic          spec_stall [2],
+  input  logic          spec_in    [2],
 
   // input data
-  input  logic [31:0]   pc0_in,
-  input  logic [31:0]   pc1_in,
+  input  word_t         pc_in      [2],
 
   // output data
-  output logic [31:0]   pc0_out,
-  output logic [31:0]   pc1_out,
+  output word_t         pc_out     [2],
 
   // output controls — registered speculation (fed back to pc_selector)
-  output logic          spec0_out,
-  output logic          spec1_out
+  output logic          spec_out   [2]
 );
 
-  logic [31:0] pc0_next, pc1_next;
-  logic [31:0] pc0_a, pc1_a;
-  logic        stall;
-  logic        mode;
+  word_t pc_next [2];
+  logic  stall;
+  logic  mode;
 
-  function automatic logic [31:0] imm_align4(input logic [31:0] imm);
-    return {imm[31:2], 2'b00};
-  endfunction
-
-  assign stall = dispatch_stall | spec0_stall | spec1_stall;
+  assign stall = dispatch_stall | spec_stall[0] | spec_stall[1];
   // Exactly one next-spec lane => advance each stream by +4; else +8.
-  assign mode  = spec0_in ^ spec1_in;
-  assign pc0_a = imm_align4(pc0_in);
-  assign pc1_a = imm_align4(pc1_in);
+  assign mode  = spec_in[0] ^ spec_in[1];
 
   always_comb begin
-    pc0_next = pc0_out;
-    pc1_next = pc1_out;
-
-    if (!stall && enable) begin
-      if (mode) begin
-        pc0_next = pc0_a + 32'd4;
-        pc1_next = pc1_a + 32'd4;
-      end else begin
-        pc0_next = pc0_a + 32'd8;
-        pc1_next = pc1_a + 32'd8;
-      end
+    for (int i = 0; i < N_DUAL; i++) begin
+      pc_next[i] = pc_out[i];
+      if (!stall && enable)
+        pc_next[i] = imm_align4(pc_in[i]) + (mode ? 32'd4 : 32'd8);
     end
   end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      pc0_out   <= RESET_PC;
-      pc1_out   <= RESET_PC + 32'd4;
-      spec0_out <= 1'b0;
-      spec1_out <= 1'b0;
+      for (int i = 0; i < N_DUAL; i++) begin
+        pc_out[i]   <= RESET_PC + word_t'(4 * i);
+        spec_out[i] <= 1'b0;
+      end
     end else if (enable && !stall) begin
-      pc0_out   <= pc0_next;
-      pc1_out   <= pc1_next;
-      spec0_out <= spec0_in;
-      spec1_out <= spec1_in;
+      for (int i = 0; i < N_DUAL; i++) begin
+        pc_out[i]   <= pc_next[i];
+        spec_out[i] <= spec_in[i];
+      end
     end
   end
 

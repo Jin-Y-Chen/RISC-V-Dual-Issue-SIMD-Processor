@@ -13,29 +13,17 @@ module dp_ex (
   input  logic        flush,
   input  logic        stall,
 
-  input  logic        i0_valid_iss,
-  input  logic        i0_lane_sel_iss,
-  input  logic        i0_reg_write_iss,
-  input  opcode_t     i0_opcode_iss,
-  input  funct3_t     i0_funct3_iss,
-  input  funct7_t     i0_funct7_iss,
-  input  prf_addr_t   i0_prd_iss,
-  input  word_t       i0_imm_iss,
-  input  word_t       i0_pc_iss,
-  input  word_t       i0_rs1_data,
-  input  word_t       i0_rs2_data,
-
-  input  logic        i1_valid_iss,
-  input  logic        i1_lane_sel_iss,
-  input  logic        i1_reg_write_iss,
-  input  opcode_t     i1_opcode_iss,
-  input  funct3_t     i1_funct3_iss,
-  input  funct7_t     i1_funct7_iss,
-  input  prf_addr_t   i1_prd_iss,
-  input  word_t       i1_imm_iss,
-  input  word_t       i1_pc_iss,
-  input  word_t       i1_rs1_data,
-  input  word_t       i1_rs2_data,
+  input  logic        valid_iss     [2],
+  input  logic        lane_sel_iss  [2],
+  input  logic        reg_write_iss [2],
+  input  opcode_t     opcode_iss    [2],
+  input  funct3_t     funct3_iss    [2],
+  input  funct7_t     funct7_iss    [2],
+  input  prf_addr_t   prd_iss       [2],
+  input  word_t       imm_iss       [2],
+  input  word_t       pc_iss        [2],
+  input  word_t       rs1_data      [2],
+  input  word_t       rs2_data      [2],
 
   output logic        ev0_enable_ex,
   output logic        ev0_reg_write_ex,
@@ -80,151 +68,131 @@ module dp_ex (
   output word_t       od1_rs2_data_ex
 );
 
-  logic [2:0] i0_port, i1_port;
+  // EX port ordering held internally; the four flat output groups are the
+  // lane demux seen by execute.
+  localparam int N_PORT   = 4;
+  localparam int P_EV0    = 0;
+  localparam int P_EV1    = 1;
+  localparam int P_OD0    = 2;
+  localparam int P_OD1    = 3;
+  localparam int P_NONE   = 4;
 
+  int port_sel [2];
+
+  // Slot 0 takes the first port of its lane; slot 1 spills to the second.
   always_comb begin
     logic even_used, odd_used;
-    i0_port = 3'd4;
-    i1_port = 3'd4;
     even_used = 1'b0;
     odd_used  = 1'b0;
-
-    if (i0_valid_iss) begin
-      if (i0_lane_sel_iss == 1'b0) begin
-        i0_port   = 3'd0;
-        even_used = 1'b1;
-      end else begin
-        i0_port  = 3'd2;
-        odd_used = 1'b1;
+    for (int i = 0; i < N_DUAL; i++) begin
+      port_sel[i] = P_NONE;
+      if (valid_iss[i]) begin
+        if (lane_sel_iss[i] == 1'b0) begin
+          port_sel[i] = even_used ? P_EV1 : P_EV0;
+          even_used   = 1'b1;
+        end else begin
+          port_sel[i] = odd_used ? P_OD1 : P_OD0;
+          odd_used    = 1'b1;
+        end
       end
     end
-
-    if (i1_valid_iss) begin
-      if (i1_lane_sel_iss == 1'b0)
-        i1_port = even_used ? 3'd1 : 3'd0;
-      else
-        i1_port = odd_used ? 3'd3 : 3'd2;
-    end
   end
 
-  logic        n_ev0_en, n_ev1_en, n_od0_en, n_od1_en;
-  logic        n_ev0_rw, n_ev1_rw, n_od0_rw, n_od1_rw;
-  opcode_t     n_ev0_op, n_ev1_op, n_od0_op, n_od1_op;
-  funct3_t     n_ev0_f3, n_ev1_f3, n_od0_f3, n_od1_f3;
-  funct7_t     n_ev0_f7, n_ev1_f7;
-  prf_addr_t   n_ev0_prd, n_ev1_prd, n_od0_prd, n_od1_prd;
-  word_t       n_ev0_imm, n_ev1_imm, n_od0_imm, n_od1_imm;
-  word_t       n_ev0_pc,  n_ev1_pc,  n_od0_pc,  n_od1_pc;
-  word_t       n_ev0_rs1, n_ev1_rs1, n_od0_rs1, n_od1_rs1;
-  word_t       n_ev0_rs2, n_ev1_rs2, n_od0_rs2, n_od1_rs2;
+  logic      n_en  [N_PORT], n_rw  [N_PORT];
+  opcode_t   n_op  [N_PORT];
+  funct3_t   n_f3  [N_PORT];
+  funct7_t   n_f7  [N_PORT];
+  prf_addr_t n_prd [N_PORT];
+  word_t     n_imm [N_PORT], n_pc [N_PORT], n_rs1 [N_PORT], n_rs2 [N_PORT];
 
   always_comb begin
-    n_ev0_en = 1'b0; n_ev1_en = 1'b0; n_od0_en = 1'b0; n_od1_en = 1'b0;
-    n_ev0_rw = 1'b0; n_ev1_rw = 1'b0; n_od0_rw = 1'b0; n_od1_rw = 1'b0;
-    n_ev0_op = '0; n_ev1_op = '0; n_od0_op = '0; n_od1_op = '0;
-    n_ev0_f3 = '0; n_ev1_f3 = '0; n_od0_f3 = '0; n_od1_f3 = '0;
-    n_ev0_f7 = '0; n_ev1_f7 = '0;
-    n_ev0_prd = '0; n_ev1_prd = '0; n_od0_prd = '0; n_od1_prd = '0;
-    n_ev0_imm = '0; n_ev1_imm = '0; n_od0_imm = '0; n_od1_imm = '0;
-    n_ev0_pc  = '0; n_ev1_pc  = '0; n_od0_pc  = '0; n_od1_pc  = '0;
-    n_ev0_rs1 = '0; n_ev1_rs1 = '0; n_od0_rs1 = '0; n_od1_rs1 = '0;
-    n_ev0_rs2 = '0; n_ev1_rs2 = '0; n_od0_rs2 = '0; n_od1_rs2 = '0;
-
-    if (i0_port == 3'd0) begin
-      n_ev0_en = 1'b1; n_ev0_rw = i0_reg_write_iss;
-      n_ev0_op = i0_opcode_iss; n_ev0_f3 = i0_funct3_iss; n_ev0_f7 = i0_funct7_iss;
-      n_ev0_prd = i0_prd_iss;
-      n_ev0_imm = i0_imm_iss; n_ev0_pc = i0_pc_iss;
-      n_ev0_rs1 = i0_rs1_data; n_ev0_rs2 = i0_rs2_data;
-    end else if (i0_port == 3'd1) begin
-      n_ev1_en = 1'b1; n_ev1_rw = i0_reg_write_iss;
-      n_ev1_op = i0_opcode_iss; n_ev1_f3 = i0_funct3_iss; n_ev1_f7 = i0_funct7_iss;
-      n_ev1_prd = i0_prd_iss;
-      n_ev1_imm = i0_imm_iss; n_ev1_pc = i0_pc_iss;
-      n_ev1_rs1 = i0_rs1_data; n_ev1_rs2 = i0_rs2_data;
-    end else if (i0_port == 3'd2) begin
-      n_od0_en = 1'b1; n_od0_rw = i0_reg_write_iss;
-      n_od0_op = i0_opcode_iss; n_od0_f3 = i0_funct3_iss;
-      n_od0_prd = i0_prd_iss;
-      n_od0_imm = i0_imm_iss; n_od0_pc = i0_pc_iss;
-      n_od0_rs1 = i0_rs1_data; n_od0_rs2 = i0_rs2_data;
-    end else if (i0_port == 3'd3) begin
-      n_od1_en = 1'b1; n_od1_rw = i0_reg_write_iss;
-      n_od1_op = i0_opcode_iss; n_od1_f3 = i0_funct3_iss;
-      n_od1_prd = i0_prd_iss;
-      n_od1_imm = i0_imm_iss; n_od1_pc = i0_pc_iss;
-      n_od1_rs1 = i0_rs1_data; n_od1_rs2 = i0_rs2_data;
+    for (int p = 0; p < N_PORT; p++) begin
+      n_en[p]  = 1'b0; n_rw[p]  = 1'b0;
+      n_op[p]  = '0;   n_f3[p]  = '0;   n_f7[p] = '0;
+      n_prd[p] = '0;   n_imm[p] = '0;   n_pc[p] = '0;
+      n_rs1[p] = '0;   n_rs2[p] = '0;
     end
-
-    if (i1_port == 3'd0) begin
-      n_ev0_en = 1'b1; n_ev0_rw = i1_reg_write_iss;
-      n_ev0_op = i1_opcode_iss; n_ev0_f3 = i1_funct3_iss; n_ev0_f7 = i1_funct7_iss;
-      n_ev0_prd = i1_prd_iss;
-      n_ev0_imm = i1_imm_iss; n_ev0_pc = i1_pc_iss;
-      n_ev0_rs1 = i1_rs1_data; n_ev0_rs2 = i1_rs2_data;
-    end else if (i1_port == 3'd1) begin
-      n_ev1_en = 1'b1; n_ev1_rw = i1_reg_write_iss;
-      n_ev1_op = i1_opcode_iss; n_ev1_f3 = i1_funct3_iss; n_ev1_f7 = i1_funct7_iss;
-      n_ev1_prd = i1_prd_iss;
-      n_ev1_imm = i1_imm_iss; n_ev1_pc = i1_pc_iss;
-      n_ev1_rs1 = i1_rs1_data; n_ev1_rs2 = i1_rs2_data;
-    end else if (i1_port == 3'd2) begin
-      n_od0_en = 1'b1; n_od0_rw = i1_reg_write_iss;
-      n_od0_op = i1_opcode_iss; n_od0_f3 = i1_funct3_iss;
-      n_od0_prd = i1_prd_iss;
-      n_od0_imm = i1_imm_iss; n_od0_pc = i1_pc_iss;
-      n_od0_rs1 = i1_rs1_data; n_od0_rs2 = i1_rs2_data;
-    end else if (i1_port == 3'd3) begin
-      n_od1_en = 1'b1; n_od1_rw = i1_reg_write_iss;
-      n_od1_op = i1_opcode_iss; n_od1_f3 = i1_funct3_iss;
-      n_od1_prd = i1_prd_iss;
-      n_od1_imm = i1_imm_iss; n_od1_pc = i1_pc_iss;
-      n_od1_rs1 = i1_rs1_data; n_od1_rs2 = i1_rs2_data;
+    for (int i = 0; i < N_DUAL; i++) begin
+      if (port_sel[i] != P_NONE) begin
+        n_en[port_sel[i]]  = 1'b1;
+        n_rw[port_sel[i]]  = reg_write_iss[i];
+        n_op[port_sel[i]]  = opcode_iss[i];
+        n_f3[port_sel[i]]  = funct3_iss[i];
+        n_f7[port_sel[i]]  = funct7_iss[i];
+        n_prd[port_sel[i]] = prd_iss[i];
+        n_imm[port_sel[i]] = imm_iss[i];
+        n_pc[port_sel[i]]  = pc_iss[i];
+        n_rs1[port_sel[i]] = rs1_data[i];
+        n_rs2[port_sel[i]] = rs2_data[i];
+      end
     end
   end
+
+  logic      q_en  [N_PORT], q_rw  [N_PORT];
+  opcode_t   q_op  [N_PORT];
+  funct3_t   q_f3  [N_PORT];
+  funct7_t   q_f7  [N_PORT];
+  prf_addr_t q_prd [N_PORT];
+  word_t     q_imm [N_PORT], q_pc [N_PORT], q_rs1 [N_PORT], q_rs2 [N_PORT];
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
-      ev0_enable_ex <= 1'b0; ev0_reg_write_ex <= 1'b0;
-      ev0_opcode_ex <= '0; ev0_funct3_ex <= '0; ev0_funct7_ex <= '0;
-      ev0_prd_ex <= '0; ev0_imm_ex <= '0; ev0_pc_ex <= '0;
-      ev0_rs1_data_ex <= '0; ev0_rs2_data_ex <= '0;
-
-      ev1_enable_ex <= 1'b0; ev1_reg_write_ex <= 1'b0;
-      ev1_opcode_ex <= '0; ev1_funct3_ex <= '0; ev1_funct7_ex <= '0;
-      ev1_prd_ex <= '0; ev1_imm_ex <= '0; ev1_pc_ex <= '0;
-      ev1_rs1_data_ex <= '0; ev1_rs2_data_ex <= '0;
-
-      od0_enable_ex <= 1'b0; od0_reg_write_ex <= 1'b0;
-      od0_opcode_ex <= '0; od0_funct3_ex <= '0;
-      od0_prd_ex <= '0; od0_imm_ex <= '0; od0_pc_ex <= '0;
-      od0_rs1_data_ex <= '0; od0_rs2_data_ex <= '0;
-
-      od1_enable_ex <= 1'b0; od1_reg_write_ex <= 1'b0;
-      od1_opcode_ex <= '0; od1_funct3_ex <= '0;
-      od1_prd_ex <= '0; od1_imm_ex <= '0; od1_pc_ex <= '0;
-      od1_rs1_data_ex <= '0; od1_rs2_data_ex <= '0;
+      for (int p = 0; p < N_PORT; p++) begin
+        q_en[p]  <= 1'b0; q_rw[p]  <= 1'b0;
+        q_op[p]  <= '0;   q_f3[p]  <= '0;   q_f7[p] <= '0;
+        q_prd[p] <= '0;   q_imm[p] <= '0;   q_pc[p] <= '0;
+        q_rs1[p] <= '0;   q_rs2[p] <= '0;
+      end
     end else if (enable && !stall) begin
-      ev0_enable_ex <= n_ev0_en; ev0_reg_write_ex <= n_ev0_rw;
-      ev0_opcode_ex <= n_ev0_op; ev0_funct3_ex <= n_ev0_f3; ev0_funct7_ex <= n_ev0_f7;
-      ev0_prd_ex <= n_ev0_prd; ev0_imm_ex <= n_ev0_imm; ev0_pc_ex <= n_ev0_pc;
-      ev0_rs1_data_ex <= n_ev0_rs1; ev0_rs2_data_ex <= n_ev0_rs2;
-
-      ev1_enable_ex <= n_ev1_en; ev1_reg_write_ex <= n_ev1_rw;
-      ev1_opcode_ex <= n_ev1_op; ev1_funct3_ex <= n_ev1_f3; ev1_funct7_ex <= n_ev1_f7;
-      ev1_prd_ex <= n_ev1_prd; ev1_imm_ex <= n_ev1_imm; ev1_pc_ex <= n_ev1_pc;
-      ev1_rs1_data_ex <= n_ev1_rs1; ev1_rs2_data_ex <= n_ev1_rs2;
-
-      od0_enable_ex <= n_od0_en; od0_reg_write_ex <= n_od0_rw;
-      od0_opcode_ex <= n_od0_op; od0_funct3_ex <= n_od0_f3;
-      od0_prd_ex <= n_od0_prd; od0_imm_ex <= n_od0_imm; od0_pc_ex <= n_od0_pc;
-      od0_rs1_data_ex <= n_od0_rs1; od0_rs2_data_ex <= n_od0_rs2;
-
-      od1_enable_ex <= n_od1_en; od1_reg_write_ex <= n_od1_rw;
-      od1_opcode_ex <= n_od1_op; od1_funct3_ex <= n_od1_f3;
-      od1_prd_ex <= n_od1_prd; od1_imm_ex <= n_od1_imm; od1_pc_ex <= n_od1_pc;
-      od1_rs1_data_ex <= n_od1_rs1; od1_rs2_data_ex <= n_od1_rs2;
+      for (int p = 0; p < N_PORT; p++) begin
+        q_en[p]  <= n_en[p];  q_rw[p]  <= n_rw[p];
+        q_op[p]  <= n_op[p];  q_f3[p]  <= n_f3[p];  q_f7[p] <= n_f7[p];
+        q_prd[p] <= n_prd[p]; q_imm[p] <= n_imm[p]; q_pc[p] <= n_pc[p];
+        q_rs1[p] <= n_rs1[p]; q_rs2[p] <= n_rs2[p];
+      end
     end
   end
+
+  assign ev0_enable_ex    = q_en[P_EV0];
+  assign ev0_reg_write_ex = q_rw[P_EV0];
+  assign ev0_opcode_ex    = q_op[P_EV0];
+  assign ev0_funct3_ex    = q_f3[P_EV0];
+  assign ev0_funct7_ex    = q_f7[P_EV0];
+  assign ev0_prd_ex       = q_prd[P_EV0];
+  assign ev0_imm_ex       = q_imm[P_EV0];
+  assign ev0_pc_ex        = q_pc[P_EV0];
+  assign ev0_rs1_data_ex  = q_rs1[P_EV0];
+  assign ev0_rs2_data_ex  = q_rs2[P_EV0];
+
+  assign ev1_enable_ex    = q_en[P_EV1];
+  assign ev1_reg_write_ex = q_rw[P_EV1];
+  assign ev1_opcode_ex    = q_op[P_EV1];
+  assign ev1_funct3_ex    = q_f3[P_EV1];
+  assign ev1_funct7_ex    = q_f7[P_EV1];
+  assign ev1_prd_ex       = q_prd[P_EV1];
+  assign ev1_imm_ex       = q_imm[P_EV1];
+  assign ev1_pc_ex        = q_pc[P_EV1];
+  assign ev1_rs1_data_ex  = q_rs1[P_EV1];
+  assign ev1_rs2_data_ex  = q_rs2[P_EV1];
+
+  assign od0_enable_ex    = q_en[P_OD0];
+  assign od0_reg_write_ex = q_rw[P_OD0];
+  assign od0_opcode_ex    = q_op[P_OD0];
+  assign od0_funct3_ex    = q_f3[P_OD0];
+  assign od0_prd_ex       = q_prd[P_OD0];
+  assign od0_imm_ex       = q_imm[P_OD0];
+  assign od0_pc_ex        = q_pc[P_OD0];
+  assign od0_rs1_data_ex  = q_rs1[P_OD0];
+  assign od0_rs2_data_ex  = q_rs2[P_OD0];
+
+  assign od1_enable_ex    = q_en[P_OD1];
+  assign od1_reg_write_ex = q_rw[P_OD1];
+  assign od1_opcode_ex    = q_op[P_OD1];
+  assign od1_funct3_ex    = q_f3[P_OD1];
+  assign od1_prd_ex       = q_prd[P_OD1];
+  assign od1_imm_ex       = q_imm[P_OD1];
+  assign od1_pc_ex        = q_pc[P_OD1];
+  assign od1_rs1_data_ex  = q_rs1[P_OD1];
+  assign od1_rs2_data_ex  = q_rs2[P_OD1];
 
 endmodule

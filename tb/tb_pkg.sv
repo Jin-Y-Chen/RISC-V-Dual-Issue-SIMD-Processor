@@ -15,6 +15,8 @@ package tb_pkg;
     logic      i0_is_brnch, i1_is_brnch;
     logic      i0_is_store, i1_is_store;
     logic      i0_spec_en, i1_spec_en;
+    logic      i0_state_valid, i1_state_valid;
+    br_state_t i0_brch_state, i1_brch_state;
     gpr_addr_t i0_rd_addr, i1_rd_addr;
     logic      wback0_en, wback1_en;
     prf_addr_t i0_rob_idx_wb, i1_rob_idx_wb;
@@ -97,6 +99,8 @@ package tb_pkg;
       int'(s.i0_is_brnch), int'(s.i1_is_brnch),
       int'(s.i0_is_store), int'(s.i1_is_store),
       int'(s.i0_spec_en), int'(s.i1_spec_en),
+      int'(s.i0_state_valid), int'(s.i1_state_valid),
+      int'(s.i0_brch_state), int'(s.i1_brch_state),
       int'(s.i0_rd_addr), int'(s.i1_rd_addr),
       int'(s.wback0_en), int'(s.wback1_en),
       int'(s.i0_rob_idx_wb), int'(s.i1_rob_idx_wb),
@@ -136,6 +140,8 @@ package tb_pkg;
       int'(s.i0_is_brnch), int'(s.i1_is_brnch),
       int'(s.i0_is_store), int'(s.i1_is_store),
       int'(s.i0_spec_en), int'(s.i1_spec_en),
+      int'(s.i0_state_valid), int'(s.i1_state_valid),
+      int'(s.i0_brch_state), int'(s.i1_brch_state),
       int'(s.i0_rd_addr), int'(s.i1_rd_addr),
       int'(s.wback0_en), int'(s.wback1_en),
       int'(s.i0_rob_idx_wb), int'(s.i1_rob_idx_wb),

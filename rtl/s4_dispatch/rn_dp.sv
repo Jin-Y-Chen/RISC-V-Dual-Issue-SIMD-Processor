@@ -1,7 +1,9 @@
 `timescale 1ns / 1ps
 
 // RN/DP pipeline register — renamed tags/controls held while RS is full.
-// Only fields consumed by issue (RS + PRF + dp_ex) are latched.
+// Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
+// Latches ROB valid + RAT source-valid with renamed tags for the RS.
+// reg_write is implied by prd != 0 (rename zeros prd for non-writes).
 import rv_dis_pkg::*;
 
 module rn_dp (
@@ -12,114 +14,70 @@ module rn_dp (
   input  logic        stall_dp,
   output logic        stall_rn,
 
-  input  logic        i0_valid_rn,
-  input  logic        i0_lane_sel_rn,
-  input  logic        i0_reg_write_rn,
-  input  logic        i0_spec_en_rn,
-  input  opcode_t     i0_opcode_rn,
-  input  funct3_t     i0_funct3_rn,
-  input  funct7_t     i0_funct7_rn,
-  input  prf_addr_t   i0_ps1_rn,
-  input  prf_addr_t   i0_ps2_rn,
-  input  prf_addr_t   i0_prd_rn,
-  input  word_t       i0_imm_rn,
-  input  word_t       i0_pc_rn,
+  input  logic        valid_rn       [2],
+  input  logic        lane_sel_rn    [2],
+  input  logic        spec_en_rn     [2],
+  input  opcode_t     opcode_rn      [2],
+  input  funct3_t     funct3_rn      [2],
+  input  funct7_t     funct7_rn      [2],
+  input  prf_addr_t   ps1_rn         [2],
+  input  prf_addr_t   ps2_rn         [2],
+  input  logic        tag1_valid_rn  [2],
+  input  logic        tag2_valid_rn  [2],
+  input  prf_addr_t   prd_rn         [2],
+  input  word_t       imm_rn         [2],
+  input  word_t       pc_rn          [2],
 
-  input  logic        i1_valid_rn,
-  input  logic        i1_lane_sel_rn,
-  input  logic        i1_reg_write_rn,
-  input  logic        i1_spec_en_rn,
-  input  opcode_t     i1_opcode_rn,
-  input  funct3_t     i1_funct3_rn,
-  input  funct7_t     i1_funct7_rn,
-  input  prf_addr_t   i1_ps1_rn,
-  input  prf_addr_t   i1_ps2_rn,
-  input  prf_addr_t   i1_prd_rn,
-  input  word_t       i1_imm_rn,
-  input  word_t       i1_pc_rn,
-
-  output logic        i0_valid_dp,
-  output logic        i0_lane_sel_dp,
-  output logic        i0_reg_write_dp,
-  output logic        i0_spec_en_dp,
-  output opcode_t     i0_opcode_dp,
-  output funct3_t     i0_funct3_dp,
-  output funct7_t     i0_funct7_dp,
-  output prf_addr_t   i0_ps1_dp,
-  output prf_addr_t   i0_ps2_dp,
-  output prf_addr_t   i0_prd_dp,
-  output word_t       i0_imm_dp,
-  output word_t       i0_pc_dp,
-
-  output logic        i1_valid_dp,
-  output logic        i1_lane_sel_dp,
-  output logic        i1_reg_write_dp,
-  output logic        i1_spec_en_dp,
-  output opcode_t     i1_opcode_dp,
-  output funct3_t     i1_funct3_dp,
-  output funct7_t     i1_funct7_dp,
-  output prf_addr_t   i1_ps1_dp,
-  output prf_addr_t   i1_ps2_dp,
-  output prf_addr_t   i1_prd_dp,
-  output word_t       i1_imm_dp,
-  output word_t       i1_pc_dp
+  output logic        valid_dp       [2],
+  output logic        lane_sel_dp    [2],
+  output logic        spec_en_dp     [2],
+  output opcode_t     opcode_dp      [2],
+  output funct3_t     funct3_dp      [2],
+  output funct7_t     funct7_dp      [2],
+  output prf_addr_t   ps1_dp         [2],
+  output prf_addr_t   ps2_dp         [2],
+  output logic        tag1_valid_dp  [2],
+  output logic        tag2_valid_dp  [2],
+  output prf_addr_t   prd_dp         [2],
+  output word_t       imm_dp         [2],
+  output word_t       pc_dp          [2]
 );
 
   assign stall_rn = stall_dp;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
-      i0_valid_dp     <= 1'b0;
-      i0_lane_sel_dp  <= 1'b0;
-      i0_reg_write_dp <= 1'b0;
-      i0_spec_en_dp   <= 1'b0;
-      i0_opcode_dp    <= '0;
-      i0_funct3_dp    <= '0;
-      i0_funct7_dp    <= '0;
-      i0_ps1_dp       <= '0;
-      i0_ps2_dp       <= '0;
-      i0_prd_dp       <= '0;
-      i0_imm_dp       <= '0;
-      i0_pc_dp        <= '0;
-
-      i1_valid_dp     <= 1'b0;
-      i1_lane_sel_dp  <= 1'b0;
-      i1_reg_write_dp <= 1'b0;
-      i1_spec_en_dp   <= 1'b0;
-      i1_opcode_dp    <= '0;
-      i1_funct3_dp    <= '0;
-      i1_funct7_dp    <= '0;
-      i1_ps1_dp       <= '0;
-      i1_ps2_dp       <= '0;
-      i1_prd_dp       <= '0;
-      i1_imm_dp       <= '0;
-      i1_pc_dp        <= '0;
+      for (int i = 0; i < N_DUAL; i++) begin
+        valid_dp[i]      <= 1'b0;
+        lane_sel_dp[i]   <= 1'b0;
+        spec_en_dp[i]    <= 1'b0;
+        opcode_dp[i]     <= '0;
+        funct3_dp[i]     <= '0;
+        funct7_dp[i]     <= '0;
+        ps1_dp[i]        <= '0;
+        ps2_dp[i]        <= '0;
+        tag1_valid_dp[i] <= 1'b0;
+        tag2_valid_dp[i] <= 1'b0;
+        prd_dp[i]        <= '0;
+        imm_dp[i]        <= '0;
+        pc_dp[i]         <= '0;
+      end
     end else if (enable && !stall_dp) begin
-      i0_valid_dp     <= i0_valid_rn;
-      i0_lane_sel_dp  <= i0_lane_sel_rn;
-      i0_reg_write_dp <= i0_reg_write_rn;
-      i0_spec_en_dp   <= i0_spec_en_rn;
-      i0_opcode_dp    <= i0_opcode_rn;
-      i0_funct3_dp    <= i0_funct3_rn;
-      i0_funct7_dp    <= i0_funct7_rn;
-      i0_ps1_dp       <= i0_ps1_rn;
-      i0_ps2_dp       <= i0_ps2_rn;
-      i0_prd_dp       <= i0_prd_rn;
-      i0_imm_dp       <= i0_imm_rn;
-      i0_pc_dp        <= i0_pc_rn;
-
-      i1_valid_dp     <= i1_valid_rn;
-      i1_lane_sel_dp  <= i1_lane_sel_rn;
-      i1_reg_write_dp <= i1_reg_write_rn;
-      i1_spec_en_dp   <= i1_spec_en_rn;
-      i1_opcode_dp    <= i1_opcode_rn;
-      i1_funct3_dp    <= i1_funct3_rn;
-      i1_funct7_dp    <= i1_funct7_rn;
-      i1_ps1_dp       <= i1_ps1_rn;
-      i1_ps2_dp       <= i1_ps2_rn;
-      i1_prd_dp       <= i1_prd_rn;
-      i1_imm_dp       <= i1_imm_rn;
-      i1_pc_dp        <= i1_pc_rn;
+      for (int i = 0; i < N_DUAL; i++) begin
+        valid_dp[i]      <= valid_rn[i];
+        lane_sel_dp[i]   <= lane_sel_rn[i];
+        spec_en_dp[i]    <= spec_en_rn[i];
+        opcode_dp[i]     <= opcode_rn[i];
+        funct3_dp[i]     <= funct3_rn[i];
+        funct7_dp[i]     <= funct7_rn[i];
+        ps1_dp[i]        <= ps1_rn[i];
+        ps2_dp[i]        <= ps2_rn[i];
+        tag1_valid_dp[i] <= tag1_valid_rn[i];
+        tag2_valid_dp[i] <= tag2_valid_rn[i];
+        prd_dp[i]        <= prd_rn[i];
+        imm_dp[i]        <= imm_rn[i];
+        pc_dp[i]         <= pc_rn[i];
+      end
     end
   end
 

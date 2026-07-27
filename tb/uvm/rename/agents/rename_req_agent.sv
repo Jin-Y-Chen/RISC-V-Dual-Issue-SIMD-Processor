@@ -5,6 +5,9 @@ class rename_req_item extends rv_base_seq_item;
   rand bit          lane_sel[2];
   rand bit          reg_write[2];
   rand bit          store_en[2];
+  rand bit          brch_en[2];
+  rand bit          state_valid[2];
+  rand br_state_t   brch_state[2];
   rand bit          rs1_use[2];
   rand bit          rs2_use[2];
   rand opcode_t     opcode[2];
@@ -20,7 +23,7 @@ class rename_req_item extends rv_base_seq_item;
   logic             stall;
   logic             valid[2];
   prf_addr_t        ps1[2], ps2[2], prd[2];
-  prf_addr_t         rob_idx[2];
+  prf_addr_t        rob_idx[2];  // refmodel-only: expected ROB slot for scoreboard
 
   constraint c_reset { flush dist {0 := 99, 1 := 1}; }
   constraint c_regs  {
@@ -32,6 +35,11 @@ class rename_req_item extends rv_base_seq_item;
     foreach (opcode[i])
       opcode[i] inside {7'b0, OPC_OP, OPC_OP_IMM, OPC_LOAD, OPC_STORE,
                         OPC_BRANCH, OPC_JAL, OPC_JALR, OPC_AUIPC, OPC_LUI};
+  }
+  // Match decode_brch_en: BRANCH / JAL / JALR
+  constraint c_brch_en {
+    foreach (brch_en[i])
+      brch_en[i] == (opcode[i] inside {OPC_BRANCH, OPC_JAL, OPC_JALR});
   }
 
   `uvm_object_utils(rename_req_item)
@@ -78,71 +86,39 @@ class rename_req_driver extends rv_base_driver #(rename_req_item);
   endtask
 
   task drive_idle();
-    vif.req_drv_cb.flush           <= 1'b0;
-    vif.req_drv_cb.spec0_en_rn     <= 1'b0;
-    vif.req_drv_cb.spec1_en_rn     <= 1'b0;
-    vif.req_drv_cb.i0_valid_rn     <= 1'b0;
-    vif.req_drv_cb.i1_valid_rn     <= 1'b0;
-    vif.req_drv_cb.i0_lane_sel_rn  <= 1'b0;
-    vif.req_drv_cb.i1_lane_sel_rn  <= 1'b0;
-    vif.req_drv_cb.i0_reg_write_rn <= 1'b0;
-    vif.req_drv_cb.i1_reg_write_rn <= 1'b0;
-    vif.req_drv_cb.i0_store_en_rn  <= 1'b0;
-    vif.req_drv_cb.i1_store_en_rn  <= 1'b0;
-    vif.req_drv_cb.i0_rs1_use_rn   <= 1'b0;
-    vif.req_drv_cb.i0_rs2_use_rn   <= 1'b0;
-    vif.req_drv_cb.i1_rs1_use_rn   <= 1'b0;
-    vif.req_drv_cb.i1_rs2_use_rn   <= 1'b0;
-    vif.req_drv_cb.i0_opcode_rn    <= '0;
-    vif.req_drv_cb.i1_opcode_rn    <= '0;
-    vif.req_drv_cb.i0_funct3_rn    <= '0;
-    vif.req_drv_cb.i1_funct3_rn    <= '0;
-    vif.req_drv_cb.i0_funct7_rn    <= '0;
-    vif.req_drv_cb.i1_funct7_rn    <= '0;
-    vif.req_drv_cb.i0_rd_addr_rn   <= '0;
-    vif.req_drv_cb.i0_rs1_addr_rn  <= '0;
-    vif.req_drv_cb.i0_rs2_addr_rn  <= '0;
-    vif.req_drv_cb.i1_rd_addr_rn   <= '0;
-    vif.req_drv_cb.i1_rs1_addr_rn  <= '0;
-    vif.req_drv_cb.i1_rs2_addr_rn  <= '0;
-    vif.req_drv_cb.i0_imm_rn       <= '0;
-    vif.req_drv_cb.i1_imm_rn       <= '0;
-    vif.req_drv_cb.i0_pc_rn        <= '0;
-    vif.req_drv_cb.i1_pc_rn        <= '0;
+    vif.req_drv_cb.flush <= 1'b0;
+    foreach (vif.req_drv_cb.spec_en_rn[i]) begin
+      vif.req_drv_cb.spec_en_rn[i]     <= 1'b0;
+      vif.req_drv_cb.valid_rn[i]       <= 1'b0;
+      vif.req_drv_cb.reg_write_rn[i]   <= 1'b0;
+      vif.req_drv_cb.store_en_rn[i]    <= 1'b0;
+      vif.req_drv_cb.brch_en_rn[i]     <= 1'b0;
+      vif.req_drv_cb.state_valid_rn[i] <= 1'b0;
+      vif.req_drv_cb.brch_state_rn[i]  <= '0;
+      vif.req_drv_cb.rs1_use_rn[i]     <= 1'b0;
+      vif.req_drv_cb.rs2_use_rn[i]     <= 1'b0;
+      vif.req_drv_cb.rd_addr_rn[i]     <= '0;
+      vif.req_drv_cb.rs1_addr_rn[i]    <= '0;
+      vif.req_drv_cb.rs2_addr_rn[i]    <= '0;
+    end
   endtask
 
   task drive(rename_req_item t);
-    vif.req_drv_cb.flush           <= t.flush;
-    vif.req_drv_cb.spec0_en_rn     <= t.spec_en[0];
-    vif.req_drv_cb.spec1_en_rn     <= t.spec_en[1];
-    vif.req_drv_cb.i0_valid_rn     <= t.valid_rn[0];
-    vif.req_drv_cb.i1_valid_rn     <= t.valid_rn[1];
-    vif.req_drv_cb.i0_lane_sel_rn  <= t.lane_sel[0];
-    vif.req_drv_cb.i1_lane_sel_rn  <= t.lane_sel[1];
-    vif.req_drv_cb.i0_reg_write_rn <= t.reg_write[0];
-    vif.req_drv_cb.i1_reg_write_rn <= t.reg_write[1];
-    vif.req_drv_cb.i0_store_en_rn  <= t.store_en[0];
-    vif.req_drv_cb.i1_store_en_rn  <= t.store_en[1];
-    vif.req_drv_cb.i0_rs1_use_rn   <= t.rs1_use[0];
-    vif.req_drv_cb.i0_rs2_use_rn   <= t.rs2_use[0];
-    vif.req_drv_cb.i1_rs1_use_rn   <= t.rs1_use[1];
-    vif.req_drv_cb.i1_rs2_use_rn   <= t.rs2_use[1];
-    vif.req_drv_cb.i0_opcode_rn    <= t.opcode[0];
-    vif.req_drv_cb.i1_opcode_rn    <= t.opcode[1];
-    vif.req_drv_cb.i0_funct3_rn    <= t.funct3[0];
-    vif.req_drv_cb.i1_funct3_rn    <= t.funct3[1];
-    vif.req_drv_cb.i0_funct7_rn    <= t.funct7[0];
-    vif.req_drv_cb.i1_funct7_rn    <= t.funct7[1];
-    vif.req_drv_cb.i0_rd_addr_rn   <= t.rd[0];
-    vif.req_drv_cb.i0_rs1_addr_rn  <= t.rs1[0];
-    vif.req_drv_cb.i0_rs2_addr_rn  <= t.rs2[0];
-    vif.req_drv_cb.i1_rd_addr_rn   <= t.rd[1];
-    vif.req_drv_cb.i1_rs1_addr_rn  <= t.rs1[1];
-    vif.req_drv_cb.i1_rs2_addr_rn  <= t.rs2[1];
-    vif.req_drv_cb.i0_imm_rn       <= t.imm[0];
-    vif.req_drv_cb.i1_imm_rn       <= t.imm[1];
-    vif.req_drv_cb.i0_pc_rn        <= t.pc[0];
-    vif.req_drv_cb.i1_pc_rn        <= t.pc[1];
+    vif.req_drv_cb.flush <= t.flush;
+    foreach (t.valid_rn[i]) begin
+      vif.req_drv_cb.spec_en_rn[i]     <= t.spec_en[i];
+      vif.req_drv_cb.valid_rn[i]       <= t.valid_rn[i];
+      vif.req_drv_cb.reg_write_rn[i]   <= t.reg_write[i];
+      vif.req_drv_cb.store_en_rn[i]    <= t.store_en[i];
+      vif.req_drv_cb.brch_en_rn[i]     <= (t.opcode[i] inside {OPC_BRANCH, OPC_JAL, OPC_JALR});
+      vif.req_drv_cb.state_valid_rn[i] <= t.state_valid[i];
+      vif.req_drv_cb.brch_state_rn[i]  <= t.brch_state[i];
+      vif.req_drv_cb.rs1_use_rn[i]     <= t.rs1_use[i];
+      vif.req_drv_cb.rs2_use_rn[i]     <= t.rs2_use[i];
+      vif.req_drv_cb.rd_addr_rn[i]     <= t.rd[i];
+      vif.req_drv_cb.rs1_addr_rn[i]    <= t.rs1[i];
+      vif.req_drv_cb.rs2_addr_rn[i]    <= t.rs2[i];
+    end
   endtask
 endclass
 
@@ -161,47 +137,25 @@ class rename_req_monitor extends rv_base_monitor #(rename_req_item);
       t = rename_req_item::type_id::create("t");
       t.rst_n = vif.mon_cb.rst_n;
       t.flush = vif.mon_cb.flush;
-      t.spec_en[0] = vif.mon_cb.spec0_en_rn;
-      t.spec_en[1] = vif.mon_cb.spec1_en_rn;
-      t.valid_rn[0] = vif.mon_cb.i0_valid_rn;
-      t.valid_rn[1] = vif.mon_cb.i1_valid_rn;
-      t.lane_sel[0] = vif.mon_cb.i0_lane_sel_rn;
-      t.lane_sel[1] = vif.mon_cb.i1_lane_sel_rn;
-      t.reg_write[0] = vif.mon_cb.i0_reg_write_rn;
-      t.reg_write[1] = vif.mon_cb.i1_reg_write_rn;
-      t.store_en[0] = vif.mon_cb.i0_store_en_rn;
-      t.store_en[1] = vif.mon_cb.i1_store_en_rn;
-      t.rs1_use[0] = vif.mon_cb.i0_rs1_use_rn;
-      t.rs1_use[1] = vif.mon_cb.i1_rs1_use_rn;
-      t.rs2_use[0] = vif.mon_cb.i0_rs2_use_rn;
-      t.rs2_use[1] = vif.mon_cb.i1_rs2_use_rn;
-      t.opcode[0] = vif.mon_cb.i0_opcode_rn;
-      t.opcode[1] = vif.mon_cb.i1_opcode_rn;
-      t.funct3[0] = vif.mon_cb.i0_funct3_rn;
-      t.funct3[1] = vif.mon_cb.i1_funct3_rn;
-      t.funct7[0] = vif.mon_cb.i0_funct7_rn;
-      t.funct7[1] = vif.mon_cb.i1_funct7_rn;
-      t.rd[0] = vif.mon_cb.i0_rd_addr_rn;
-      t.rd[1] = vif.mon_cb.i1_rd_addr_rn;
-      t.rs1[0] = vif.mon_cb.i0_rs1_addr_rn;
-      t.rs1[1] = vif.mon_cb.i1_rs1_addr_rn;
-      t.rs2[0] = vif.mon_cb.i0_rs2_addr_rn;
-      t.rs2[1] = vif.mon_cb.i1_rs2_addr_rn;
-      t.imm[0] = vif.mon_cb.i0_imm_rn;
-      t.imm[1] = vif.mon_cb.i1_imm_rn;
-      t.pc[0] = vif.mon_cb.i0_pc_rn;
-      t.pc[1] = vif.mon_cb.i1_pc_rn;
-      t.stall = vif.mon_cb.stall_id;
-      t.valid[0] = vif.mon_cb.i0_valid_disp;
-      t.valid[1] = vif.mon_cb.i1_valid_disp;
-      t.ps1[0] = vif.mon_cb.i0_ps1_disp;
-      t.ps1[1] = vif.mon_cb.i1_ps1_disp;
-      t.ps2[0] = vif.mon_cb.i0_ps2_disp;
-      t.ps2[1] = vif.mon_cb.i1_ps2_disp;
-      t.prd[0] = vif.mon_cb.i0_prd_disp;
-      t.prd[1] = vif.mon_cb.i1_prd_disp;
-      t.rob_idx[0] = vif.mon_cb.i0_rob_idx_disp;
-      t.rob_idx[1] = vif.mon_cb.i1_rob_idx_disp;
+      foreach (t.valid_rn[i]) begin
+        t.spec_en[i]     = vif.mon_cb.spec_en_rn[i];
+        t.valid_rn[i]    = vif.mon_cb.valid_rn[i];
+        t.reg_write[i]   = vif.mon_cb.reg_write_rn[i];
+        t.store_en[i]    = vif.mon_cb.store_en_rn[i];
+        t.brch_en[i]     = vif.mon_cb.brch_en_rn[i];
+        t.state_valid[i] = vif.mon_cb.state_valid_rn[i];
+        t.brch_state[i]  = vif.mon_cb.brch_state_rn[i];
+        t.rs1_use[i]     = vif.mon_cb.rs1_use_rn[i];
+        t.rs2_use[i]     = vif.mon_cb.rs2_use_rn[i];
+        t.rd[i]          = vif.mon_cb.rd_addr_rn[i];
+        t.rs1[i]         = vif.mon_cb.rs1_addr_rn[i];
+        t.rs2[i]         = vif.mon_cb.rs2_addr_rn[i];
+        t.valid[i]       = vif.mon_cb.valid_rs[i];
+        t.ps1[i]         = vif.mon_cb.ps1_rs[i];
+        t.ps2[i]         = vif.mon_cb.ps2_rs[i];
+        t.prd[i]         = vif.mon_cb.prd_rs[i];
+      end
+      t.stall = vif.mon_cb.stall;
       ap.write(t);
     end
   endtask

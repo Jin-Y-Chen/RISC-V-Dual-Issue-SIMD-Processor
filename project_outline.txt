@@ -1141,12 +1141,15 @@ S4_Dispatch:
     Overview:
 
             Renamed dual-issue instructions enter a centralized reservation
-            station (controls + physical tags only). When an entry issues, the
-            station drives PRF read addresses / use enables and a parallel
-            control bundle into `dp_ex`. Operand *values* are never stored in
-            the RS: they are read from the PRF at issue and buffered in
-            `dp_ex`, which demultiplexes the dual issue pair onto four
-            execution ports (ev0/ev1/od0/od1) by `lane_sel`.
+            station that stores controls and physical tags only. The station
+            implements a single-cycle wakeup–select–issue loop with dispatch
+            bypass: ready instructions may issue from either an existing bank
+            entry or the incoming dispatch pair in the same cycle. When an
+            instruction issues, the station drives PRF read addresses / use
+            enables and a parallel control bundle into `dp_ex`. Operand
+            *values* are never stored in the RS; they are read from the PRF at
+            issue and buffered in `dp_ex`, which demultiplexes the dual issue
+            pair onto four execution ports (ev0/ev1/od0/od1) by `lane_sel`.
 
     Physical Register File (p_register_file):               [Verified - TBD]    [Proof - TBD]
             Path: `rtl/s4_dispatch/core_mod/p_register_file.sv`
@@ -1211,149 +1214,121 @@ S4_Dispatch:
             Path: `rtl/s4_dispatch/core_mod/reservation_station.sv`
             Helper package: `rtl/s4_dispatch/funct_pkg/rs.sv`
             Issue unit:  `rtl/s4_dispatch/core_mod/rs_units/rs_issue.sv`
-                         (module `rs_issue`)
             Alloc unit:  `rtl/s4_dispatch/core_mod/rs_units/rs_alloc.sv`
-                         (module `rs_alloc`)
-            Parameter: `RS_WAYS = 16` (1-set × 16-way bank)
+            Geometry: `RS_SETS=1`, `RS_WAYS=16` (fully associative bank)
             Directed TB: `tb/s4_dispatch/tests/reservation_station_tb.sv`
 
-            input  logic        clk,
-            input  logic        rst_n,
-            input  logic        enable,
-            input  logic        flush,
+            Ports (external API remains flat dual-slot; internals use packed
+            `rs_disp_pair_t` / `rs_wb_pair_t` / `rs_pick_t` / `rs_iss_pair_t`):
 
-            // renamed dual dispatch bundle (controls + physical tags; no data)
-            input  logic        i0_valid_dp, i1_valid_dp,
-            input  logic        i0_lane_sel_dp, i1_lane_sel_dp,
-            input  logic        i0_reg_write_dp, i1_reg_write_dp,
-            input  logic        i0_rs1_use_dp, i0_rs2_use_dp,
-            input  logic        i1_rs1_use_dp, i1_rs2_use_dp,
-            input  opcode_t     i0_opcode_dp, i1_opcode_dp,
-            input  funct3_t     i0_funct3_dp, i1_funct3_dp,
-            input  funct7_t     i0_funct7_dp, i1_funct7_dp,
-            input  prf_addr_t   i0_ps1_dp, i0_ps2_dp, i0_prd_dp,
-            input  prf_addr_t   i1_ps1_dp, i1_ps2_dp, i1_prd_dp,
-            input  prf_addr_t   i0_rob_idx_dp, i1_rob_idx_dp,
-            input  word_t       i0_imm_dp, i0_pc_dp,
-            input  word_t       i1_imm_dp, i1_pc_dp,
-
-            // writeback tag wakeup only (readiness bitmap; no operand capture)
-            input  logic        wb0_en, wb1_en,
-            input  prf_addr_t   wb0_prd, wb1_prd,
-            input  logic        wbrack,
-
-            // EX / dp_ex accept (free-on-issue); eligibility is entry.issue_ready
+            input  logic        clk, rst_n, enable, flush,
+            input  logic        i*_valid_dp, i*_lane_sel_dp, i*_reg_write_dp,
+            input  logic        i*_spec_en_dp,
+            input  opcode_t     i*_opcode_dp,
+            input  funct3_t     i*_funct3_dp,
+            input  funct7_t     i*_funct7_dp,
+            input  prf_addr_t   i*_ps1_dp, i*_ps2_dp, i*_prd_dp,
+            input  word_t       i*_imm_dp, i*_pc_dp,
+            input  logic        wb*_en,
+            input  prf_addr_t   wb*_prd,
             input  logic        issue_en,
             output logic        stall_dp,
+            output logic        i*_rs*_use_prf,
+            output prf_addr_t   i*_ps*_prf,
+            output              i*_valid/lane_sel/reg_write/opcode/funct*/ps*/prd/imm/pc_iss
 
-            // issued dual bundle → PRF read ports (addrs + use enables)
-            output logic        i*_rs1_use_prf, i*_rs2_use_prf,
-            output prf_addr_t   i*_ps1_prf, i*_ps2_prf,
-
-            // issued dual bundle → dp_ex (execution controls; no rs data)
-            output logic        i*_valid_iss,
-            output logic        i*_lane_sel_iss,
-            output logic        i*_reg_write_iss,
-            output opcode_t     i*_opcode_iss,
-            output funct3_t     i*_funct3_iss,
-            output funct7_t     i*_funct7_iss,
-            output prf_addr_t   i*_ps1_iss, i*_ps2_iss, i*_prd_iss,
-            output prf_addr_t   i*_rob_idx_iss,
-            output word_t       i*_imm_iss, i*_pc_iss
-
-        0. Structure and Specification:
+        0. Structure and cycle model:
 
             The reservation station is a dual-issue centralized queue organized
-            as a 1-set × 16-way bank (`RS_SETS=1`, `RS_WAYS=16`), matching the
-            cache-style geometry used elsewhere. The structural top
-            (`reservation_station`) owns `bank_q[SETS][WAYS]`, the
-            physical-readiness bitmap `prf_ready_q`, and the monotonic age
-            counter `age_q`. Combinational work is split like the ROB:
-            `rs_issue` builds a ready mask and picks two oldest ways via
-            priority helpers; `rs_alloc` wakes per way and inserts into free
-            ways from a `~valid` mask + PE. Helpers `rs_wb_hit`,
-            `rs_calc_issue_ready`, `rs_pe_lo` / `rs_pe_lo2`, and
-            `rs_pick_oldest` live in `rs_pkg`. Each way stores an
-            `issue_ready` bit refreshed after wakeup / insert.
+            as a 1-set × 16-way bank. The structural top owns registered state
+            `bank_q`, the physical-readiness bitmap `prf_ready_q`, and the
+            monotonic age counter `age_q`, together with their combinational
+            next-state counterparts `bank_n` / `prf_ready_n` / `age_n`. The
+            parent packs the flat dispatch and writeback ports into shared
+            `disp` and `wb` bundles once, then hands those bundles to both
+            `rs_issue` and `rs_alloc`. Issue returns a `pick` record (selected
+            sources, fires, and bypass flags) plus packed `iss` / `prf` that
+            the parent unpacks onto the external issue and PRF ports.
 
-            Each cycle the station may accept up to two renamed instructions.
-            A dispatched instruction carries operation type and execution
-            controls (`opcode` / `funct3` / `funct7`, `lane_sel`, `reg_write`,
-            `rs*_use`), ROB index, destination physical tag (`prd`), source
-            physical tags (`ps1` / `ps2`), source readiness derived at insert
-            from rename / the readiness bitmap, immediate, PC, and lane /
-            speculation metadata already present on the rename bundle. The
-            station allocates one free entry per accepted instruction and
-            records only tags and readiness — never operand values. Operand
-            data is read from the PRF at issue and latched in `dp_ex`.
+            Each bank way holds an `rs_entry_t`: valid, age, lane and write
+            controls, speculation path (`spec_en`), source ready bits, opcode
+            fields, physical tags (`ps1` / `ps2` / `prd`), immediate, and PC.
+            Operand *data* is never stored. Helpers in `rs_pkg`
+            (`rs_wb_hit`, `rs_calc_issue_ready`, `rs_disp_ready`, free-way PE,
+            oldest-pick) keep CAM compares and scheduling mask-based rather
+            than sequential scans.
 
-            Bank state updates on `negedge clk` (aligned with ROB writeback and
-            PRF commit). Issue select remains combinational from registered
-            `entries_q`, with same-cycle WB tags visible through `rs_wb_hit`.
+            Bank state commits on `negedge clk`, aligned with ROB writeback and
+            PRF array updates. Within a cycle the station performs four
+            operations in one combinational pass: wakeup, readiness evaluation,
+            issue arbitration, and allocation / free-entry management.
 
-        1. Dual Dispatch and Backpressure:
+        1. Dual wakeup paths:
 
-            Occupancy is the count of valid registered entries
-            (`int unsigned`). Same-cycle issue frees are credited early so a
-            dual bundle can reclaim slots that are firing this cycle:
-                available = RS_WAYS - used + issue0_fire + issue1_fire
-                stall_dp  = !flush && (incoming > available)
-            with `incoming` counting path-legal dispatch valids. A dual bundle
-            is never partially inserted. When `enable && !flush && !stall_dp`,
-            `rs_alloc` fills the lowest free ways (`rs_pe_lo` / `rs_pe_lo2`
-            on `~valid`) after issue clears. Each insert takes the current
-            `age_n` and then increments age. Newly written non-zero `prd` tags
-            clear `prf_ready_n[prd]` until writeback.
+            Writeback broadcasts completed destination tags (`wb*_en` /
+            `wb*_prd`) in parallel to both paths. For entries already in the
+            bank, `rs_alloc` compares each way’s `ps1` / `ps2` against the WB
+            tags and sets the matching ready bits; the global bitmap
+            `prf_ready_n[wb*_prd]` is updated the same way, and p0 is forced
+            ready every cycle. The station never captures writeback data.
 
-        2. Writeback Wakeup (tag compare, not a full scan):
+            For newly dispatched instructions, `rs_issue` evaluates readiness
+            with `rs_disp_ready` against the WB-updated readiness vector and
+            the current `prf_ready_q`. Same-pair RAW forces I1’s matching
+            source unready when I0 writes a non-zero `prd` that I1 reads, so a
+            dependent consumer cannot bypass in the same cycle as its producer.
 
-            Each cycle `rs_alloc` updates operand readiness from the writeback
-            broadcasts. Each WB port provides a completed destination physical
-            tag (`wb*_prd`). Rather than scanning every possible PRF index as
-            a CAM over the whole map, each valid entry simply compares its two
-            source tags against the active WB tags (`rs_wb_hit`). On a match,
-            the corresponding `rs*_ready` bit is set. Once a source is ready,
-            it stays ready until the instruction issues or the entry is
-            flushed. The station never captures `wb*_data`. The global bitmap
-            `prf_ready_n[wb*_prd]` is also set so later inserts see the tag as
-            free; p0 is forced ready every cycle.
+        2. Unified select and dispatch bypass:
 
-            At insert, a source is ready if unused, or
-            `prf_ready_n[ps] || rs_wb_hit(ps)`. Same-pair RAW forces I1's
-            matching source unready when I0 writes a non-zero `prd` that I1
-            reads, even if the bitmap still looked free.
+            After both wakeup paths complete, ready bank ways and ready
+            dispatch instructions form one candidate pool (sixteen bank ways
+            plus the two dispatch slots). Selection is oldest-first: bank
+            entries use their stored ages, while dispatch candidates are aged
+            as youngest (`age_q` / `age_q+1`) so waiting instructions win when
+            they compete. Up to two candidates are chosen when `issue_en` is
+            high. Instructions taken from the bank are marked for free-on-fire.
+            Instructions taken from dispatch are marked `bypass*` and are
+            forwarded straight to the issue / PRF ports without consuming a
+            reservation-station way.
 
-        3. Per-Entry Eligibility and Dual Issue Schedule:
+            If the remaining (non-bypassed) dispatch instructions cannot fit
+            in the free ways after bank frees, the scheduler falls back to a
+            bank-only select for that cycle and asserts `stall_dp`. That keeps
+            the dual dispatch pair atomic at `rn_dp`: the station never
+            permanently accepts one lane of a pair while leaving the other
+            stranded. When space exists,
+                stall_dp = !flush && (need_alloc > available)
+            with `need_alloc` counting valid dispatch that was not bypassed and
+            `available` crediting same-cycle bank frees.
 
-            Eligibility is reduced to one precomputed ready bit per way
-            (`issue_ready` / `rs_calc_issue_ready`): the way is valid, the
-            branch path is allowed (`!wbrack || !spec_en`), and every required
-            source is marked ready (or hits WB this cycle). The scheduler
-            (`rs_issue`) forms a 16-bit ready mask in parallel across ways,
-            then picks Issue Slot 0 / Slot 1 with `rs_pick_oldest` (min age)
-            and a one-hot mask-out — no sequential scan of the bank.
-            Downstream accept is a single `issue_en` from EX / `dp_ex`
-            (`issue*_fire = sel*_v && issue_en`).
+        3. Allocation of non-issued dispatch:
 
-            Outputs are control and addresses only. Each issued instruction
-            drives operation / execution controls, ROB index, destination tag,
-            source physical addresses, immediate, and PC into the issue
-            pipeline register (`dp_ex`), while the PRF uses the same source
-            tags as read addresses and returns operand values that latch into
-            that same register. After acceptance by the issue stage, the entry
-            is invalidated in `rs_alloc`'s next-state and returned to the free
-            pool on the following negedge.
+            When `enable && !flush && !stall_dp`, `rs_alloc` inserts only
+            dispatch instructions that were not bypassed (`ins* = valid &&
+            !bypass*`). Free ways are chosen with `rs_pe_lo` / `rs_pe_lo2` on
+            the post-free `~valid` mask. Each insert builds an `rs_entry_t`
+            via `rs_make_entry` (tags, ready bits from the bitmap and WB,
+            same-pair RAW forcing) at the current `age_n`, then increments
+            age. Any accepted dispatch lane that writes a non-zero `prd`
+            clears `prf_ready_n[prd]`, whether that lane was allocated or
+            bypassed, so later consumers see the destination in flight.
 
-        4. Flush / Reset:
+            Bank-sourced fires clear the selected way in `bank_n`; bypass
+            fires do not, because no way was ever occupied. The registered
+            bank therefore holds only instructions that could not issue yet.
 
-            On `!rst_n || flush` at the negedge, the parent clears every entry
-            to 0, sets `prf_ready_q` to all-ones, and resets `age_q`, so all
-            in-flight station work associated with the recovery is dropped
-            immediately. Full payload clear keeps simulation deterministic;
-            architecturally only valid bits, readiness, and age ordering
-            matter. (Finer younger-only flush by speculation context is a
-            future refinement; the current implementation recovers with a
-            full station clear.)
+        4. Issue outputs and recovery:
+
+            Issued slots drive controls and physical tags into `dp_ex` and the
+            matching PRF read enables / addresses. Downstream accept is a
+            single `issue_en` from the execute backpressure path
+            (`fire = sel_v && issue_en`). On `!rst_n || flush` at the negedge,
+            the parent clears every bank entry, sets `prf_ready_q` to
+            all-ones, and resets `age_q`, dropping all in-flight station work
+            for recovery. Full payload clear keeps simulation deterministic;
+            architecturally valid bits, readiness, and age ordering are what
+            matter. Finer younger-only flush by speculation context remains a
+            future refinement.
 
 Intermediate Register (DP_EX):
             Path: `rtl/s5_execution/dp_ex.sv`

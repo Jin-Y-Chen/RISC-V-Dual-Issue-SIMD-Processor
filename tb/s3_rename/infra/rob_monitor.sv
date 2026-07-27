@@ -3,25 +3,16 @@
 import rv_dis_pkg::*;
 import tb_pkg::*;
 
-// Global ROB observation monitor.
+// Global ROB observation monitor. Dual-issue ports are [2] arrays.
 module rob_monitor (
-  input  prf_addr_t i0_rob_idx,
-  input  prf_addr_t i1_rob_idx,
+  input  prf_addr_t rob_idx       [2],
   input  logic      stall,
-  input  logic      i0_can_retire,
-  input  logic      i1_can_retire,
-  input  logic      rrat0_en,
-  input  logic      rrat1_en,
-  input  gpr_addr_t i0_rd_addr_cmt,
-  input  gpr_addr_t i1_rd_addr_cmt,
-  input  prf_addr_t i0_rob_idx_cmt,
-  input  prf_addr_t i1_rob_idx_cmt,
-  input  logic      rat0_en,
-  input  logic      rat1_en,
-  input  logic      i0_path_sel,
-  input  logic      i1_path_sel,
-  input  logic      stb0_en,
-  input  logic      stb1_en,
+  input  logic      rrat_en       [2],
+  input  gpr_addr_t rd_addr_cmt   [2],
+  input  prf_addr_t rob_idx_cmt   [2],
+  input  logic      rat_en        [2],
+  input  logic      path_sel      [2],
+  input  logic      stb_en        [2],
   input  logic [5:0] head_q,
   input  logic [5:0] tail_q,
   input  logic [5:0] occ,
@@ -30,23 +21,23 @@ module rob_monitor (
 
   function automatic rob_obs_t sample();
     rob_obs_t o;
-    o.i0_rob_idx     = i0_rob_idx;
-    o.i1_rob_idx     = i1_rob_idx;
+    o.i0_rob_idx     = rob_idx[0];
+    o.i1_rob_idx     = rob_idx[1];
     o.stall          = stall;
-    o.i0_can_retire  = i0_can_retire;
-    o.i1_can_retire  = i1_can_retire;
-    o.rrat0_en       = rrat0_en;
-    o.rrat1_en       = rrat1_en;
-    o.i0_rd_addr_cmt = i0_rd_addr_cmt;
-    o.i1_rd_addr_cmt = i1_rd_addr_cmt;
-    o.i0_rob_idx_cmt = i0_rob_idx_cmt;
-    o.i1_rob_idx_cmt = i1_rob_idx_cmt;
-    o.rat0_en        = rat0_en;
-    o.rat1_en        = rat1_en;
-    o.i0_path_sel    = i0_path_sel;
-    o.i1_path_sel    = i1_path_sel;
-    o.stb0_en        = stb0_en;
-    o.stb1_en        = stb1_en;
+    o.i0_can_retire  = 1'b0;
+    o.i1_can_retire  = 1'b0;
+    o.rrat0_en       = rrat_en[0];
+    o.rrat1_en       = rrat_en[1];
+    o.i0_rd_addr_cmt = rd_addr_cmt[0];
+    o.i1_rd_addr_cmt = rd_addr_cmt[1];
+    o.i0_rob_idx_cmt = rob_idx_cmt[0];
+    o.i1_rob_idx_cmt = rob_idx_cmt[1];
+    o.rat0_en        = rat_en[0];
+    o.rat1_en        = rat_en[1];
+    o.i0_path_sel    = path_sel[0];
+    o.i1_path_sel    = path_sel[1];
+    o.stb0_en        = stb_en[0];
+    o.stb1_en        = stb_en[1];
     o.head           = head_q;
     o.tail           = tail_q;
     o.occ            = occ;
