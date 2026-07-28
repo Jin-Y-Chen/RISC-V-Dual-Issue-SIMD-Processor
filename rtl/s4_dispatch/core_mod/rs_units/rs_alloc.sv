@@ -27,7 +27,6 @@ module rs_alloc (
   rs_mask_t  valid_after;
   rs_mask_t  free_m;
   rs_way_t   free0, free1, slot;
-  logic      dep_rs1, dep_rs2;
   logic      ins0, ins1;
 
   // Existing-entry wakeup from WB broadcast.
@@ -72,20 +71,13 @@ module rs_alloc (
 
     if (enable && !flush && !stall_dp) begin
       if (ins0) begin
-        bank_n[0][free0] = rs_make_entry(
-          disp.i0, age_n, prf_ready_n, wb, 1'b0, 1'b0);
+        bank_n[0][free0] = rs_make_entry(disp.i0, age_n, wb);
         age_n = age_n + 1'b1;
       end
 
       if (ins1) begin
-        slot    = ins0 ? free1 : free0;
-        dep_rs1 = disp.i0.valid && disp.i0.reg_write &&
-                  (disp.i0.prd != '0) && (disp.i1.ps1 == disp.i0.prd);
-        dep_rs2 = disp.i0.valid && disp.i0.reg_write &&
-                  (disp.i0.prd != '0) && (disp.i1.ps2 == disp.i0.prd);
-        // If i0 bypassed, i1 still sees same-cycle RAW to i0.prd.
-        bank_n[0][slot] = rs_make_entry(
-          disp.i1, age_n, prf_ready_n, wb, dep_rs1, dep_rs2);
+        slot = ins0 ? free1 : free0;
+        bank_n[0][slot] = rs_make_entry(disp.i1, age_n, wb);
         age_n = age_n + 1'b1;
       end
 

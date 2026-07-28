@@ -2,7 +2,7 @@
 
 // RN/DP pipeline register — renamed tags/controls held while RS is full.
 // Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
-// Latches ROB valid + RAT source-valid with renamed tags for the RS.
+// Latches ROB valid + RAT source-ready with renamed tags for the RS.
 // reg_write is implied by prd != 0 (rename zeros prd for non-writes).
 import rv_dis_pkg::*;
 
@@ -22,8 +22,7 @@ module rn_dp (
   input  funct7_t     funct7_rn      [2],
   input  prf_addr_t   ps1_tag_rn     [2],
   input  prf_addr_t   ps2_tag_rn     [2],
-  input  logic        tag1_valid_rn  [2],
-  input  logic        tag2_valid_rn  [2],
+  input  logic        tag_ready_rn  [2][2],
   input  prf_addr_t   rob_tag_rn     [2],
   input  word_t       imm_rn         [2],
   input  word_t       pc_rn          [2],
@@ -36,8 +35,7 @@ module rn_dp (
   output funct7_t     funct7_dp      [2],
   output prf_addr_t   ps1_tag_dp     [2],
   output prf_addr_t   ps2_tag_dp     [2],
-  output logic        tag1_valid_dp  [2],
-  output logic        tag2_valid_dp  [2],
+  output logic        tag_ready_dp  [2][2],
   output prf_addr_t   rob_tag_dp     [2],
   output word_t       imm_dp         [2],
   output word_t       pc_dp          [2]
@@ -56,8 +54,8 @@ module rn_dp (
         funct7_dp[i]     <= '0;
         ps1_tag_dp[i]    <= '0;
         ps2_tag_dp[i]    <= '0;
-        tag1_valid_dp[i] <= 1'b0;
-        tag2_valid_dp[i] <= 1'b0;
+        tag_ready_dp[0][i] <= 1'b0;
+        tag_ready_dp[1][i] <= 1'b0;
         rob_tag_dp[i]    <= '0;
         imm_dp[i]        <= '0;
         pc_dp[i]         <= '0;
@@ -72,8 +70,8 @@ module rn_dp (
         funct7_dp[i]     <= funct7_rn[i];
         ps1_tag_dp[i]    <= ps1_tag_rn[i];
         ps2_tag_dp[i]    <= ps2_tag_rn[i];
-        tag1_valid_dp[i] <= tag1_valid_rn[i];
-        tag2_valid_dp[i] <= tag2_valid_rn[i];
+        tag_ready_dp[0][i] <= tag_ready_rn[0][i];
+        tag_ready_dp[1][i] <= tag_ready_rn[1][i];
         rob_tag_dp[i]    <= rob_tag_rn[i];
         imm_dp[i]        <= imm_rn[i];
         pc_dp[i]         <= pc_rn[i];

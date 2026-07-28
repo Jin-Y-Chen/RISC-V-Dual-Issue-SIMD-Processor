@@ -22,8 +22,7 @@ module issue_core_struct (
   input  funct7_t     funct7_dp     [2],
   input  prf_addr_t   ps1_tag_dp    [2],
   input  prf_addr_t   ps2_tag_dp    [2],
-  input  logic        tag1_valid_dp [2],
-  input  logic        tag2_valid_dp [2],
+  input  logic        tag_ready_dp [2][2],
   input  prf_addr_t   rob_tag_dp    [2],
   input  word_t       imm_dp        [2],
   input  word_t       pc_dp         [2],
@@ -33,6 +32,8 @@ module issue_core_struct (
   input  word_t       wb_data       [2],
 
   output logic        stall_dp,
+
+  output logic [NUM_PRF-1:0] prf_ready,
 
   output logic        ev_enable_ex    [2],
   output logic        ev_reg_write_ex [2],
@@ -77,11 +78,12 @@ module issue_core_struct (
     .clk, .rst_n, .enable, .flush,
     .rob_valid_dp, .lane_sel_dp, .spec_en_dp,
     .opcode_dp, .funct3_dp, .funct7_dp,
-    .ps1_tag_dp, .ps2_tag_dp, .tag1_valid_dp, .tag2_valid_dp, .rob_tag_dp,
+    .ps1_tag_dp, .ps2_tag_dp, .tag_ready_dp, .rob_tag_dp,
     .imm_dp, .pc_dp,
     .wb_en, .rob_tag_wb,
     .issue_en,
     .stall_dp,
+    .prf_ready,
     .ps1_prf, .ps2_prf,
     .rob_valid, .lane_sel,
     .opcode, .funct3, .funct7,

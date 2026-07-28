@@ -22,8 +22,7 @@ module reservation_station (
   input  funct7_t     funct7_dp     [2],
   input  prf_addr_t   ps1_tag_dp    [2],
   input  prf_addr_t   ps2_tag_dp    [2],
-  input  logic        tag1_valid_dp [2],
-  input  logic        tag2_valid_dp [2],
+  input  logic        tag_ready_dp  [2][2],
   input  prf_addr_t   rob_tag_dp    [2],   // reg_write implied by rob_tag != 0
   input  word_t       imm_dp        [2],
   input  word_t       pc_dp         [2],
@@ -31,6 +30,8 @@ module reservation_station (
   // Dual writeback tags
   input  logic        wb_en         [2],
   input  prf_addr_t   rob_tag_wb    [2],
+
+  output logic [NUM_PRF-1:0] prf_ready,
 
   input  logic        issue_en,        // downstream accept (EX / dp_ex)
   output logic        stall_dp,
@@ -65,7 +66,7 @@ module reservation_station (
     disp.i0 = '{
       valid: rob_valid_dp[0], lane_sel: lane_sel_dp[0],
       reg_write: (rob_tag_dp[0] != '0), spec_en: spec_en_dp[0],
-      tag1_valid: tag1_valid_dp[0], tag2_valid: tag2_valid_dp[0],
+      tag_ready: {tag_ready_dp[1][0], tag_ready_dp[0][0]},
       opcode: opcode_dp[0], funct3: funct3_dp[0], funct7: funct7_dp[0],
       ps1: ps1_tag_dp[0], ps2: ps2_tag_dp[0], prd: rob_tag_dp[0],
       imm: imm_dp[0], pc: pc_dp[0]
@@ -73,7 +74,7 @@ module reservation_station (
     disp.i1 = '{
       valid: rob_valid_dp[1], lane_sel: lane_sel_dp[1],
       reg_write: (rob_tag_dp[1] != '0), spec_en: spec_en_dp[1],
-      tag1_valid: tag1_valid_dp[1], tag2_valid: tag2_valid_dp[1],
+      tag_ready: {tag_ready_dp[1][1], tag_ready_dp[0][1]},
       opcode: opcode_dp[1], funct3: funct3_dp[1], funct7: funct7_dp[1],
       ps1: ps1_tag_dp[1], ps2: ps2_tag_dp[1], prd: rob_tag_dp[1],
       imm: imm_dp[1], pc: pc_dp[1]
@@ -105,10 +106,11 @@ module reservation_station (
   assign ps1_prf[1]     = prf.i1.ps1;
   assign ps2_prf[1]     = prf.i1.ps2;
 
+  assign prf_ready = prf_ready_q;
+
   rs_issue u_issue (
     .enable, .flush,
     .bank_q,
-    .prf_ready_q,
     .age_q,
     .wb,
     .disp,

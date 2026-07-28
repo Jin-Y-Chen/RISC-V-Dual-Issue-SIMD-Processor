@@ -181,9 +181,10 @@ module risc_dis_unit #(
   logic        spec_en_rs     [2];
   prf_addr_t   ps1_tag_rs     [2];
   prf_addr_t   ps2_tag_rs     [2];
-  logic        tag1_valid_rs  [2];
-  logic        tag2_valid_rs  [2];
+  logic        tag_ready_rs  [2][2];
   prf_addr_t   rob_tag_rs     [2];
+
+  logic [NUM_PRF-1:0] prf_ready;
 
   logic        wback_en       [2];
   prf_addr_t   rob_tag_wb     [2];
@@ -197,8 +198,7 @@ module risc_dis_unit #(
   funct7_t     funct7_dp      [2];
   prf_addr_t   ps1_tag_dp     [2];
   prf_addr_t   ps2_tag_dp     [2];
-  logic        tag1_valid_dp  [2];
-  logic        tag2_valid_dp  [2];
+  logic        tag_ready_dp  [2][2];
   prf_addr_t   rob_tag_dp     [2];
   word_t       imm_dp         [2];
   word_t       pc_dp          [2];
@@ -310,13 +310,13 @@ module risc_dis_unit #(
     .wback_en          (wback_en),
     .rob_tag_wb        (rob_tag_wb),
     .brch_taken_wb     (brch_taken_wb),
+    .prf_ready         (prf_ready),
     .stall             (stall_id),
     .valid_rs          (valid_rs),
     .spec_en_rs        (spec_en_rs),
     .ps1_tag_rs        (ps1_tag_rs),
     .ps2_tag_rs        (ps2_tag_rs),
-    .tag1_valid_rs     (tag1_valid_rs),
-    .tag2_valid_rs     (tag2_valid_rs),
+    .tag_ready_rs     (tag_ready_rs),
     .rob_tag_rs        (rob_tag_rs)
   );
 
@@ -336,8 +336,7 @@ module risc_dis_unit #(
     .funct7_rn       (funct7_rn),
     .ps1_tag_rn      (ps1_tag_rs),
     .ps2_tag_rn      (ps2_tag_rs),
-    .tag1_valid_rn   (tag1_valid_rs),
-    .tag2_valid_rn   (tag2_valid_rs),
+    .tag_ready_rn   (tag_ready_rs),
     .rob_tag_rn      (rob_tag_rs),
     .imm_rn          (imm_rn),
     .pc_rn           (pc_rn),
@@ -349,8 +348,7 @@ module risc_dis_unit #(
     .funct7_dp,
     .ps1_tag_dp,
     .ps2_tag_dp,
-    .tag1_valid_dp,
-    .tag2_valid_dp,
+    .tag_ready_dp,
     .rob_tag_dp,
     .imm_dp,
     .pc_dp
@@ -370,8 +368,7 @@ module risc_dis_unit #(
     .funct7_dp,
     .ps1_tag_dp,
     .ps2_tag_dp,
-    .tag1_valid_dp,
-    .tag2_valid_dp,
+    .tag_ready_dp,
     .rob_tag_dp,
     .imm_dp,
     .pc_dp,
@@ -379,6 +376,7 @@ module risc_dis_unit #(
     .rob_tag_wb        (rob_tag_wb),
     .wb_data           (wb_data_iss),
     .stall_dp          (stall_dp),
+    .prf_ready         (prf_ready),
     .ev_enable_ex,
     .ev_reg_write_ex,
     .ev_opcode_ex,

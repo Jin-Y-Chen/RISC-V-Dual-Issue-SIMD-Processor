@@ -33,12 +33,20 @@ import rv_dis_pkg::*;
       rat_src_lookup = rat_map_read(rs_addr, spec_en, map_br0, map_br1);
   endfunction
 
-  // True when the operand is renamed to a live PRF tag (not x0 / unused).
-  function automatic logic rat_src_tag_valid(
-    input logic      rs_use,
-    input gpr_addr_t rs_addr
+  // Operand ready: no PRF read, PRF tag ready, or blocked by same-pair RAW.
+  function automatic logic rat_src_tag_ready(
+    input logic               rs_use,
+    input gpr_addr_t          rs_addr,
+    input prf_addr_t          ps_tag,
+    input logic [NUM_PRF-1:0] prf_ready,
+    input logic               raw_block
   );
-    rat_src_tag_valid = rs_use && !arch_maps_to_x0(rs_addr);
+    if (!rs_use || arch_maps_to_x0(rs_addr))
+      rat_src_tag_ready = 1'b1;
+    else if (raw_block)
+      rat_src_tag_ready = 1'b0;
+    else
+      rat_src_tag_ready = prf_ready[ps_tag];
   endfunction
 
   // I1 source rename with same-cycle I0 RAW bypass (alloc_* = I0 dest).

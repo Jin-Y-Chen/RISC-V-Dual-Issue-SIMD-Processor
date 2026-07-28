@@ -16,8 +16,7 @@ module reservation_station_tb;
   funct7_t   funct7_dp     [2];
   prf_addr_t ps1_tag_dp    [2];
   prf_addr_t ps2_tag_dp    [2];
-  logic      tag1_valid_dp [2];
-  logic      tag2_valid_dp [2];
+  logic      tag_ready_dp [2][2];
   prf_addr_t rob_tag_dp    [2];
   word_t     imm_dp        [2];
   word_t     pc_dp         [2];
@@ -25,6 +24,8 @@ module reservation_station_tb;
   logic      wb_en         [2];
   prf_addr_t rob_tag_wb    [2];
   logic      issue_en, stall_dp;
+
+  logic [NUM_PRF-1:0] prf_ready;
 
   prf_addr_t ps1_prf       [2];
   prf_addr_t ps2_prf       [2];
@@ -53,8 +54,8 @@ module reservation_station_tb;
       funct7_dp[i]     = '0;
       ps1_tag_dp[i]    = '0;
       ps2_tag_dp[i]    = '0;
-      tag1_valid_dp[i] = 0;
-      tag2_valid_dp[i] = 0;
+      tag_ready_dp[0][i] = 0;
+      tag_ready_dp[1][i] = 0;
       rob_tag_dp[i]    = '0;
       imm_dp[i]        = '0;
       pc_dp[i]         = '0;
@@ -95,9 +96,9 @@ module reservation_station_tb;
     // Same-cycle dispatch bypass: ready pair issues without waiting in RS.
     drive_pair(6'd32, 6'd33);
     ps1_tag_dp[0] = 6'd1;
-    tag1_valid_dp[0] = 1;
+    tag_ready_dp[0][0] = 1;
     ps2_tag_dp[1] = 6'd2;
-    tag2_valid_dp[1] = 1;
+    tag_ready_dp[1][1] = 1;
     #1;
     if (!rob_valid[0] || !rob_valid[1])
       $error("ready dispatch did not dual-issue (bypass)");
@@ -112,7 +113,7 @@ module reservation_station_tb;
     @(posedge clk);
     drive_pair(6'd34, 6'd35);
     ps1_tag_dp[1] = 6'd34;
-    tag1_valid_dp[1] = 1;
+    tag_ready_dp[0][1] = 0;
     #1;
     if (!rob_valid[0] || (rob_tag[0] != 6'd34))
       $error("producer did not bypass-issue");

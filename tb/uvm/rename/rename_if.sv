@@ -20,14 +20,14 @@ interface rename_if(input logic clk);
   logic      wback_en        [2];
   prf_addr_t rob_tag_wb      [2];
   logic      brch_taken_wb   [2];
+  logic [NUM_PRF-1:0] prf_ready;
 
   logic      stall;
   logic      valid_rs        [2];
   logic      spec_en_rs      [2];
   prf_addr_t ps1_tag_rs      [2];
   prf_addr_t ps2_tag_rs      [2];
-  logic      tag1_valid_rs   [2];
-  logic      tag2_valid_rs   [2];
+  logic      tag_ready_rs   [2][2];
   prf_addr_t rob_tag_rs      [2];
 
   // The monitor samples the completed cycle just before negedge. Drivers then
@@ -56,7 +56,7 @@ interface rename_if(input logic clk);
     input valid_rs, spec_en_rs;
     input ps1_tag_rs, ps2_tag_rs, rob_tag_rs;
 
-    input tag1_valid_rs, tag2_valid_rs;
+    input tag_ready_rs;
   endclocking
 
   modport req_driver(clocking req_drv_cb, input rst_n);

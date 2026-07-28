@@ -33,19 +33,20 @@ module rename_tb_top;
     .wback_en(vif.wback_en),
     .rob_tag_wb(vif.rob_tag_wb),
     .brch_taken_wb(vif.brch_taken_wb),
+    .prf_ready(vif.prf_ready),
     .stall(vif.stall),
     .valid_rs(vif.valid_rs),
     .spec_en_rs(vif.spec_en_rs),
     .ps1_tag_rs(vif.ps1_tag_rs),
     .ps2_tag_rs(vif.ps2_tag_rs),
-    .tag1_valid_rs(vif.tag1_valid_rs),
-    .tag2_valid_rs(vif.tag2_valid_rs),
+    .tag_ready_rs(vif.tag_ready_rs),
     .rob_tag_rs(vif.rob_tag_rs)
   );
 
   initial begin
     vif.rst_n = 0;
     vif.flush = 0;
+    vif.prf_ready = '1;
     foreach (vif.spec_en_rn[i]) begin
       vif.spec_en_rn[i]      = 0;
       vif.valid_rn[i]        = 0;

@@ -30,15 +30,15 @@ module rename_core_struct (
   input  logic        wback_en        [2],
   input  prf_addr_t   rob_tag_wb      [2],
   input  logic        brch_taken_wb   [2],
+  input  logic [NUM_PRF-1:0] prf_ready,
 
   output logic        stall,
 
   output logic        valid_rs        [2],
   output logic        spec_en_rs      [2],
-  output prf_addr_t   ps1_tag_rs          [2],
-  output prf_addr_t   ps2_tag_rs          [2],
-  output logic        tag1_valid_rs   [2],
-  output logic        tag2_valid_rs   [2],
+  output prf_addr_t   ps1_tag_rs      [2],
+  output prf_addr_t   ps2_tag_rs      [2],
+  output logic        tag_ready_rs   [2][2],
   output prf_addr_t   rob_tag_rs      [2]
 );
 
@@ -76,10 +76,10 @@ module rename_core_struct (
     .rs2_use      (rs2_use_rn),
     .rs1_addr     (rs1_addr_rn),
     .rs2_addr     (rs2_addr_rn),
+    .prf_ready,
     .ps1_tag      (ps1_tag_rs),
     .ps2_tag      (ps2_tag_rs),
-    .tag1_valid   (tag1_valid_rs),
-    .tag2_valid   (tag2_valid_rs),
+    .tag_ready    (tag_ready_rs),
     .alloc_en     (rat_alloc_en),
     .alloc_rd_addr(rd_addr_rn),
     .alloc_rob_tag(rob_tag),
