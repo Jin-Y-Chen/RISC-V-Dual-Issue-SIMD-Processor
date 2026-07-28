@@ -178,30 +178,39 @@ module risc_dis_unit #(
   word_t       pc_rn        [2];
 
   logic        valid_rs       [2];
-  logic        spec_en_rs     [2];
+  logic        path_use_rs    [2];
+  logic        path_resolve_en;
+  logic        winning_path_use;
   prf_addr_t   ps1_tag_rs     [2];
   prf_addr_t   ps2_tag_rs     [2];
-  logic        tag_ready_rs  [2][2];
   prf_addr_t   rob_tag_rs     [2];
-
-  logic [NUM_PRF-1:0] prf_ready;
+  logic        stb_en_rn      [2];
 
   logic        wback_en       [2];
   prf_addr_t   rob_tag_wb     [2];
   logic        brch_taken_wb   [2];
 
   logic        rob_valid_dp   [2];
+  logic        path_use_dp    [2];
   logic        lane_sel_dp    [2];
-  logic        spec_en_dp     [2];
   opcode_t     opcode_dp      [2];
   funct3_t     funct3_dp      [2];
   funct7_t     funct7_dp      [2];
   prf_addr_t   ps1_tag_dp     [2];
   prf_addr_t   ps2_tag_dp     [2];
-  logic        tag_ready_dp  [2][2];
   prf_addr_t   rob_tag_dp     [2];
   word_t       imm_dp         [2];
   word_t       pc_dp          [2];
+
+  logic        lane_sel_iss   [2];
+  opcode_t     opcode_iss     [2];
+  funct3_t     funct3_iss     [2];
+  funct7_t     funct7_iss     [2];
+  prf_addr_t   rob_tag_iss    [2];
+  word_t       imm_iss        [2];
+  word_t       pc_iss         [2];
+  word_t       rs1_data_iss   [2];
+  word_t       rs2_data_iss   [2];
 
   logic        ev_enable_ex    [2];
   logic        ev_reg_write_ex [2];
@@ -310,14 +319,15 @@ module risc_dis_unit #(
     .wback_en          (wback_en),
     .rob_tag_wb        (rob_tag_wb),
     .brch_taken_wb     (brch_taken_wb),
-    .prf_ready         (prf_ready),
     .stall             (stall_id),
     .valid_rs          (valid_rs),
-    .spec_en_rs        (spec_en_rs),
+    .path_use_rs       (path_use_rs),
+    .path_resolve_en   (path_resolve_en),
+    .winning_path_use  (winning_path_use),
     .ps1_tag_rs        (ps1_tag_rs),
     .ps2_tag_rs        (ps2_tag_rs),
-    .tag_ready_rs     (tag_ready_rs),
-    .rob_tag_rs        (rob_tag_rs)
+    .rob_tag_rs        (rob_tag_rs),
+    .stb_en            (stb_en_rn)
   );
 
   // Decode payload bypasses rename (ROB stall holds id_rn aligned with valid_rs).
@@ -329,26 +339,24 @@ module risc_dis_unit #(
     .stall_dp        (stall_dp),
     .stall_rn        (stall_rn),
     .rob_valid_rn    (valid_rs),
+    .path_use_rn     (path_use_rs),
     .lane_sel_rn     (lane_sel_rn),
-    .spec_en_rn      (spec_en_rs),
     .opcode_rn       (opcode_rn),
     .funct3_rn       (funct3_rn),
     .funct7_rn       (funct7_rn),
     .ps1_tag_rn      (ps1_tag_rs),
     .ps2_tag_rn      (ps2_tag_rs),
-    .tag_ready_rn   (tag_ready_rs),
     .rob_tag_rn      (rob_tag_rs),
     .imm_rn          (imm_rn),
     .pc_rn           (pc_rn),
     .rob_valid_dp,
+    .path_use_dp,
     .lane_sel_dp,
-    .spec_en_dp,
     .opcode_dp,
     .funct3_dp,
     .funct7_dp,
     .ps1_tag_dp,
     .ps2_tag_dp,
-    .tag_ready_dp,
     .rob_tag_dp,
     .imm_dp,
     .pc_dp
@@ -358,17 +366,17 @@ module risc_dis_unit #(
     .clk               (clk),
     .rst_n             (rst_n),
     .enable            (enable),
-    .flush             (flush_core),
-    .stall_ex          (stall_ex),
+    .flush_rs          (flush),
+    .path_resolve_en   (path_resolve_en),
+    .winning_path_use  (winning_path_use),
     .rob_valid_dp,
+    .path_use_dp,
     .lane_sel_dp,
-    .spec_en_dp,
     .opcode_dp,
     .funct3_dp,
     .funct7_dp,
     .ps1_tag_dp,
     .ps2_tag_dp,
-    .tag_ready_dp,
     .rob_tag_dp,
     .imm_dp,
     .pc_dp,
@@ -376,7 +384,32 @@ module risc_dis_unit #(
     .rob_tag_wb        (rob_tag_wb),
     .wb_data           (wb_data_iss),
     .stall_dp          (stall_dp),
-    .prf_ready         (prf_ready),
+    .lane_sel          (lane_sel_iss),
+    .opcode            (opcode_iss),
+    .funct3            (funct3_iss),
+    .funct7            (funct7_iss),
+    .rob_tag           (rob_tag_iss),
+    .imm               (imm_iss),
+    .pc                (pc_iss),
+    .rs1_data          (rs1_data_iss),
+    .rs2_data          (rs2_data_iss)
+  );
+
+  dp_ex u_dp_ex (
+    .clk               (clk),
+    .rst_n             (rst_n),
+    .enable            (enable),
+    .flush             (flush_core),
+    .stall             (stall_ex),
+    .lane_sel          (lane_sel_iss),
+    .opcode            (opcode_iss),
+    .funct3            (funct3_iss),
+    .funct7            (funct7_iss),
+    .rob_tag           (rob_tag_iss),
+    .imm               (imm_iss),
+    .pc                (pc_iss),
+    .rs1_data          (rs1_data_iss),
+    .rs2_data          (rs2_data_iss),
     .ev_enable_ex,
     .ev_reg_write_ex,
     .ev_opcode_ex,

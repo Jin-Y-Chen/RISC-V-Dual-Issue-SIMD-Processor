@@ -23,10 +23,9 @@ module allis_table (
   input  logic        rs2_use       [2],
   input  gpr_addr_t   rs1_addr      [2],
   input  gpr_addr_t   rs2_addr      [2],
-  input  logic [NUM_PRF-1:0] prf_ready,
+  output logic        path_use      [2],
   output prf_addr_t   ps1_tag       [2],
   output prf_addr_t   ps2_tag       [2],
-  output logic        tag_ready     [2][2],
 
   // dest rename (arch rd + ROB-derived ntag)
   input  logic        alloc_en      [2],
@@ -50,7 +49,9 @@ module allis_table (
 
   wire alloc_legal [2];
   wire rrat_legal  [2];
-  wire raw_rs1_i1, raw_rs2_i1;
+
+  assign path_use[0] = spec_en[0];
+  assign path_use[1] = spec_en[1];
 
   assign alloc_legal[0] = alloc_en[0] && !arch_maps_to_x0(alloc_rd_addr[0]);
   assign alloc_legal[1] = alloc_en[1] && !arch_maps_to_x0(alloc_rd_addr[1]);
@@ -67,19 +68,6 @@ module allis_table (
       rs2_use[1], rs2_addr[1],
       alloc_en[0], alloc_rd_addr[0], alloc_rob_tag[0],
       spec_en[0], spec_en[1], map_br0_q, map_br1_q);
-
-  // Same-pair I0→I1 RAW on the looked-up physical tag (I0 dest not ready yet).
-  assign raw_rs1_i1 = alloc_legal[0] && (ps1_tag[1] == alloc_rob_tag[0]);
-  assign raw_rs2_i1 = alloc_legal[0] && (ps2_tag[1] == alloc_rob_tag[0]);
-
-  assign tag_ready[0][0] = rat_src_tag_ready(
-      rs1_use[0], rs1_addr[0], ps1_tag[0], prf_ready, 1'b0);
-  assign tag_ready[1][0] = rat_src_tag_ready(
-      rs2_use[0], rs2_addr[0], ps2_tag[0], prf_ready, 1'b0);
-  assign tag_ready[0][1] = rat_src_tag_ready(
-      rs1_use[1], rs1_addr[1], ps1_tag[1], prf_ready, raw_rs1_i1);
-  assign tag_ready[1][1] = rat_src_tag_ready(
-      rs2_use[1], rs2_addr[1], ps2_tag[1], prf_ready, raw_rs2_i1);
 
   assign rrat_legal[0] = rrat_en[0] && !arch_maps_to_x0(rd_addr_cmt[0]);
   assign rrat_legal[1] = rrat_en[1] && !arch_maps_to_x0(rd_addr_cmt[1]);

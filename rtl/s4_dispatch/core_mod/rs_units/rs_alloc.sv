@@ -9,6 +9,8 @@ module rs_alloc (
   input  logic               enable,
   input  logic               flush,
   input  logic               stall_dp,
+  input  logic               path_resolve_en,
+  input  logic               winning_path_use,
 
   input  rs_entry_t          bank_q [RS_SETS][RS_WAYS],
   input  logic [NUM_PRF-1:0] prf_ready_q,
@@ -27,6 +29,7 @@ module rs_alloc (
   rs_mask_t  valid_after;
   rs_mask_t  free_m;
   rs_way_t   free0, free1, slot;
+  logic      dep_rs1, dep_rs2;
   logic      ins0, ins1;
 
   // Existing-entry wakeup from WB broadcast.
@@ -56,6 +59,13 @@ module rs_alloc (
     for (int i = 0; i < RS_WAYS; i++)
       bank_n[0][i] = way_n[i];
 
+    if (path_resolve_en) begin
+      for (int i = 0; i < RS_WAYS; i++) begin
+        if (bank_n[0][i].valid && (bank_n[0][i].spec_en != winning_path_use))
+          bank_n[0][i] = '0;
+      end
+    end
+
     if (wb.wb0.en) prf_ready_n[wb.wb0.prd] = 1'b1;
     if (wb.wb1.en) prf_ready_n[wb.wb1.prd] = 1'b1;
 
@@ -71,13 +81,19 @@ module rs_alloc (
 
     if (enable && !flush && !stall_dp) begin
       if (ins0) begin
-        bank_n[0][free0] = rs_make_entry(disp.i0, age_n, wb);
+        bank_n[0][free0] = rs_make_entry(
+          disp.i0, age_n, prf_ready_n, wb, 1'b0, 1'b0);
         age_n = age_n + 1'b1;
       end
 
       if (ins1) begin
-        slot = ins0 ? free1 : free0;
-        bank_n[0][slot] = rs_make_entry(disp.i1, age_n, wb);
+        slot    = ins0 ? free1 : free0;
+        dep_rs1 = disp.i0.valid && disp.i0.reg_write &&
+                  (disp.i0.prd != '0) && (disp.i1.ps1 == disp.i0.prd);
+        dep_rs2 = disp.i0.valid && disp.i0.reg_write &&
+                  (disp.i0.prd != '0) && (disp.i1.ps2 == disp.i0.prd);
+        bank_n[0][slot] = rs_make_entry(
+          disp.i1, age_n, prf_ready_n, wb, dep_rs1, dep_rs2);
         age_n = age_n + 1'b1;
       end
 

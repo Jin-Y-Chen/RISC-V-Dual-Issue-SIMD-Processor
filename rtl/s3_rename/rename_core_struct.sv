@@ -30,18 +30,20 @@ module rename_core_struct (
   input  logic        wback_en        [2],
   input  prf_addr_t   rob_tag_wb      [2],
   input  logic        brch_taken_wb   [2],
-  input  logic [NUM_PRF-1:0] prf_ready,
 
   output logic        stall,
 
   output logic        valid_rs        [2],
-  output logic        spec_en_rs      [2],
+  output logic        path_use_rs     [2],
+  output logic        path_resolve_en,
+  output logic        winning_path_use,
   output prf_addr_t   ps1_tag_rs      [2],
   output prf_addr_t   ps2_tag_rs      [2],
-  output logic        tag_ready_rs   [2][2],
-  output prf_addr_t   rob_tag_rs      [2]
+  output prf_addr_t   rob_tag_rs      [2],
+  output logic        stb_en          [2]
 );
 
+  logic      path_use [2];
   prf_addr_t rob_tag [2];
 
   logic      rat_alloc_en [2];
@@ -54,7 +56,9 @@ module rename_core_struct (
   prf_addr_t rob_tag_cmt  [2];
   logic      rat_en       [2];
   logic      path_sel     [2];
-  logic      stb_en       [2];
+
+  assign path_resolve_en = rat_en[0] | rat_en[1];
+  assign winning_path_use = rat_en[1] ? path_sel[1] : path_sel[0];
 
   wire go = !flush && !stall_rn && !stall &&
             (valid_rn[0] || valid_rn[1]);
@@ -64,7 +68,7 @@ module rename_core_struct (
     assign rat_alloc_en[i] = rob_valid[i] && reg_write_rn[i];
 
     assign valid_rs[i]     = rob_valid[i];
-    assign spec_en_rs[i]   = spec_en_rn[i];
+    assign path_use_rs[i]  = path_use[i];
     assign rob_tag_rs[i]   = rat_alloc_en[i] ? rob_tag[i] : '0;
     assign retire_en[i]    = enable && !flush;
   end
@@ -76,10 +80,9 @@ module rename_core_struct (
     .rs2_use      (rs2_use_rn),
     .rs1_addr     (rs1_addr_rn),
     .rs2_addr     (rs2_addr_rn),
-    .prf_ready,
+    .path_use     (path_use),
     .ps1_tag      (ps1_tag_rs),
     .ps2_tag      (ps2_tag_rs),
-    .tag_ready    (tag_ready_rs),
     .alloc_en     (rat_alloc_en),
     .alloc_rd_addr(rd_addr_rn),
     .alloc_rob_tag(rob_tag),

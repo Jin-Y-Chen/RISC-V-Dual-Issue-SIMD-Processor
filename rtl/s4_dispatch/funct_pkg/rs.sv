@@ -39,7 +39,6 @@ import rv_dis_pkg::*;
     logic      lane_sel;
     logic      reg_write;
     logic      spec_en;
-    logic [1:0]  tag_ready;     // [0]=rs1, [1]=rs2 PRF operand ready at dispatch
     opcode_t   opcode;
     funct3_t   funct3;
     funct7_t   funct7;
@@ -135,16 +134,23 @@ import rv_dis_pkg::*;
            rs_src_ready(entry.ps2, entry.rs2_ready, wb);
   endfunction
 
-  // Dispatch-path bypass: rename tag_ready + same-cycle WB broadcast.
+  // Dispatch-path wakeup from PRF ready bits + same-cycle WB broadcast.
   function automatic logic rs_disp_ready(
-    input rs_disp_insn_t d,
-    input rs_wb_pair_t   wb
+    input rs_disp_insn_t      d,
+    input logic [NUM_PRF-1:0] prf_ready,
+    input rs_wb_pair_t        wb,
+    input logic               force_rs1_unready,
+    input logic               force_rs2_unready
   );
     logic r1, r2;
     if (!d.valid)
       return 1'b0;
-    r1 = (d.ps1 == '0) || d.tag_ready[0] || rs_wb_hit(d.ps1, wb);
-    r2 = (d.ps2 == '0) || d.tag_ready[1] || rs_wb_hit(d.ps2, wb);
+    r1 = (d.ps1 == '0) ||
+         (!force_rs1_unready &&
+          (prf_ready[d.ps1] || rs_wb_hit(d.ps1, wb)));
+    r2 = (d.ps2 == '0) ||
+         (!force_rs2_unready &&
+          (prf_ready[d.ps2] || rs_wb_hit(d.ps2, wb)));
     return r1 && r2;
   endfunction
 
@@ -187,9 +193,12 @@ import rv_dis_pkg::*;
   endfunction
 
   function automatic rs_entry_t rs_make_entry(
-    input rs_disp_insn_t d,
-    input logic [31:0]   age,
-    input rs_wb_pair_t   wb
+    input rs_disp_insn_t      d,
+    input logic [31:0]        age,
+    input logic [NUM_PRF-1:0] prf_ready,
+    input rs_wb_pair_t        wb,
+    input logic               force_rs1_unready,
+    input logic               force_rs2_unready
   );
     rs_make_entry = '0;
     if (!d.valid)
@@ -199,8 +208,12 @@ import rv_dis_pkg::*;
     rs_make_entry.lane_sel  = d.lane_sel;
     rs_make_entry.reg_write = d.reg_write;
     rs_make_entry.spec_en   = d.spec_en;
-    rs_make_entry.rs1_ready = d.tag_ready[0] || rs_wb_hit(d.ps1, wb);
-    rs_make_entry.rs2_ready = d.tag_ready[1] || rs_wb_hit(d.ps2, wb);
+    rs_make_entry.rs1_ready = (d.ps1 == '0) ||
+      (!force_rs1_unready &&
+       (prf_ready[d.ps1] || rs_wb_hit(d.ps1, wb)));
+    rs_make_entry.rs2_ready = (d.ps2 == '0) ||
+      (!force_rs2_unready &&
+       (prf_ready[d.ps2] || rs_wb_hit(d.ps2, wb)));
     rs_make_entry.opcode  = d.opcode;
     rs_make_entry.funct3  = d.funct3;
     rs_make_entry.funct7  = d.funct7;

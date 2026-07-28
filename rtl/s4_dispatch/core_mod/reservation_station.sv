@@ -12,17 +12,18 @@ module reservation_station (
   input  logic        rst_n,
   input  logic        enable,
   input  logic        flush,
+  input  logic        path_resolve_en,
+  input  logic        winning_path_use,
 
   // Dual dispatch (tags + controls)
   input  logic        rob_valid_dp  [2],
+  input  logic        path_use_dp   [2],
   input  logic        lane_sel_dp   [2],
-  input  logic        spec_en_dp    [2],   // 0=path0, 1=path1
   input  opcode_t     opcode_dp     [2],
   input  funct3_t     funct3_dp     [2],
   input  funct7_t     funct7_dp     [2],
   input  prf_addr_t   ps1_tag_dp    [2],
   input  prf_addr_t   ps2_tag_dp    [2],
-  input  logic        tag_ready_dp  [2][2],
   input  prf_addr_t   rob_tag_dp    [2],   // reg_write implied by rob_tag != 0
   input  word_t       imm_dp        [2],
   input  word_t       pc_dp         [2],
@@ -30,10 +31,6 @@ module reservation_station (
   // Dual writeback tags
   input  logic        wb_en         [2],
   input  prf_addr_t   rob_tag_wb    [2],
-
-  output logic [NUM_PRF-1:0] prf_ready,
-
-  input  logic        issue_en,        // downstream accept (EX / dp_ex)
   output logic        stall_dp,
 
   // Dual issue → PRF read ports
@@ -41,7 +38,6 @@ module reservation_station (
   output prf_addr_t   ps2_prf       [2],
 
   // Dual issue → dp_ex
-  output logic        rob_valid     [2],
   output logic        lane_sel      [2],
   output opcode_t     opcode        [2],
   output funct3_t     funct3        [2],
@@ -65,16 +61,14 @@ module reservation_station (
   always_comb begin
     disp.i0 = '{
       valid: rob_valid_dp[0], lane_sel: lane_sel_dp[0],
-      reg_write: (rob_tag_dp[0] != '0), spec_en: spec_en_dp[0],
-      tag_ready: {tag_ready_dp[1][0], tag_ready_dp[0][0]},
+      reg_write: (rob_tag_dp[0] != '0), spec_en: path_use_dp[0],
       opcode: opcode_dp[0], funct3: funct3_dp[0], funct7: funct7_dp[0],
       ps1: ps1_tag_dp[0], ps2: ps2_tag_dp[0], prd: rob_tag_dp[0],
       imm: imm_dp[0], pc: pc_dp[0]
     };
     disp.i1 = '{
       valid: rob_valid_dp[1], lane_sel: lane_sel_dp[1],
-      reg_write: (rob_tag_dp[1] != '0), spec_en: spec_en_dp[1],
-      tag_ready: {tag_ready_dp[1][1], tag_ready_dp[0][1]},
+      reg_write: (rob_tag_dp[1] != '0), spec_en: path_use_dp[1],
       opcode: opcode_dp[1], funct3: funct3_dp[1], funct7: funct7_dp[1],
       ps1: ps1_tag_dp[1], ps2: ps2_tag_dp[1], prd: rob_tag_dp[1],
       imm: imm_dp[1], pc: pc_dp[1]
@@ -84,7 +78,6 @@ module reservation_station (
   end
 
   // Unpack issue / PRF to [2] ports.
-  assign rob_valid[0]   = iss.i0.valid;
   assign lane_sel[0]    = iss.i0.lane_sel;
   assign opcode[0]      = iss.i0.opcode;
   assign funct3[0]      = iss.i0.funct3;
@@ -95,7 +88,6 @@ module reservation_station (
   assign ps1_prf[0]     = prf.i0.ps1;
   assign ps2_prf[0]     = prf.i0.ps2;
 
-  assign rob_valid[1]   = iss.i1.valid;
   assign lane_sel[1]    = iss.i1.lane_sel;
   assign opcode[1]      = iss.i1.opcode;
   assign funct3[1]      = iss.i1.funct3;
@@ -106,15 +98,13 @@ module reservation_station (
   assign ps1_prf[1]     = prf.i1.ps1;
   assign ps2_prf[1]     = prf.i1.ps2;
 
-  assign prf_ready = prf_ready_q;
-
   rs_issue u_issue (
     .enable, .flush,
     .bank_q,
     .age_q,
     .wb,
     .disp,
-    .issue_en,
+    .issue_en(1'b1),
     .pick,
     .stall_dp,
     .prf,
@@ -123,6 +113,7 @@ module reservation_station (
 
   rs_alloc u_alloc (
     .enable, .flush, .stall_dp,
+    .path_resolve_en, .winning_path_use,
     .bank_q, .prf_ready_q, .age_q,
     .wb,
     .pick,

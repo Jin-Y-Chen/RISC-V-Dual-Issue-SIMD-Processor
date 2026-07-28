@@ -13,7 +13,6 @@ module dp_ex (
   input  logic        flush,
   input  logic        stall,
 
-  input  logic        rob_valid [2],
   input  logic        lane_sel  [2],
   input  opcode_t     opcode    [2],
   input  funct3_t     funct3    [2],
@@ -63,7 +62,7 @@ module dp_ex (
     odd_used  = 1'b0;
     for (int i = 0; i < N_DUAL; i++) begin
       port_sel[i] = P_NONE;
-      if (rob_valid[i]) begin
+      if (rob_tag[i] != '0) begin
         if (lane_sel[i] == 1'b0) begin
           port_sel[i] = even_used ? P_EV1 : P_EV0;
           even_used   = 1'b1;

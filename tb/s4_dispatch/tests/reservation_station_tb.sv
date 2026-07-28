@@ -7,30 +7,27 @@ import rv_dis_pkg::*;
 
 module reservation_station_tb;
   logic clk, rst_n, enable, flush;
+  logic path_resolve_en, winning_path_use;
 
   logic      rob_valid_dp  [2];
+  logic      path_use_dp   [2];
   logic      lane_sel_dp   [2];
-  logic      spec_en_dp    [2];
   opcode_t   opcode_dp     [2];
   funct3_t   funct3_dp     [2];
   funct7_t   funct7_dp     [2];
   prf_addr_t ps1_tag_dp    [2];
   prf_addr_t ps2_tag_dp    [2];
-  logic      tag_ready_dp [2][2];
   prf_addr_t rob_tag_dp    [2];
   word_t     imm_dp        [2];
   word_t     pc_dp         [2];
 
   logic      wb_en         [2];
   prf_addr_t rob_tag_wb    [2];
-  logic      issue_en, stall_dp;
-
-  logic [NUM_PRF-1:0] prf_ready;
+  logic      stall_dp;
 
   prf_addr_t ps1_prf       [2];
   prf_addr_t ps2_prf       [2];
 
-  logic      rob_valid     [2];
   logic      lane_sel      [2];
   opcode_t   opcode        [2];
   funct3_t   funct3        [2];
@@ -47,15 +44,13 @@ module reservation_station_tb;
   task automatic clear_dispatch;
     foreach (rob_valid_dp[i]) begin
       rob_valid_dp[i]  = 0;
+      path_use_dp[i]   = 0;
       lane_sel_dp[i]   = 0;
-      spec_en_dp[i]    = 0;
       opcode_dp[i]     = '0;
       funct3_dp[i]     = '0;
       funct7_dp[i]     = '0;
       ps1_tag_dp[i]    = '0;
       ps2_tag_dp[i]    = '0;
-      tag_ready_dp[0][i] = 0;
-      tag_ready_dp[1][i] = 0;
       rob_tag_dp[i]    = '0;
       imm_dp[i]        = '0;
       pc_dp[i]         = '0;
@@ -66,11 +61,9 @@ module reservation_station_tb;
     rob_valid_dp[0] = 1;
     opcode_dp[0]    = OPC_OP;
     rob_tag_dp[0]   = prd0;  // non-zero ⇒ reg_write
-    spec_en_dp[0]   = 0;
     rob_valid_dp[1] = 1;
     opcode_dp[1]    = OPC_OP;
     rob_tag_dp[1]   = prd1;
-    spec_en_dp[1]   = 0;
   endtask
 
   task automatic commit_and_sample;
@@ -82,7 +75,8 @@ module reservation_station_tb;
     rst_n = 0;
     enable = 1;
     flush = 0;
-    issue_en = 1;
+    path_resolve_en = 0;
+    winning_path_use = 0;
     foreach (wb_en[i]) begin
       wb_en[i]      = 0;
       rob_tag_wb[i] = '0;
@@ -96,11 +90,9 @@ module reservation_station_tb;
     // Same-cycle dispatch bypass: ready pair issues without waiting in RS.
     drive_pair(6'd32, 6'd33);
     ps1_tag_dp[0] = 6'd1;
-    tag_ready_dp[0][0] = 1;
     ps2_tag_dp[1] = 6'd2;
-    tag_ready_dp[1][1] = 1;
     #1;
-    if (!rob_valid[0] || !rob_valid[1])
+    if ((rob_tag[0] == '0) || (rob_tag[1] == '0))
       $error("ready dispatch did not dual-issue (bypass)");
     if (rob_tag[0] != 6'd32 || rob_tag[1] != 6'd33)
       $error("bypass issue order is incorrect");
@@ -113,11 +105,10 @@ module reservation_station_tb;
     @(posedge clk);
     drive_pair(6'd34, 6'd35);
     ps1_tag_dp[1] = 6'd34;
-    tag_ready_dp[0][1] = 0;
     #1;
-    if (!rob_valid[0] || (rob_tag[0] != 6'd34))
+    if ((rob_tag[0] != 6'd34))
       $error("producer did not bypass-issue");
-    if (rob_valid[1])
+    if (rob_tag[1] != '0)
       $error("dependent consumer issued before producer writeback");
     commit_and_sample();
 
@@ -127,17 +118,67 @@ module reservation_station_tb;
     wb_en[0]      = 1;
     rob_tag_wb[0] = 6'd34;
     #1;
-    if (!rob_valid[0] || (rob_tag[0] != 6'd35))
+    if (rob_tag[0] != 6'd35)
       $error("writeback tag did not wake dependent consumer");
     @(negedge clk);
     #1;
     wb_en[0] = 0;
 
+    // Queue one path0 entry and one path1 entry, then squash the losing path.
+    @(posedge clk);
+    drive_pair(6'd36, 6'd37);
+    path_use_dp[1] = 1'b0;
+    ps1_tag_dp[1]  = 6'd36;
+    commit_and_sample();
+    clear_dispatch();
+    commit_and_sample();
+
+    @(posedge clk);
+    drive_pair(6'd38, 6'd39);
+    path_use_dp[1] = 1'b1;
+    ps1_tag_dp[1]  = 6'd38;
+    commit_and_sample();
+    clear_dispatch();
+    commit_and_sample();
+
+    begin
+      int path0_count, path1_count;
+      path0_count = 0;
+      path1_count = 0;
+      for (int w = 0; w < RS_WAYS; w++) begin
+        if (dut.bank_q[0][w].valid) begin
+          if (dut.bank_q[0][w].spec_en) path1_count++;
+          else                          path0_count++;
+        end
+      end
+      if (path0_count != 1 || path1_count != 1)
+        $error("expected one queued entry on each path before selective squash");
+    end
+
+    path_resolve_en  = 1'b1;
+    winning_path_use = 1'b1;
+    @(negedge clk);
+    #1;
+    path_resolve_en = 1'b0;
+
+    begin
+      int path0_count, path1_count;
+      path0_count = 0;
+      path1_count = 0;
+      for (int w = 0; w < RS_WAYS; w++) begin
+        if (dut.bank_q[0][w].valid) begin
+          if (dut.bank_q[0][w].spec_en) path1_count++;
+          else                          path0_count++;
+        end
+      end
+      if (path0_count != 0 || path1_count != 1)
+        $error("selective squash did not keep only the winning path");
+    end
+
     flush = 1;
     @(negedge clk);
     #1;
     flush = 0;
-    issue_en = 0;
 
     // Fill all 16 ways (8 dual inserts, no issue), then overflow.
     for (int p = 0; p < 8; p++) begin

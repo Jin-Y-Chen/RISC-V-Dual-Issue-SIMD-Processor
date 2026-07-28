@@ -11,6 +11,7 @@ module rs_issue (
   input  logic               flush,
 
   input  rs_entry_t          bank_q [RS_SETS][RS_WAYS],
+  input  logic [NUM_PRF-1:0] prf_ready_q,
   input  logic [31:0]        age_q,
   input  rs_wb_pair_t        wb,
   input  rs_disp_pair_t      disp,
@@ -24,6 +25,8 @@ module rs_issue (
 
   localparam int N_CAND = RS_WAYS + 2;
 
+  logic [NUM_PRF-1:0] prf_w;
+  logic               dep_rs1, dep_rs2;
   logic               d0_rdy, d1_rdy;
 
   rs_mask_t           bank_ready;
@@ -55,8 +58,20 @@ module rs_issue (
     end
   endfunction
 
-  assign d0_rdy = rs_disp_ready(disp.i0, wb);
-  assign d1_rdy = rs_disp_ready(disp.i1, wb);
+  always_comb begin
+    prf_w = prf_ready_q;
+    if (wb.wb0.en) prf_w[wb.wb0.prd] = 1'b1;
+    if (wb.wb1.en) prf_w[wb.wb1.prd] = 1'b1;
+    prf_w[0] = 1'b1;
+  end
+
+  assign dep_rs1 = disp.i0.valid && disp.i0.reg_write &&
+                   (disp.i0.prd != '0) && (disp.i1.ps1 == disp.i0.prd);
+  assign dep_rs2 = disp.i0.valid && disp.i0.reg_write &&
+                   (disp.i0.prd != '0) && (disp.i1.ps2 == disp.i0.prd);
+
+  assign d0_rdy = rs_disp_ready(disp.i0, prf_w, wb, 1'b0, 1'b0);
+  assign d1_rdy = rs_disp_ready(disp.i1, prf_w, wb, dep_rs1, dep_rs2);
 
   genvar w;
   generate
