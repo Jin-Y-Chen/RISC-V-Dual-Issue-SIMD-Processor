@@ -66,18 +66,18 @@ class rename_scoreboard extends uvm_scoreboard;
         check_bit($sformatf("i%0d_valid_rs", lane),
                   req.valid[lane], exp_req.valid[lane]);
         if (exp_req.valid[lane]) begin
-          check_tag($sformatf("i%0d_ps1_rs", lane),
+          check_tag($sformatf("i%0d_ps1_tag_rs", lane),
                     req.ps1[lane], exp_req.ps1[lane]);
-          check_tag($sformatf("i%0d_ps2_rs", lane),
+          check_tag($sformatf("i%0d_ps2_tag_rs", lane),
                     req.ps2[lane], exp_req.ps2[lane]);
-          check_tag($sformatf("i%0d_prd_rs", lane),
+          check_tag($sformatf("i%0d_rob_tag_rs", lane),
                     req.prd[lane], exp_req.prd[lane]);
           // ROB slot tag is already PRF-wide (p32..p63)
-          if (allocated[prf_addr_t'(exp_req.rob_idx[lane])])
+          if (allocated[prf_addr_t'(exp_req.rob_tag[lane])])
             `uvm_error("PRF_OWNERSHIP",
               $sformatf("p%0d ROB slot reused while still in flight",
-                        exp_req.rob_idx[lane]))
-          allocated[prf_addr_t'(exp_req.rob_idx[lane])] = 1;
+                        exp_req.rob_tag[lane]))
+          allocated[prf_addr_t'(exp_req.rob_tag[lane])] = 1;
         end
 
         if (exp_wb.retire_en[lane])

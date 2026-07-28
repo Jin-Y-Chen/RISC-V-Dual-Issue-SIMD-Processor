@@ -20,7 +20,7 @@ module rob_retire (
 
   output logic        rrat_en       [2],
   output gpr_addr_t   rd_addr_cmt   [2],
-  output prf_addr_t   rob_idx_cmt   [2],
+  output prf_addr_t   rob_tag_cmt   [2],
 
   output logic        rat_en        [2],
   output logic        path_sel      [2],
@@ -70,8 +70,8 @@ module rob_retire (
   assign rrat_en[1]     = cmt[1] && payload[1].reg_write;
   assign rd_addr_cmt[0] = cmt[0] ? payload[0].rd : '0;
   assign rd_addr_cmt[1] = cmt[1] ? payload[1].rd : '0;
-  assign rob_idx_cmt[0] = rob_to_prf(h[0]);
-  assign rob_idx_cmt[1] = rob_to_prf(h[1]);
+  assign rob_tag_cmt[0] = rob_to_prf(h[0]);
+  assign rob_tag_cmt[1] = rob_to_prf(h[1]);
 
   assign stb_en[0] = cmt[0] && payload[0].is_store;
   assign stb_en[1] = cmt[1] && payload[1].is_store;

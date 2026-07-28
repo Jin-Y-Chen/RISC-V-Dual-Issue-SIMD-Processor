@@ -196,7 +196,7 @@ class rename_wb_base_seq extends uvm_sequence #(rename_wb_item);
     start_item(t);
     foreach (t.wback_en[i]) begin
       t.wback_en[i] = 0;
-      t.rob_idx[i] = '0;
+      t.rob_tag[i] = '0;
       t.branch_taken[i] = 0;
     end
     finish_item(t);
@@ -207,8 +207,8 @@ class rename_wb_base_seq extends uvm_sequence #(rename_wb_item);
     start_item(t);
     t.wback_en[0] = 1;
     t.wback_en[1] = 1;
-    t.rob_idx[0] = prf_addr_t'({1'b1, 5'((pair * 2) % ROB_DEPTH)});
-    t.rob_idx[1] = prf_addr_t'({1'b1, 5'((pair * 2 + 1) % ROB_DEPTH)});
+    t.rob_tag[0] = prf_addr_t'({1'b1, 5'((pair * 2) % ROB_DEPTH)});
+    t.rob_tag[1] = prf_addr_t'({1'b1, 5'((pair * 2 + 1) % ROB_DEPTH)});
     t.branch_taken[0] = branch_taken;
     t.branch_taken[1] = 0;
     finish_item(t);

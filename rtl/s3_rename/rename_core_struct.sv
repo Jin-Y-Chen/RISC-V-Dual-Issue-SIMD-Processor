@@ -28,30 +28,30 @@ module rename_core_struct (
   input  gpr_addr_t   rs2_addr_rn     [2],
 
   input  logic        wback_en        [2],
-  input  prf_addr_t   rob_idx_wb      [2],
+  input  prf_addr_t   rob_tag_wb      [2],
   input  logic        brch_taken_wb   [2],
 
   output logic        stall,
 
   output logic        valid_rs        [2],
   output logic        spec_en_rs      [2],
-  output prf_addr_t   ps1_rs          [2],
-  output prf_addr_t   ps2_rs          [2],
+  output prf_addr_t   ps1_tag_rs          [2],
+  output prf_addr_t   ps2_tag_rs          [2],
   output logic        tag1_valid_rs   [2],
   output logic        tag2_valid_rs   [2],
-  output prf_addr_t   prd_rs          [2]
+  output prf_addr_t   rob_tag_rs      [2]
 );
 
-  prf_addr_t rob_idx [2];
+  prf_addr_t rob_tag [2];
 
   logic      rat_alloc_en [2];
   logic      rob_alloc_en [2];
-  logic      idx_valid    [2];
+  logic      rob_valid    [2];
 
   logic      retire_en    [2];
   logic      rrat_en      [2];
   gpr_addr_t rd_addr_cmt  [2];
-  prf_addr_t rob_idx_cmt  [2];
+  prf_addr_t rob_tag_cmt  [2];
   logic      rat_en       [2];
   logic      path_sel     [2];
   logic      stb_en       [2];
@@ -61,11 +61,11 @@ module rename_core_struct (
 
   for (genvar i = 0; i < N_DUAL; i++) begin : g_lane
     assign rob_alloc_en[i] = go && valid_rn[i];
-    assign rat_alloc_en[i] = idx_valid[i] && reg_write_rn[i];
+    assign rat_alloc_en[i] = rob_valid[i] && reg_write_rn[i];
 
-    assign valid_rs[i]     = idx_valid[i];
+    assign valid_rs[i]     = rob_valid[i];
     assign spec_en_rs[i]   = spec_en_rn[i];
-    assign prd_rs[i]       = rat_alloc_en[i] ? rob_idx[i] : '0;
+    assign rob_tag_rs[i]   = rat_alloc_en[i] ? rob_tag[i] : '0;
     assign retire_en[i]    = enable && !flush;
   end
 
@@ -76,16 +76,16 @@ module rename_core_struct (
     .rs2_use      (rs2_use_rn),
     .rs1_addr     (rs1_addr_rn),
     .rs2_addr     (rs2_addr_rn),
-    .ps1_tag      (ps1_rs),
-    .ps2_tag      (ps2_rs),
+    .ps1_tag      (ps1_tag_rs),
+    .ps2_tag      (ps2_tag_rs),
     .tag1_valid   (tag1_valid_rs),
     .tag2_valid   (tag2_valid_rs),
     .alloc_en     (rat_alloc_en),
     .alloc_rd_addr(rd_addr_rn),
-    .alloc_rob_tag(rob_idx),
+    .alloc_rob_tag(rob_tag),
     .rrat_en      (rrat_en),
     .rd_addr_cmt  (rd_addr_cmt),
-    .rob_idx_cmt  (rob_idx_cmt),
+    .rob_tag_cmt  (rob_tag_cmt),
     .rat_en       (rat_en),
     .path_sel     (path_sel)
   );
@@ -101,16 +101,16 @@ module rename_core_struct (
     .state_valid  (state_valid_rn),
     .brch_state   (brch_state_rn),
     .rd_addr      (rd_addr_rn),
-    .rob_idx,
-    .idx_valid,
+    .rob_tag,
+    .rob_valid,
     .stall,
     .wback_en     (wback_en),
-    .rob_idx_wb   (rob_idx_wb),
+    .rob_tag_wb   (rob_tag_wb),
     .brch_taken_wb(brch_taken_wb),
     .retire_en    (retire_en),
     .rrat_en      (rrat_en),
     .rd_addr_cmt  (rd_addr_cmt),
-    .rob_idx_cmt  (rob_idx_cmt),
+    .rob_tag_cmt  (rob_tag_cmt),
     .rat_en       (rat_en),
     .path_sel     (path_sel),
     .stb_en       (stb_en)

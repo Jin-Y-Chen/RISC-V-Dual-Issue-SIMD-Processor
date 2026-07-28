@@ -19,8 +19,8 @@ module rob_alloc (
   input  br_state_t   brch_state    [2],
   input  gpr_addr_t   rd_addr       [2],
 
-  output prf_addr_t   rob_idx       [2],
-  output logic        idx_valid     [2],
+  output prf_addr_t   rob_tag       [2],
+  output logic        rob_valid     [2],
   output rob_ptr_t    tail_n,
 
   // allocation write data (parent applies on negedge into shared bank)
@@ -41,8 +41,8 @@ module rob_alloc (
   assign flat[1]    = rob_flat_t'(alloc_base + (alloc_en[0] ? 1'b1 : 1'b0));
 
   for (genvar i = 0; i < 2; i++) begin : g_lane
-    assign rob_idx[i]   = rob_to_prf(flat[i]);
-    assign idx_valid[i] = alloc_en[i];
+    assign rob_tag[i]   = rob_to_prf(flat[i]);
+    assign rob_valid[i] = alloc_en[i];
     assign wr_en[i]     = alloc_en[i];
     assign wr_row[i]  = rob_row(flat[i]);
     assign wr_col[i]  = rob_col(flat[i]);

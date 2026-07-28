@@ -24,19 +24,19 @@ module reorder_buffer (
   input  logic        state_valid   [2],
   input  br_state_t   brch_state    [2],
   input  gpr_addr_t   rd_addr       [2],
-  output prf_addr_t   rob_idx       [2],
-  output logic        idx_valid     [2],
+  output prf_addr_t   rob_tag       [2],
+  output logic        rob_valid     [2],
   output logic        stall,
 
   input  logic        wback_en      [2],
-  input  prf_addr_t   rob_idx_wb    [2],
+  input  prf_addr_t   rob_tag_wb    [2],
   input  logic        brch_taken_wb [2],
 
   input  logic        retire_en     [2],
 
   output logic        rrat_en       [2],
   output gpr_addr_t   rd_addr_cmt   [2],
-  output prf_addr_t   rob_idx_cmt   [2],
+  output prf_addr_t   rob_tag_cmt   [2],
 
   output logic        rat_en        [2],
   output logic        path_sel      [2],
@@ -79,8 +79,8 @@ module reorder_buffer (
     .state_valid,
     .brch_state,
     .rd_addr,
-    .rob_idx,
-    .idx_valid,
+    .rob_tag,
+    .rob_valid,
     .tail_n,
     .wr_en,
     .wr_row,
@@ -104,7 +104,7 @@ module reorder_buffer (
     .retire_en,
     .rrat_en,
     .rd_addr_cmt,
-    .rob_idx_cmt,
+    .rob_tag_cmt,
     .rat_en,
     .path_sel,
     .stb_en,
@@ -123,8 +123,8 @@ module reorder_buffer (
       active_spec_q <= 1'b0;
     end else begin
       for (int i = 0; i < 2; i++) begin
-        automatic rob_set_t wb_r = rob_set(rob_idx_wb[i]);
-        automatic rob_way_t wb_c = rob_way(rob_idx_wb[i]);
+        automatic rob_set_t wb_r = rob_set(rob_tag_wb[i]);
+        automatic rob_way_t wb_c = rob_way(rob_tag_wb[i]);
         if (wback_en[i] && valid_q[wb_r][wb_c])
           rob_q[wb_r][wb_c] <= rob_wback(rob_q[wb_r][wb_c], brch_taken_wb[i]);
       end

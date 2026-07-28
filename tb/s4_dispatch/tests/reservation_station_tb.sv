@@ -8,41 +8,35 @@ import rv_dis_pkg::*;
 module reservation_station_tb;
   logic clk, rst_n, enable, flush;
 
-  logic      valid_dp      [2];
+  logic      rob_valid_dp  [2];
   logic      lane_sel_dp   [2];
-  logic      reg_write_dp  [2];
   logic      spec_en_dp    [2];
   opcode_t   opcode_dp     [2];
   funct3_t   funct3_dp     [2];
   funct7_t   funct7_dp     [2];
-  prf_addr_t ps1_dp        [2];
-  prf_addr_t ps2_dp        [2];
+  prf_addr_t ps1_tag_dp    [2];
+  prf_addr_t ps2_tag_dp    [2];
   logic      tag1_valid_dp [2];
   logic      tag2_valid_dp [2];
-  prf_addr_t prd_dp        [2];
+  prf_addr_t rob_tag_dp    [2];
   word_t     imm_dp        [2];
   word_t     pc_dp         [2];
 
   logic      wb_en         [2];
-  prf_addr_t wb_prd        [2];
+  prf_addr_t rob_tag_wb    [2];
   logic      issue_en, stall_dp;
 
-  logic      rs1_use_prf   [2];
-  logic      rs2_use_prf   [2];
   prf_addr_t ps1_prf       [2];
   prf_addr_t ps2_prf       [2];
 
-  logic      valid_iss     [2];
-  logic      lane_sel_iss  [2];
-  logic      reg_write_iss [2];
-  opcode_t   opcode_iss    [2];
-  funct3_t   funct3_iss    [2];
-  funct7_t   funct7_iss    [2];
-  prf_addr_t ps1_iss       [2];
-  prf_addr_t ps2_iss       [2];
-  prf_addr_t prd_iss       [2];
-  word_t     imm_iss       [2];
-  word_t     pc_iss        [2];
+  logic      rob_valid     [2];
+  logic      lane_sel      [2];
+  opcode_t   opcode        [2];
+  funct3_t   funct3        [2];
+  funct7_t   funct7        [2];
+  prf_addr_t rob_tag       [2];
+  word_t     imm           [2];
+  word_t     pc            [2];
 
   reservation_station dut (.*);
 
@@ -50,34 +44,31 @@ module reservation_station_tb;
   always #5 clk = ~clk;
 
   task automatic clear_dispatch;
-    foreach (valid_dp[i]) begin
-      valid_dp[i]     = 0;
-      lane_sel_dp[i]  = 0;
-      reg_write_dp[i] = 0;
-      spec_en_dp[i]   = 0;
-      opcode_dp[i]    = '0;
-      funct3_dp[i]    = '0;
-      funct7_dp[i]    = '0;
-      ps1_dp[i]       = '0;
-      ps2_dp[i]       = '0;
+    foreach (rob_valid_dp[i]) begin
+      rob_valid_dp[i]  = 0;
+      lane_sel_dp[i]   = 0;
+      spec_en_dp[i]    = 0;
+      opcode_dp[i]     = '0;
+      funct3_dp[i]     = '0;
+      funct7_dp[i]     = '0;
+      ps1_tag_dp[i]    = '0;
+      ps2_tag_dp[i]    = '0;
       tag1_valid_dp[i] = 0;
       tag2_valid_dp[i] = 0;
-      prd_dp[i]       = '0;
-      imm_dp[i]       = '0;
-      pc_dp[i]        = '0;
+      rob_tag_dp[i]    = '0;
+      imm_dp[i]        = '0;
+      pc_dp[i]         = '0;
     end
   endtask
 
   task automatic drive_pair(input prf_addr_t prd0, input prf_addr_t prd1);
-    valid_dp[0]     = 1;
-    reg_write_dp[0] = 1;
+    rob_valid_dp[0] = 1;
     opcode_dp[0]    = OPC_OP;
-    prd_dp[0]       = prd0;
+    rob_tag_dp[0]   = prd0;  // non-zero ⇒ reg_write
     spec_en_dp[0]   = 0;
-    valid_dp[1]     = 1;
-    reg_write_dp[1] = 1;
+    rob_valid_dp[1] = 1;
     opcode_dp[1]    = OPC_OP;
-    prd_dp[1]       = prd1;
+    rob_tag_dp[1]   = prd1;
     spec_en_dp[1]   = 0;
   endtask
 
@@ -92,8 +83,8 @@ module reservation_station_tb;
     flush = 0;
     issue_en = 1;
     foreach (wb_en[i]) begin
-      wb_en[i]  = 0;
-      wb_prd[i] = '0;
+      wb_en[i]      = 0;
+      rob_tag_wb[i] = '0;
     end
     clear_dispatch();
 
@@ -103,14 +94,14 @@ module reservation_station_tb;
 
     // Same-cycle dispatch bypass: ready pair issues without waiting in RS.
     drive_pair(6'd32, 6'd33);
-    ps1_dp[0] = 6'd1;
+    ps1_tag_dp[0] = 6'd1;
     tag1_valid_dp[0] = 1;
-    ps2_dp[1] = 6'd2;
+    ps2_tag_dp[1] = 6'd2;
     tag2_valid_dp[1] = 1;
     #1;
-    if (!valid_iss[0] || !valid_iss[1])
+    if (!rob_valid[0] || !rob_valid[1])
       $error("ready dispatch did not dual-issue (bypass)");
-    if (prd_iss[0] != 6'd32 || prd_iss[1] != 6'd33)
+    if (rob_tag[0] != 6'd32 || rob_tag[1] != 6'd33)
       $error("bypass issue order is incorrect");
     commit_and_sample();
 
@@ -120,22 +111,22 @@ module reservation_station_tb;
     // Producer bypasses; dependent consumer waits in RS until WB.
     @(posedge clk);
     drive_pair(6'd34, 6'd35);
-    ps1_dp[1] = 6'd34;
+    ps1_tag_dp[1] = 6'd34;
     tag1_valid_dp[1] = 1;
     #1;
-    if (!valid_iss[0] || (prd_iss[0] != 6'd34))
+    if (!rob_valid[0] || (rob_tag[0] != 6'd34))
       $error("producer did not bypass-issue");
-    if (valid_iss[1])
+    if (rob_valid[1])
       $error("dependent consumer issued before producer writeback");
     commit_and_sample();
 
     clear_dispatch();
     commit_and_sample();
 
-    wb_en[0]  = 1;
-    wb_prd[0] = 6'd34;
+    wb_en[0]      = 1;
+    rob_tag_wb[0] = 6'd34;
     #1;
-    if (!valid_iss[0] || (prd_iss[0] != 6'd35))
+    if (!rob_valid[0] || (rob_tag[0] != 6'd35))
       $error("writeback tag did not wake dependent consumer");
     @(negedge clk);
     #1;

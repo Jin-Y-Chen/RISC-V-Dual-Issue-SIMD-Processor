@@ -19,16 +19,16 @@ module reorder_buffer_gm (
   input  logic        state_valid   [2],
   input  br_state_t   brch_state    [2],
   input  gpr_addr_t   rd_addr       [2],
-  output prf_addr_t   rob_idx       [2],
+  output prf_addr_t   rob_tag       [2],
   output logic        stall,
   input  logic        wback_en      [2],
-  input  prf_addr_t   rob_idx_wb    [2],
+  input  prf_addr_t   rob_tag_wb    [2],
   input  logic        brch_taken_wb [2],
   input  logic        retire_en     [2],
   output logic        can_retire    [2],
   output logic        rrat_en       [2],
   output gpr_addr_t   rd_addr_cmt   [2],
-  output prf_addr_t   rob_idx_cmt   [2],
+  output prf_addr_t   rob_tag_cmt   [2],
   output logic        rat_en        [2],
   output logic        path_sel      [2],
   output logic        stb_en        [2]
@@ -65,15 +65,15 @@ module reorder_buffer_gm (
     s.i1_rd_addr       = rd_addr[1];
     s.wback0_en        = wback_en[0];
     s.wback1_en        = wback_en[1];
-    s.i0_rob_idx_wb    = rob_idx_wb[0];
-    s.i1_rob_idx_wb    = rob_idx_wb[1];
+    s.i0_rob_tag_wb    = rob_tag_wb[0];
+    s.i1_rob_tag_wb    = rob_tag_wb[1];
     s.i0_brch_taken_wb = brch_taken_wb[0];
     s.i1_brch_taken_wb = brch_taken_wb[1];
     s.retire0_en       = retire_en[0];
     s.retire1_en       = retire_en[1];
     o = rob_gm_eval(h, s);
-    rob_idx[0]     = o.i0_rob_idx;
-    rob_idx[1]     = o.i1_rob_idx;
+    rob_tag[0]     = o.i0_rob_tag;
+    rob_tag[1]     = o.i1_rob_tag;
     stall          = o.stall;
     can_retire[0]  = o.i0_can_retire;
     can_retire[1]  = o.i1_can_retire;
@@ -81,8 +81,8 @@ module reorder_buffer_gm (
     rrat_en[1]     = o.rrat1_en;
     rd_addr_cmt[0] = o.i0_rd_addr_cmt;
     rd_addr_cmt[1] = o.i1_rd_addr_cmt;
-    rob_idx_cmt[0] = o.i0_rob_idx_cmt;
-    rob_idx_cmt[1] = o.i1_rob_idx_cmt;
+    rob_tag_cmt[0] = o.i0_rob_tag_cmt;
+    rob_tag_cmt[1] = o.i1_rob_tag_cmt;
     rat_en[0]      = o.rat0_en;
     rat_en[1]      = o.rat1_en;
     path_sel[0]    = o.i0_path_sel;

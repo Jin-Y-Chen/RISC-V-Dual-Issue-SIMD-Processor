@@ -14,31 +14,31 @@ module rn_dp (
   input  logic        stall_dp,
   output logic        stall_rn,
 
-  input  logic        valid_rn       [2],
+  input  logic        rob_valid_rn   [2],
   input  logic        lane_sel_rn    [2],
   input  logic        spec_en_rn     [2],
   input  opcode_t     opcode_rn      [2],
   input  funct3_t     funct3_rn      [2],
   input  funct7_t     funct7_rn      [2],
-  input  prf_addr_t   ps1_rn         [2],
-  input  prf_addr_t   ps2_rn         [2],
+  input  prf_addr_t   ps1_tag_rn     [2],
+  input  prf_addr_t   ps2_tag_rn     [2],
   input  logic        tag1_valid_rn  [2],
   input  logic        tag2_valid_rn  [2],
-  input  prf_addr_t   prd_rn         [2],
+  input  prf_addr_t   rob_tag_rn     [2],
   input  word_t       imm_rn         [2],
   input  word_t       pc_rn          [2],
 
-  output logic        valid_dp       [2],
+  output logic        rob_valid_dp   [2],
   output logic        lane_sel_dp    [2],
   output logic        spec_en_dp     [2],
   output opcode_t     opcode_dp      [2],
   output funct3_t     funct3_dp      [2],
   output funct7_t     funct7_dp      [2],
-  output prf_addr_t   ps1_dp         [2],
-  output prf_addr_t   ps2_dp         [2],
+  output prf_addr_t   ps1_tag_dp     [2],
+  output prf_addr_t   ps2_tag_dp     [2],
   output logic        tag1_valid_dp  [2],
   output logic        tag2_valid_dp  [2],
-  output prf_addr_t   prd_dp         [2],
+  output prf_addr_t   rob_tag_dp     [2],
   output word_t       imm_dp         [2],
   output word_t       pc_dp          [2]
 );
@@ -48,33 +48,33 @@ module rn_dp (
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
       for (int i = 0; i < N_DUAL; i++) begin
-        valid_dp[i]      <= 1'b0;
+        rob_valid_dp[i]  <= 1'b0;
         lane_sel_dp[i]   <= 1'b0;
         spec_en_dp[i]    <= 1'b0;
         opcode_dp[i]     <= '0;
         funct3_dp[i]     <= '0;
         funct7_dp[i]     <= '0;
-        ps1_dp[i]        <= '0;
-        ps2_dp[i]        <= '0;
+        ps1_tag_dp[i]    <= '0;
+        ps2_tag_dp[i]    <= '0;
         tag1_valid_dp[i] <= 1'b0;
         tag2_valid_dp[i] <= 1'b0;
-        prd_dp[i]        <= '0;
+        rob_tag_dp[i]    <= '0;
         imm_dp[i]        <= '0;
         pc_dp[i]         <= '0;
       end
     end else if (enable && !stall_dp) begin
       for (int i = 0; i < N_DUAL; i++) begin
-        valid_dp[i]      <= valid_rn[i];
+        rob_valid_dp[i]  <= rob_valid_rn[i];
         lane_sel_dp[i]   <= lane_sel_rn[i];
         spec_en_dp[i]    <= spec_en_rn[i];
         opcode_dp[i]     <= opcode_rn[i];
         funct3_dp[i]     <= funct3_rn[i];
         funct7_dp[i]     <= funct7_rn[i];
-        ps1_dp[i]        <= ps1_rn[i];
-        ps2_dp[i]        <= ps2_rn[i];
+        ps1_tag_dp[i]    <= ps1_tag_rn[i];
+        ps2_tag_dp[i]    <= ps2_tag_rn[i];
         tag1_valid_dp[i] <= tag1_valid_rn[i];
         tag2_valid_dp[i] <= tag2_valid_rn[i];
-        prd_dp[i]        <= prd_rn[i];
+        rob_tag_dp[i]    <= rob_tag_rn[i];
         imm_dp[i]        <= imm_rn[i];
         pc_dp[i]         <= pc_rn[i];
       end

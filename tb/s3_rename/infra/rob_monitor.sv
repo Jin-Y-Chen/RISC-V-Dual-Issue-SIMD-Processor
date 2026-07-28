@@ -5,11 +5,11 @@ import tb_pkg::*;
 
 // Global ROB observation monitor. Dual-issue ports are [2] arrays.
 module rob_monitor (
-  input  prf_addr_t rob_idx       [2],
+  input  prf_addr_t rob_tag       [2],
   input  logic      stall,
   input  logic      rrat_en       [2],
   input  gpr_addr_t rd_addr_cmt   [2],
-  input  prf_addr_t rob_idx_cmt   [2],
+  input  prf_addr_t rob_tag_cmt   [2],
   input  logic      rat_en        [2],
   input  logic      path_sel      [2],
   input  logic      stb_en        [2],
@@ -21,8 +21,8 @@ module rob_monitor (
 
   function automatic rob_obs_t sample();
     rob_obs_t o;
-    o.i0_rob_idx     = rob_idx[0];
-    o.i1_rob_idx     = rob_idx[1];
+    o.i0_rob_tag     = rob_tag[0];
+    o.i1_rob_tag     = rob_tag[1];
     o.stall          = stall;
     o.i0_can_retire  = 1'b0;
     o.i1_can_retire  = 1'b0;
@@ -30,8 +30,8 @@ module rob_monitor (
     o.rrat1_en       = rrat_en[1];
     o.i0_rd_addr_cmt = rd_addr_cmt[0];
     o.i1_rd_addr_cmt = rd_addr_cmt[1];
-    o.i0_rob_idx_cmt = rob_idx_cmt[0];
-    o.i1_rob_idx_cmt = rob_idx_cmt[1];
+    o.i0_rob_tag_cmt = rob_tag_cmt[0];
+    o.i1_rob_tag_cmt = rob_tag_cmt[1];
     o.rat0_en        = rat_en[0];
     o.rat1_en        = rat_en[1];
     o.i0_path_sel    = path_sel[0];

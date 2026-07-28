@@ -18,8 +18,8 @@ module commit_monitor (
     t.rat1_en  = vif.rat1_en;
     t.rd0      = vif.i0_rd_addr_cmt;
     t.rd1      = vif.i1_rd_addr_cmt;
-    t.rob0     = vif.i0_rob_idx_cmt;
-    t.rob1     = vif.i1_rob_idx_cmt;
+    t.rob0     = vif.i0_rob_tag_cmt;
+    t.rob1     = vif.i1_rob_tag_cmt;
     t.path0    = vif.i0_path_sel;
     t.path1    = vif.i1_path_sel;
     return t;

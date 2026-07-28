@@ -44,8 +44,8 @@ struct Stim {
   uint8_t  i1_rd_addr       = 0;
   bool     wback0_en        = false;
   bool     wback1_en        = false;
-  uint8_t  i0_rob_idx_wb    = 0;  // PRF tag low 6 bits (p32..p63 → flat in [4:0])
-  uint8_t  i1_rob_idx_wb    = 0;
+  uint8_t  i0_rob_tag_wb    = 0;  // PRF tag low 6 bits (p32..p63 → flat in [4:0])
+  uint8_t  i1_rob_tag_wb    = 0;
   bool     i0_brch_taken_wb = false;
   bool     i1_brch_taken_wb = false;
   bool     retire0_en       = false;
@@ -53,8 +53,8 @@ struct Stim {
 };
 
 struct Obs {
-  uint8_t  i0_rob_idx     = 0;
-  uint8_t  i1_rob_idx     = 0;
+  uint8_t  i0_rob_tag     = 0;
+  uint8_t  i1_rob_tag     = 0;
   bool     stall          = false;
   bool     i0_can_retire  = false;
   bool     i1_can_retire  = false;
@@ -62,8 +62,8 @@ struct Obs {
   bool     rrat1_en       = false;
   uint8_t  i0_rd_addr_cmt = 0;
   uint8_t  i1_rd_addr_cmt = 0;
-  uint8_t  i0_rob_idx_cmt = 0;
-  uint8_t  i1_rob_idx_cmt = 0;
+  uint8_t  i0_rob_tag_cmt = 0;
+  uint8_t  i1_rob_tag_cmt = 0;
   bool     rat0_en        = false;
   bool     rat1_en        = false;
   bool     i0_path_sel    = false;
@@ -134,15 +134,15 @@ void rob_dpi_eval(
     int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
-    int i0_rob_idx_wb, int i1_rob_idx_wb,
+    int i0_rob_tag_wb, int i1_rob_tag_wb,
     int i0_brch_taken_wb, int i1_brch_taken_wb,
     int retire0_en, int retire1_en,
-    int* i0_rob_idx, int* i1_rob_idx,
+    int* i0_rob_tag, int* i1_rob_tag,
     int* stall,
     int* i0_can_retire, int* i1_can_retire,
     int* rrat0_en, int* rrat1_en,
     int* i0_rd_addr_cmt, int* i1_rd_addr_cmt,
-    int* i0_rob_idx_cmt, int* i1_rob_idx_cmt,
+    int* i0_rob_tag_cmt, int* i1_rob_tag_cmt,
     int* rat0_en, int* rat1_en,
     int* i0_path_sel, int* i1_path_sel,
     int* stb0_en, int* stb1_en,
@@ -161,7 +161,7 @@ void rob_dpi_commit(
     int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
-    int i0_rob_idx_wb, int i1_rob_idx_wb,
+    int i0_rob_tag_wb, int i1_rob_tag_wb,
     int i0_brch_taken_wb, int i1_brch_taken_wb,
     int retire0_en, int retire1_en);
 

@@ -89,8 +89,6 @@ import rv_dis_pkg::*;
   } rs_iss_pair_t;
 
   typedef struct packed {
-    logic      rs1_use;
-    logic      rs2_use;
     prf_addr_t ps1;
     prf_addr_t ps2;
   } rs_prf_rd_t;

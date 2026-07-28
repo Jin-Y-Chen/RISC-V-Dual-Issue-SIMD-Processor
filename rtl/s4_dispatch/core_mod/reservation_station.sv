@@ -14,46 +14,40 @@ module reservation_station (
   input  logic        flush,
 
   // Dual dispatch (tags + controls)
-  input  logic        valid_dp      [2],
+  input  logic        rob_valid_dp  [2],
   input  logic        lane_sel_dp   [2],
-  input  logic        reg_write_dp  [2],
   input  logic        spec_en_dp    [2],   // 0=path0, 1=path1
   input  opcode_t     opcode_dp     [2],
   input  funct3_t     funct3_dp     [2],
   input  funct7_t     funct7_dp     [2],
-  input  prf_addr_t   ps1_dp        [2],
-  input  prf_addr_t   ps2_dp        [2],
+  input  prf_addr_t   ps1_tag_dp    [2],
+  input  prf_addr_t   ps2_tag_dp    [2],
   input  logic        tag1_valid_dp [2],
   input  logic        tag2_valid_dp [2],
-  input  prf_addr_t   prd_dp        [2],
+  input  prf_addr_t   rob_tag_dp    [2],   // reg_write implied by rob_tag != 0
   input  word_t       imm_dp        [2],
   input  word_t       pc_dp         [2],
 
   // Dual writeback tags
   input  logic        wb_en         [2],
-  input  prf_addr_t   wb_prd        [2],
+  input  prf_addr_t   rob_tag_wb    [2],
 
   input  logic        issue_en,        // downstream accept (EX / dp_ex)
   output logic        stall_dp,
 
   // Dual issue → PRF read ports
-  output logic        rs1_use_prf   [2],
-  output logic        rs2_use_prf   [2],
   output prf_addr_t   ps1_prf       [2],
   output prf_addr_t   ps2_prf       [2],
 
   // Dual issue → dp_ex
-  output logic        valid_iss     [2],
-  output logic        lane_sel_iss  [2],
-  output logic        reg_write_iss [2],
-  output opcode_t     opcode_iss    [2],
-  output funct3_t     funct3_iss    [2],
-  output funct7_t     funct7_iss    [2],
-  output prf_addr_t   ps1_iss       [2],
-  output prf_addr_t   ps2_iss       [2],
-  output prf_addr_t   prd_iss       [2],
-  output word_t       imm_iss       [2],
-  output word_t       pc_iss        [2]
+  output logic        rob_valid     [2],
+  output logic        lane_sel      [2],
+  output opcode_t     opcode        [2],
+  output funct3_t     funct3        [2],
+  output funct7_t     funct7        [2],
+  output prf_addr_t   rob_tag       [2],
+  output word_t       imm           [2],
+  output word_t       pc            [2]
 );
 
   rs_entry_t          bank_q [RS_SETS][RS_WAYS], bank_n [RS_SETS][RS_WAYS];
@@ -69,57 +63,47 @@ module reservation_station (
   // Shared bundles for issue + alloc (single pack site).
   always_comb begin
     disp.i0 = '{
-      valid: valid_dp[0], lane_sel: lane_sel_dp[0],
-      reg_write: reg_write_dp[0], spec_en: spec_en_dp[0],
+      valid: rob_valid_dp[0], lane_sel: lane_sel_dp[0],
+      reg_write: (rob_tag_dp[0] != '0), spec_en: spec_en_dp[0],
       tag1_valid: tag1_valid_dp[0], tag2_valid: tag2_valid_dp[0],
       opcode: opcode_dp[0], funct3: funct3_dp[0], funct7: funct7_dp[0],
-      ps1: ps1_dp[0], ps2: ps2_dp[0], prd: prd_dp[0],
+      ps1: ps1_tag_dp[0], ps2: ps2_tag_dp[0], prd: rob_tag_dp[0],
       imm: imm_dp[0], pc: pc_dp[0]
     };
     disp.i1 = '{
-      valid: valid_dp[1], lane_sel: lane_sel_dp[1],
-      reg_write: reg_write_dp[1], spec_en: spec_en_dp[1],
+      valid: rob_valid_dp[1], lane_sel: lane_sel_dp[1],
+      reg_write: (rob_tag_dp[1] != '0), spec_en: spec_en_dp[1],
       tag1_valid: tag1_valid_dp[1], tag2_valid: tag2_valid_dp[1],
       opcode: opcode_dp[1], funct3: funct3_dp[1], funct7: funct7_dp[1],
-      ps1: ps1_dp[1], ps2: ps2_dp[1], prd: prd_dp[1],
+      ps1: ps1_tag_dp[1], ps2: ps2_tag_dp[1], prd: rob_tag_dp[1],
       imm: imm_dp[1], pc: pc_dp[1]
     };
-    wb.wb0 = '{en: wb_en[0], prd: wb_prd[0]};
-    wb.wb1 = '{en: wb_en[1], prd: wb_prd[1]};
+    wb.wb0 = '{en: wb_en[0], prd: rob_tag_wb[0]};
+    wb.wb1 = '{en: wb_en[1], prd: rob_tag_wb[1]};
   end
 
   // Unpack issue / PRF to [2] ports.
-  assign valid_iss[0]     = iss.i0.valid;
-  assign lane_sel_iss[0]  = iss.i0.lane_sel;
-  assign reg_write_iss[0] = iss.i0.reg_write;
-  assign opcode_iss[0]    = iss.i0.opcode;
-  assign funct3_iss[0]    = iss.i0.funct3;
-  assign funct7_iss[0]    = iss.i0.funct7;
-  assign ps1_iss[0]       = iss.i0.ps1;
-  assign ps2_iss[0]       = iss.i0.ps2;
-  assign prd_iss[0]       = iss.i0.prd;
-  assign imm_iss[0]       = iss.i0.imm;
-  assign pc_iss[0]        = iss.i0.pc;
-  assign ps1_prf[0]       = prf.i0.ps1;
-  assign ps2_prf[0]       = prf.i0.ps2;
-  assign rs1_use_prf[0]   = prf.i0.rs1_use;
-  assign rs2_use_prf[0]   = prf.i0.rs2_use;
+  assign rob_valid[0]   = iss.i0.valid;
+  assign lane_sel[0]    = iss.i0.lane_sel;
+  assign opcode[0]      = iss.i0.opcode;
+  assign funct3[0]      = iss.i0.funct3;
+  assign funct7[0]      = iss.i0.funct7;
+  assign rob_tag[0]     = iss.i0.prd;
+  assign imm[0]         = iss.i0.imm;
+  assign pc[0]          = iss.i0.pc;
+  assign ps1_prf[0]     = prf.i0.ps1;
+  assign ps2_prf[0]     = prf.i0.ps2;
 
-  assign valid_iss[1]     = iss.i1.valid;
-  assign lane_sel_iss[1]  = iss.i1.lane_sel;
-  assign reg_write_iss[1] = iss.i1.reg_write;
-  assign opcode_iss[1]    = iss.i1.opcode;
-  assign funct3_iss[1]    = iss.i1.funct3;
-  assign funct7_iss[1]    = iss.i1.funct7;
-  assign ps1_iss[1]       = iss.i1.ps1;
-  assign ps2_iss[1]       = iss.i1.ps2;
-  assign prd_iss[1]       = iss.i1.prd;
-  assign imm_iss[1]       = iss.i1.imm;
-  assign pc_iss[1]        = iss.i1.pc;
-  assign ps1_prf[1]       = prf.i1.ps1;
-  assign ps2_prf[1]       = prf.i1.ps2;
-  assign rs1_use_prf[1]   = prf.i1.rs1_use;
-  assign rs2_use_prf[1]   = prf.i1.rs2_use;
+  assign rob_valid[1]   = iss.i1.valid;
+  assign lane_sel[1]    = iss.i1.lane_sel;
+  assign opcode[1]      = iss.i1.opcode;
+  assign funct3[1]      = iss.i1.funct3;
+  assign funct7[1]      = iss.i1.funct7;
+  assign rob_tag[1]     = iss.i1.prd;
+  assign imm[1]         = iss.i1.imm;
+  assign pc[1]          = iss.i1.pc;
+  assign ps1_prf[1]     = prf.i1.ps1;
+  assign ps2_prf[1]     = prf.i1.ps2;
 
   rs_issue u_issue (
     .enable, .flush,

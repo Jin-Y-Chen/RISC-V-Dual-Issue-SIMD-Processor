@@ -199,8 +199,6 @@ module rs_issue (
         iss.i0.pc        = dd0.pc;
         prf.i0.ps1       = dd0.ps1;
         prf.i0.ps2       = dd0.ps2;
-        prf.i0.rs1_use   = dd0.tag1_valid;
-        prf.i0.rs2_use   = dd0.tag2_valid;
       end else begin
         iss.i0.valid     = 1'b1;
         iss.i0.lane_sel  = e0.lane_sel;
@@ -215,8 +213,6 @@ module rs_issue (
         iss.i0.pc        = e0.pc;
         prf.i0.ps1       = e0.ps1;
         prf.i0.ps2       = e0.ps2;
-        prf.i0.rs1_use   = e0.tag1_valid;
-        prf.i0.rs2_use   = e0.tag2_valid;
       end
     end
 
@@ -235,8 +231,6 @@ module rs_issue (
         iss.i1.pc        = dd1.pc;
         prf.i1.ps1       = dd1.ps1;
         prf.i1.ps2       = dd1.ps2;
-        prf.i1.rs1_use   = dd1.tag1_valid;
-        prf.i1.rs2_use   = dd1.tag2_valid;
       end else begin
         iss.i1.valid     = 1'b1;
         iss.i1.lane_sel  = e1.lane_sel;
@@ -251,8 +245,6 @@ module rs_issue (
         iss.i1.pc        = e1.pc;
         prf.i1.ps1       = e1.ps1;
         prf.i1.ps2       = e1.ps2;
-        prf.i1.rs1_use   = e1.tag1_valid;
-        prf.i1.rs2_use   = e1.tag2_valid;
       end
     end
   end

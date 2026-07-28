@@ -1,6 +1,6 @@
 class rename_wb_item extends rv_base_seq_item;
   rand bit         wback_en[2];
-  rand prf_addr_t  rob_idx[2];
+  rand prf_addr_t  rob_tag[2];
   rand bit         branch_taken[2];
 
   logic            rst_n;
@@ -56,7 +56,7 @@ class rename_wb_driver extends rv_base_driver #(rename_wb_item);
   task drive_idle();
     foreach (vif.wb_drv_cb.wback_en[i]) begin
       vif.wb_drv_cb.wback_en[i]      <= 1'b0;
-      vif.wb_drv_cb.rob_idx_wb[i]    <= '0;
+      vif.wb_drv_cb.rob_tag_wb[i]    <= '0;
       vif.wb_drv_cb.brch_taken_wb[i] <= 1'b0;
     end
   endtask
@@ -64,7 +64,7 @@ class rename_wb_driver extends rv_base_driver #(rename_wb_item);
   task drive(rename_wb_item t);
     foreach (t.wback_en[i]) begin
       vif.wb_drv_cb.wback_en[i]      <= t.wback_en[i];
-      vif.wb_drv_cb.rob_idx_wb[i]    <= t.rob_idx[i];
+      vif.wb_drv_cb.rob_tag_wb[i]    <= t.rob_tag[i];
       vif.wb_drv_cb.brch_taken_wb[i] <= t.branch_taken[i];
     end
   endtask
@@ -87,7 +87,7 @@ class rename_wb_monitor extends rv_base_monitor #(rename_wb_item);
       t.flush = vif.mon_cb.flush;
       foreach (t.wback_en[i]) begin
         t.wback_en[i]     = vif.mon_cb.wback_en[i];
-        t.rob_idx[i]      = vif.mon_cb.rob_idx_wb[i];
+        t.rob_tag[i]      = vif.mon_cb.rob_tag_wb[i];
         t.branch_taken[i] = vif.mon_cb.brch_taken_wb[i];
       end
       ap.write(t);

@@ -18,17 +18,17 @@ interface rename_if(input logic clk);
   gpr_addr_t rs2_addr_rn     [2];
 
   logic      wback_en        [2];
-  prf_addr_t rob_idx_wb      [2];
+  prf_addr_t rob_tag_wb      [2];
   logic      brch_taken_wb   [2];
 
   logic      stall;
   logic      valid_rs        [2];
   logic      spec_en_rs      [2];
-  prf_addr_t ps1_rs          [2];
-  prf_addr_t ps2_rs          [2];
+  prf_addr_t ps1_tag_rs      [2];
+  prf_addr_t ps2_tag_rs      [2];
   logic      tag1_valid_rs   [2];
   logic      tag2_valid_rs   [2];
-  prf_addr_t prd_rs          [2];
+  prf_addr_t rob_tag_rs      [2];
 
   // The monitor samples the completed cycle just before negedge. Drivers then
   // launch the next transaction, which remains stable through the next posedge.
@@ -42,7 +42,7 @@ interface rename_if(input logic clk);
 
   clocking wb_drv_cb @(negedge clk);
     default input #1step output #0;
-    output wback_en, rob_idx_wb, brch_taken_wb;
+    output wback_en, rob_tag_wb, brch_taken_wb;
   endclocking
 
   clocking mon_cb @(negedge clk);
@@ -51,10 +51,11 @@ interface rename_if(input logic clk);
     input store_en_rn, brch_en_rn, state_valid_rn, brch_state_rn;
     input rs1_use_rn, rs2_use_rn;
     input rd_addr_rn, rs1_addr_rn, rs2_addr_rn;
-    input wback_en, rob_idx_wb, brch_taken_wb;
+    input wback_en, rob_tag_wb, brch_taken_wb;
     input stall;
     input valid_rs, spec_en_rs;
-    input ps1_rs, ps2_rs, prd_rs;
+    input ps1_tag_rs, ps2_tag_rs, rob_tag_rs;
+
     input tag1_valid_rs, tag2_valid_rs;
   endclocking
 

@@ -50,8 +50,8 @@ module tb_top;
   assign cmt.i1_path_sel    = 1'b0;
   assign cmt.i0_rd_addr_cmt = '0;
   assign cmt.i1_rd_addr_cmt = '0;
-  assign cmt.i0_rob_idx_cmt = '0;
-  assign cmt.i1_rob_idx_cmt = '0;
+  assign cmt.i0_rob_tag_cmt = '0;
+  assign cmt.i1_rob_tag_cmt = '0;
   assign cmt.i0_can_retire  = 1'b0;
   assign cmt.i1_can_retire  = 1'b0;
 

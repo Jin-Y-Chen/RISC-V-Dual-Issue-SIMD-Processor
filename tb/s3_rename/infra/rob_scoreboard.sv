@@ -14,15 +14,15 @@ module rob_scoreboard;
     input bit       quiet = 0
   );
     bit ok;
-    ok = (dut.i0_rob_idx     === exp.i0_rob_idx)
-      && (dut.i1_rob_idx     === exp.i1_rob_idx)
+    ok = (dut.i0_rob_tag     === exp.i0_rob_tag)
+      && (dut.i1_rob_tag     === exp.i1_rob_tag)
       && (dut.stall          === exp.stall)
       && (dut.rrat0_en       === exp.rrat0_en)
       && (dut.rrat1_en       === exp.rrat1_en)
       && (dut.i0_rd_addr_cmt === exp.i0_rd_addr_cmt)
       && (dut.i1_rd_addr_cmt === exp.i1_rd_addr_cmt)
-      && (dut.i0_rob_idx_cmt === exp.i0_rob_idx_cmt)
-      && (dut.i1_rob_idx_cmt === exp.i1_rob_idx_cmt)
+      && (dut.i0_rob_tag_cmt === exp.i0_rob_tag_cmt)
+      && (dut.i1_rob_tag_cmt === exp.i1_rob_tag_cmt)
       && (dut.rat0_en        === exp.rat0_en)
       && (dut.rat1_en        === exp.rat1_en)
       && (dut.i0_path_sel    === exp.i0_path_sel)

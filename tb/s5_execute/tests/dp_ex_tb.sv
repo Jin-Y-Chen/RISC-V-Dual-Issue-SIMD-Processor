@@ -1,35 +1,42 @@
 `timescale 1ns / 1ps
 
-// Smoke: dual issue → lane_sel demux onto ev0/ev1/od0/od1; PRF data buffered.
+// Smoke: dual issue → lane_sel demux onto ev[2]/od[2]; PRF data buffered.
 import rv_dis_pkg::*;
 
 module dp_ex_tb;
   logic clk, rst_n, enable, flush, stall;
 
-  logic        valid_iss     [2];
-  logic        lane_sel_iss  [2];
-  logic        reg_write_iss [2];
-  opcode_t     opcode_iss    [2];
-  funct3_t     funct3_iss    [2];
-  funct7_t     funct7_iss    [2];
-  prf_addr_t   prd_iss       [2];
-  word_t       imm_iss       [2];
-  word_t       pc_iss        [2];
-  word_t       rs1_data      [2];
-  word_t       rs2_data      [2];
+  logic        rob_valid [2];
+  logic        lane_sel  [2];
+  opcode_t     opcode    [2];
+  funct3_t     funct3    [2];
+  funct7_t     funct7    [2];
+  prf_addr_t   rob_tag   [2];
+  word_t       imm       [2];
+  word_t       pc        [2];
+  word_t       rs1_data  [2];
+  word_t       rs2_data  [2];
 
-  logic        ev0_enable_ex, ev1_enable_ex, od0_enable_ex, od1_enable_ex;
-  logic        ev0_reg_write_ex, ev1_reg_write_ex, od0_reg_write_ex, od1_reg_write_ex;
-  opcode_t     ev0_opcode_ex, ev1_opcode_ex, od0_opcode_ex, od1_opcode_ex;
-  funct3_t     ev0_funct3_ex, ev1_funct3_ex, od0_funct3_ex, od1_funct3_ex;
-  funct7_t     ev0_funct7_ex, ev1_funct7_ex;
-  prf_addr_t   ev0_prd_ex, ev1_prd_ex, od0_prd_ex, od1_prd_ex;
-  word_t       ev0_imm_ex, ev1_imm_ex, od0_imm_ex, od1_imm_ex;
-  word_t       ev0_pc_ex, ev1_pc_ex, od0_pc_ex, od1_pc_ex;
-  word_t       ev0_rs1_data_ex, ev0_rs2_data_ex;
-  word_t       ev1_rs1_data_ex, ev1_rs2_data_ex;
-  word_t       od0_rs1_data_ex, od0_rs2_data_ex;
-  word_t       od1_rs1_data_ex, od1_rs2_data_ex;
+  logic        ev_enable_ex    [2];
+  logic        ev_reg_write_ex [2];
+  opcode_t     ev_opcode_ex    [2];
+  funct3_t     ev_funct3_ex    [2];
+  funct7_t     ev_funct7_ex    [2];
+  prf_addr_t   ev_prd_ex       [2];
+  word_t       ev_imm_ex       [2];
+  word_t       ev_pc_ex        [2];
+  word_t       ev_rs1_data_ex  [2];
+  word_t       ev_rs2_data_ex  [2];
+
+  logic        od_enable_ex    [2];
+  logic        od_reg_write_ex [2];
+  opcode_t     od_opcode_ex    [2];
+  funct3_t     od_funct3_ex    [2];
+  prf_addr_t   od_prd_ex       [2];
+  word_t       od_imm_ex       [2];
+  word_t       od_pc_ex        [2];
+  word_t       od_rs1_data_ex  [2];
+  word_t       od_rs2_data_ex  [2];
 
   dp_ex dut (.*);
 
@@ -38,17 +45,16 @@ module dp_ex_tb;
 
   task automatic clear_iss;
     for (int i = 0; i < N_DUAL; i++) begin
-      valid_iss[i]     = 0;
-      lane_sel_iss[i]  = 0;
-      reg_write_iss[i] = 0;
-      opcode_iss[i]    = '0;
-      funct3_iss[i]    = '0;
-      funct7_iss[i]    = '0;
-      prd_iss[i]       = '0;
-      imm_iss[i]       = '0;
-      pc_iss[i]        = '0;
-      rs1_data[i]      = '0;
-      rs2_data[i]      = '0;
+      rob_valid[i] = 0;
+      lane_sel[i]  = 0;
+      opcode[i]    = '0;
+      funct3[i]    = '0;
+      funct7[i]    = '0;
+      rob_tag[i]   = '0;
+      imm[i]       = '0;
+      pc[i]        = '0;
+      rs1_data[i]  = '0;
+      rs2_data[i]  = '0;
     end
   endtask
 
@@ -59,43 +65,43 @@ module dp_ex_tb;
     rst_n = 1;
 
     @(negedge clk);
-    valid_iss[0] = 1; lane_sel_iss[0] = 0; reg_write_iss[0] = 1;
-    opcode_iss[0] = OPC_OP; prd_iss[0] = 6'd32;
+    rob_valid[0] = 1; lane_sel[0] = 0;
+    opcode[0] = OPC_OP; rob_tag[0] = 6'd32;
     rs1_data[0] = 32'hA000_0001; rs2_data[0] = 32'hA000_0002;
-    valid_iss[1] = 1; lane_sel_iss[1] = 0; reg_write_iss[1] = 1;
-    opcode_iss[1] = OPC_OP; prd_iss[1] = 6'd33;
+    rob_valid[1] = 1; lane_sel[1] = 0;
+    opcode[1] = OPC_OP; rob_tag[1] = 6'd33;
     rs1_data[1] = 32'hB000_0001; rs2_data[1] = 32'hB000_0002;
     @(posedge clk);
     #1;
-    if (!ev0_enable_ex || !ev1_enable_ex || od0_enable_ex || od1_enable_ex)
+    if (!ev_enable_ex[0] || !ev_enable_ex[1] || od_enable_ex[0] || od_enable_ex[1])
       $error("dual even routing failed");
-    if (ev0_prd_ex != 6'd32 || ev1_prd_ex != 6'd33)
+    if (ev_prd_ex[0] != 6'd32 || ev_prd_ex[1] != 6'd33)
       $error("even port packing order wrong");
-    if (ev0_rs1_data_ex != 32'hA000_0001 || ev1_rs2_data_ex != 32'hB000_0002)
+    if (ev_rs1_data_ex[0] != 32'hA000_0001 || ev_rs2_data_ex[1] != 32'hB000_0002)
       $error("PRF data not buffered on even ports");
 
     @(negedge clk);
     clear_iss();
-    valid_iss[0] = 1; lane_sel_iss[0] = 0; prd_iss[0] = 6'd40;
+    rob_valid[0] = 1; lane_sel[0] = 0; rob_tag[0] = 6'd40;
     rs1_data[0] = 32'h1;
-    valid_iss[1] = 1; lane_sel_iss[1] = 1; prd_iss[1] = 6'd41;
-    opcode_iss[1] = OPC_LOAD; rs1_data[1] = 32'h2;
+    rob_valid[1] = 1; lane_sel[1] = 1; rob_tag[1] = 6'd41;
+    opcode[1] = OPC_LOAD; rs1_data[1] = 32'h2;
     @(posedge clk);
     #1;
-    if (!ev0_enable_ex || ev1_enable_ex || !od0_enable_ex || od1_enable_ex)
+    if (!ev_enable_ex[0] || ev_enable_ex[1] || !od_enable_ex[0] || od_enable_ex[1])
       $error("mixed even/odd routing failed");
-    if (ev0_prd_ex != 6'd40 || od0_prd_ex != 6'd41)
+    if (ev_prd_ex[0] != 6'd40 || od_prd_ex[0] != 6'd41)
       $error("mixed port tags wrong");
 
     @(negedge clk);
     clear_iss();
-    valid_iss[0] = 1; lane_sel_iss[0] = 1; prd_iss[0] = 6'd50;
-    valid_iss[1] = 1; lane_sel_iss[1] = 1; prd_iss[1] = 6'd51;
+    rob_valid[0] = 1; lane_sel[0] = 1; rob_tag[0] = 6'd50;
+    rob_valid[1] = 1; lane_sel[1] = 1; rob_tag[1] = 6'd51;
     @(posedge clk);
     #1;
-    if (ev0_enable_ex || ev1_enable_ex || !od0_enable_ex || !od1_enable_ex)
+    if (ev_enable_ex[0] || ev_enable_ex[1] || !od_enable_ex[0] || !od_enable_ex[1])
       $error("dual odd routing failed");
-    if (od0_prd_ex != 6'd50 || od1_prd_ex != 6'd51)
+    if (od_prd_ex[0] != 6'd50 || od_prd_ex[1] != 6'd51)
       $error("odd port packing order wrong");
 
     $display("OK dp_ex_tb");

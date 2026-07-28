@@ -23,7 +23,7 @@ class rename_req_item extends rv_base_seq_item;
   logic             stall;
   logic             valid[2];
   prf_addr_t        ps1[2], ps2[2], prd[2];
-  prf_addr_t        rob_idx[2];  // refmodel-only: expected ROB slot for scoreboard
+  prf_addr_t        rob_tag[2];  // refmodel-only: expected ROB slot for scoreboard
 
   constraint c_reset { flush dist {0 := 99, 1 := 1}; }
   constraint c_regs  {
@@ -151,9 +151,9 @@ class rename_req_monitor extends rv_base_monitor #(rename_req_item);
         t.rs1[i]         = vif.mon_cb.rs1_addr_rn[i];
         t.rs2[i]         = vif.mon_cb.rs2_addr_rn[i];
         t.valid[i]       = vif.mon_cb.valid_rs[i];
-        t.ps1[i]         = vif.mon_cb.ps1_rs[i];
-        t.ps2[i]         = vif.mon_cb.ps2_rs[i];
-        t.prd[i]         = vif.mon_cb.prd_rs[i];
+        t.ps1[i]         = vif.mon_cb.ps1_tag_rs[i];
+        t.ps2[i]         = vif.mon_cb.ps2_tag_rs[i];
+        t.prd[i]         = vif.mon_cb.rob_tag_rs[i];
       end
       t.stall = vif.mon_cb.stall;
       ap.write(t);

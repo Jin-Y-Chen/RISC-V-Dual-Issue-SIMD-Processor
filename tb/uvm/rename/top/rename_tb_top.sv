@@ -31,16 +31,16 @@ module rename_tb_top;
     .rs1_addr_rn(vif.rs1_addr_rn),
     .rs2_addr_rn(vif.rs2_addr_rn),
     .wback_en(vif.wback_en),
-    .rob_idx_wb(vif.rob_idx_wb),
+    .rob_tag_wb(vif.rob_tag_wb),
     .brch_taken_wb(vif.brch_taken_wb),
     .stall(vif.stall),
     .valid_rs(vif.valid_rs),
     .spec_en_rs(vif.spec_en_rs),
-    .ps1_rs(vif.ps1_rs),
-    .ps2_rs(vif.ps2_rs),
+    .ps1_tag_rs(vif.ps1_tag_rs),
+    .ps2_tag_rs(vif.ps2_tag_rs),
     .tag1_valid_rs(vif.tag1_valid_rs),
     .tag2_valid_rs(vif.tag2_valid_rs),
-    .prd_rs(vif.prd_rs)
+    .rob_tag_rs(vif.rob_tag_rs)
   );
 
   initial begin
@@ -60,7 +60,7 @@ module rename_tb_top;
       vif.rs1_addr_rn[i]     = '0;
       vif.rs2_addr_rn[i]     = '0;
       vif.wback_en[i]        = 0;
-      vif.rob_idx_wb[i]      = '0;
+      vif.rob_tag_wb[i]      = '0;
       vif.brch_taken_wb[i]   = 0;
     end
     repeat (4) @(posedge clk);

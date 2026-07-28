@@ -111,7 +111,7 @@ class rename_refmodel extends uvm_object;
     for (int lane = 0; lane < 2; lane++) begin
       exp_req.valid[lane] = go && issue[lane];
       exp_req.prd[lane] = new_tag[lane];
-      exp_req.rob_idx[lane] = to_prf(base | lane);
+      exp_req.rob_tag[lane] = to_prf(base | lane);
     end
     exp_req.ps1[0] = (!req.rs1_use[0] || req.rs1[0] == '0)
                    ? '0 : map_read(req.rs1[0], req.spec_en[0]);
@@ -171,9 +171,9 @@ class rename_refmodel extends uvm_object;
 
     // Negedge-order storage updates for next cycle: WB → alloc → map
     for (int lane = 0; lane < 2; lane++) begin
-      if (wb.wback_en[lane] && rob[to_flat(wb.rob_idx[lane])].valid) begin
-        rob[to_flat(wb.rob_idx[lane])].complete = 1;
-        rob[to_flat(wb.rob_idx[lane])].branch_taken = wb.branch_taken[lane];
+      if (wb.wback_en[lane] && rob[to_flat(wb.rob_tag[lane])].valid) begin
+        rob[to_flat(wb.rob_tag[lane])].complete = 1;
+        rob[to_flat(wb.rob_tag[lane])].branch_taken = wb.branch_taken[lane];
       end
     end
 

@@ -25,16 +25,16 @@ module rob_tb;
   logic        state_valid   [2];
   br_state_t   brch_state    [2];
   gpr_addr_t   rd_addr       [2];
-  prf_addr_t   rob_idx       [2];
+  prf_addr_t   rob_tag       [2];
   logic        stall;
   logic        wback_en      [2];
-  prf_addr_t   rob_idx_wb    [2];
+  prf_addr_t   rob_tag_wb    [2];
   logic        brch_taken_wb [2];
   logic        retire_en     [2];
-  logic        idx_valid     [2];
+  logic        rob_valid     [2];
   logic        rrat_en       [2];
   gpr_addr_t   rd_addr_cmt   [2];
-  prf_addr_t   rob_idx_cmt   [2];
+  prf_addr_t   rob_tag_cmt   [2];
   logic        rat_en        [2];
   logic        path_sel      [2];
   logic        stb_en        [2];
@@ -46,22 +46,22 @@ module rob_tb;
   reorder_buffer dut (
     .clk, .rst_n, .flush,
     .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
-    .state_valid, .brch_state, .rd_addr, .rob_idx, .idx_valid, .stall,
-    .wback_en, .rob_idx_wb, .brch_taken_wb,
+    .state_valid, .brch_state, .rd_addr, .rob_tag, .rob_valid, .stall,
+    .wback_en, .rob_tag_wb, .brch_taken_wb,
     .retire_en,
-    .rrat_en, .rd_addr_cmt, .rob_idx_cmt,
+    .rrat_en, .rd_addr_cmt, .rob_tag_cmt,
     .rat_en, .path_sel, .stb_en
   );
 
   rob_driver u_drv (
     .flush, .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
     .state_valid, .brch_state, .rd_addr,
-    .wback_en, .rob_idx_wb, .brch_taken_wb, .retire_en
+    .wback_en, .rob_tag_wb, .brch_taken_wb, .retire_en
   );
 
   rob_monitor u_mon (
-    .rob_idx, .stall,
-    .rrat_en, .rd_addr_cmt, .rob_idx_cmt,
+    .rob_tag, .stall,
+    .rrat_en, .rd_addr_cmt, .rob_tag_cmt,
     .rat_en, .path_sel, .stb_en,
     .head_q(dut.head_q),
     .tail_q(dut.tail_q),
@@ -176,8 +176,8 @@ module rob_tb;
     s = stim_clear();
     s.wback0_en        = en0;
     s.wback1_en        = en1;
-    s.i0_rob_idx_wb    = t0;
-    s.i1_rob_idx_wb    = t1;
+    s.i0_rob_tag_wb    = t0;
+    s.i1_rob_tag_wb    = t1;
     s.i0_brch_taken_wb = taken0;
     s.i1_brch_taken_wb = taken1;
     do_cycle(name, s);
@@ -201,7 +201,7 @@ module rob_tb;
            "Allocate one register-write entry; check tags, occ, stall.");
     $display("Stim: C0 alloc0 rd=1; C1 idle");
     alloc_reg(0, 5'd1, 5'd0, "T1.alloc");
-    $display("Expect: tail=1 occ=1 stall=0 i0_rob_idx=p32");
+    $display("Expect: tail=1 occ=1 stall=0 i0_rob_tag=p32");
     do_idle("T1.idle");
 
     // T2 Dual allocation
@@ -222,7 +222,7 @@ module rob_tb;
            "Allocate, idle several cycles, then WB; retire one cycle later.");
     do_flush();
     alloc_reg(0, 5'd5, 5'd0, "T4.alloc");
-    tag0 = rob_idx[0]; // sampled after clear — need capture before clear
+    tag0 = rob_tag[0]; // sampled after clear — need capture before clear
     // Re-capture via known mapping: first alloc after flush → p32
     tag0 = rob_to_prf(5'd0);
     do_idle("T4.lat1");
@@ -435,7 +435,7 @@ module rob_tb;
     s = stim_clear();
     s.flush = 1;
     s.wback0_en = 1;
-    s.i0_rob_idx_wb = rob_to_prf(5'd0);
+    s.i0_rob_tag_wb = rob_to_prf(5'd0);
     do_cycle("T20.flush_wb", s);
 
     // T21 Writeback after flush (ignored)
@@ -505,7 +505,7 @@ module rob_tb;
         // Random WB to a live flat index (best-effort)
         if (dut.occ != 0 && $urandom_range(0, 1)) begin
           s.wback0_en = 1;
-          s.i0_rob_idx_wb = rob_to_prf(rob_flat_t'($urandom_range(0, 31)));
+          s.i0_rob_tag_wb = rob_to_prf(rob_flat_t'($urandom_range(0, 31)));
           s.i0_brch_taken_wb = $urandom_range(0, 1);
         end
       end

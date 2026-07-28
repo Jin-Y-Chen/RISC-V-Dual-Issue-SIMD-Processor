@@ -16,7 +16,7 @@ module rob_driver (
   output br_state_t   brch_state    [2],
   output gpr_addr_t   rd_addr       [2],
   output logic        wback_en      [2],
-  output prf_addr_t   rob_idx_wb    [2],
+  output prf_addr_t   rob_tag_wb    [2],
   output logic        brch_taken_wb [2],
   output logic        retire_en     [2]
 );
@@ -41,8 +41,8 @@ module rob_driver (
     rd_addr[1]       = s.i1_rd_addr;
     wback_en[0]      = s.wback0_en;
     wback_en[1]      = s.wback1_en;
-    rob_idx_wb[0]    = s.i0_rob_idx_wb;
-    rob_idx_wb[1]    = s.i1_rob_idx_wb;
+    rob_tag_wb[0]    = s.i0_rob_tag_wb;
+    rob_tag_wb[1]    = s.i1_rob_tag_wb;
     brch_taken_wb[0] = s.i0_brch_taken_wb;
     brch_taken_wb[1] = s.i1_brch_taken_wb;
     retire_en[0]     = s.retire0_en;

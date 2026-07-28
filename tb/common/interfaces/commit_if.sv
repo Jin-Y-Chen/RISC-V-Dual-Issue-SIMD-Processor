@@ -9,7 +9,7 @@ interface commit_if (input logic clk, input logic rst_n);
   logic      rat0_en, rat1_en;
   logic      i0_path_sel, i1_path_sel;
   gpr_addr_t i0_rd_addr_cmt, i1_rd_addr_cmt;
-  prf_addr_t i0_rob_idx_cmt, i1_rob_idx_cmt;
+  prf_addr_t i0_rob_tag_cmt, i1_rob_tag_cmt;
   logic      i0_can_retire, i1_can_retire;
   logic      retire0_en, retire1_en;
 
@@ -17,7 +17,7 @@ interface commit_if (input logic clk, input logic rst_n);
                input rrat0_en, rrat1_en, stb0_en, stb1_en, rat0_en, rat1_en,
                input i0_path_sel, i1_path_sel,
                input i0_rd_addr_cmt, i1_rd_addr_cmt,
-               input i0_rob_idx_cmt, i1_rob_idx_cmt,
+               input i0_rob_tag_cmt, i1_rob_tag_cmt,
                input i0_can_retire, i1_can_retire);
   modport drv (input clk, rst_n, i0_can_retire, i1_can_retire,
                output retire0_en, retire1_en);
