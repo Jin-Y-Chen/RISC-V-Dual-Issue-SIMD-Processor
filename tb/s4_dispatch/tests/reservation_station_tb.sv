@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 
-// Directed smoke: wakeup-select-issue with dispatch bypass.
+// Directed smoke for issue_core_struct (RS + bypass + selector + PRF).
 // Unused sources are p0. Ready dispatch can issue same cycle (no RS alloc).
-// Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
 import rv_dis_pkg::*;
+import rs_pkg::*;
 
 module reservation_station_tb;
-  logic clk, rst_n, enable, flush;
-  logic path_resolve_en, winning_path_use;
+  logic clk, rst_n, enable, flush_rs;
+  logic path_en, path_sel;
 
   logic      rob_valid_dp  [2];
   logic      path_use_dp   [2];
@@ -23,10 +23,8 @@ module reservation_station_tb;
 
   logic      wb_en         [2];
   prf_addr_t rob_tag_wb    [2];
+  word_t     wb_data       [2];
   logic      stall_dp;
-
-  prf_addr_t ps1_prf       [2];
-  prf_addr_t ps2_prf       [2];
 
   logic      lane_sel      [2];
   opcode_t   opcode        [2];
@@ -35,8 +33,10 @@ module reservation_station_tb;
   prf_addr_t rob_tag       [2];
   word_t     imm           [2];
   word_t     pc            [2];
+  word_t     rs1_data      [2];
+  word_t     rs2_data      [2];
 
-  reservation_station dut (.*);
+  issue_core_struct dut (.*);
 
   initial clk = 1'b0;
   always #5 clk = ~clk;
@@ -60,7 +60,7 @@ module reservation_station_tb;
   task automatic drive_pair(input prf_addr_t prd0, input prf_addr_t prd1);
     rob_valid_dp[0] = 1;
     opcode_dp[0]    = OPC_OP;
-    rob_tag_dp[0]   = prd0;  // non-zero ⇒ reg_write
+    rob_tag_dp[0]   = prd0;
     rob_valid_dp[1] = 1;
     opcode_dp[1]    = OPC_OP;
     rob_tag_dp[1]   = prd1;
@@ -74,12 +74,13 @@ module reservation_station_tb;
   initial begin
     rst_n = 0;
     enable = 1;
-    flush = 0;
-    path_resolve_en = 0;
-    winning_path_use = 0;
+    flush_rs = 0;
+    path_en = 0;
+    path_sel = 0;
     foreach (wb_en[i]) begin
       wb_en[i]      = 0;
       rob_tag_wb[i] = '0;
+      wb_data[i]    = '0;
     end
     clear_dispatch();
 
@@ -146,50 +147,61 @@ module reservation_station_tb;
       path0_count = 0;
       path1_count = 0;
       for (int w = 0; w < RS_WAYS; w++) begin
-        if (dut.bank_q[0][w].valid) begin
-          if (dut.bank_q[0][w].spec_en) path1_count++;
-          else                          path0_count++;
+        if (dut.u_rs.bank_q[0][w].valid) begin
+          if (dut.u_rs.bank_q[0][w].spec_en) path1_count++;
+          else                               path0_count++;
         end
       end
       if (path0_count != 1 || path1_count != 1)
         $error("expected one queued entry on each path before selective squash");
     end
 
-    path_resolve_en  = 1'b1;
-    winning_path_use = 1'b1;
+    path_en  = 1'b1;
+    path_sel = 1'b1;
     @(negedge clk);
     #1;
-    path_resolve_en = 1'b0;
+    path_en = 1'b0;
 
     begin
       int path0_count, path1_count;
       path0_count = 0;
       path1_count = 0;
       for (int w = 0; w < RS_WAYS; w++) begin
-        if (dut.bank_q[0][w].valid) begin
-          if (dut.bank_q[0][w].spec_en) path1_count++;
-          else                          path0_count++;
+        if (dut.u_rs.bank_q[0][w].valid) begin
+          if (dut.u_rs.bank_q[0][w].spec_en) path1_count++;
+          else                               path0_count++;
         end
       end
       if (path0_count != 0 || path1_count != 1)
         $error("selective squash did not keep only the winning path");
     end
 
-    flush = 1;
+    flush_rs = 1;
     @(negedge clk);
     #1;
-    flush = 0;
+    flush_rs = 0;
 
-    // Fill all 16 ways (8 dual inserts, no issue), then overflow.
+    // Bypass a producer so its dest is unready; dependents must enter the RS.
+    @(posedge clk);
+    drive_pair(6'd50, 6'd51);
+    commit_and_sample();
+    clear_dispatch();
+    commit_and_sample();
+
+    // Fill all 16 ways with unready pairs (8 dual stores), then overflow.
     for (int p = 0; p < 8; p++) begin
       @(posedge clk);
       drive_pair(prf_addr_t'(32 + 2 * p), prf_addr_t'(33 + 2 * p));
+      ps1_tag_dp[0] = 6'd50;
+      ps1_tag_dp[1] = 6'd50;
       @(negedge clk);
     end
     clear_dispatch();
 
     @(posedge clk);
     drive_pair(6'd48, 6'd49);
+    ps1_tag_dp[0] = 6'd50;
+    ps1_tag_dp[1] = 6'd50;
     #1;
     if (!stall_dp)
       $error("full station did not backpressure dispatch");

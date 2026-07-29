@@ -47,7 +47,7 @@ module decode_core_struct_tb;
   initial clk = 0;
   always #5 clk = ~clk;
 
-  // JAL x0, 0 — always control-flow for nest stall checks
+  // JAL x0, 0 - always control-flow for nest stall checks
   localparam instr_t JAL0 = 32'h0000006f;
 
   task automatic expect_stall(
@@ -60,7 +60,7 @@ module decode_core_struct_tb;
     pass = (nest_spec_stall[0] === exp_i0) && (nest_spec_stall[1] === exp_i1);
     tb_report_open(pass, name, $sformatf("spec=%0b%0b", spec_en_id[1], spec_en_id[0]));
     tb_log_section("inputs");
-    tb_field_in_bit("clk",               clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",             rst_n);
     for (int i = 0; i < N_DUAL; i++) begin
       tb_field_in_bit($sformatf("fetch_valid_id[%0d]", i), fetch_valid_id[i]);

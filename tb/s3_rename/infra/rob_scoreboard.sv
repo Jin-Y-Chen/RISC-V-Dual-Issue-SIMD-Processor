@@ -58,9 +58,9 @@ module rob_scoreboard;
   function automatic void summary();
     $display("========================================");
     if (fail_cnt == 0)
-      $display("PASS — %0d checks, 0 failures", pass_cnt);
+      $display("PASS - %0d checks, 0 failures", pass_cnt);
     else
-      $display("FAIL — %0d passed, %0d failed", pass_cnt, fail_cnt);
+      $display("FAIL - %0d passed, %0d failed", pass_cnt, fail_cnt);
     $display("========================================");
   endfunction
 

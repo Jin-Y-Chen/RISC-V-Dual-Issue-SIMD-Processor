@@ -35,8 +35,8 @@ module rename_core_struct (
 
   output logic        valid_rs        [2],
   output logic        path_use_rs     [2],
-  output logic        path_resolve_en,
-  output logic        winning_path_use,
+  output logic        path_en,
+  output logic        path_sel,
   output prf_addr_t   ps1_tag_rs      [2],
   output prf_addr_t   ps2_tag_rs      [2],
   output prf_addr_t   rob_tag_rs      [2],
@@ -55,10 +55,10 @@ module rename_core_struct (
   gpr_addr_t rd_addr_cmt  [2];
   prf_addr_t rob_tag_cmt  [2];
   logic      rat_en       [2];
-  logic      path_sel     [2];
+  logic      path_sel_rob [2];
 
-  assign path_resolve_en = rat_en[0] | rat_en[1];
-  assign winning_path_use = rat_en[1] ? path_sel[1] : path_sel[0];
+  assign path_en  = rat_en[0] | rat_en[1];
+  assign path_sel = rat_en[1] ? path_sel_rob[1] : path_sel_rob[0];
 
   wire go = !flush && !stall_rn && !stall &&
             (valid_rn[0] || valid_rn[1]);
@@ -90,7 +90,7 @@ module rename_core_struct (
     .rd_addr_cmt  (rd_addr_cmt),
     .rob_tag_cmt  (rob_tag_cmt),
     .rat_en       (rat_en),
-    .path_sel     (path_sel)
+    .path_sel     (path_sel_rob)
   );
 
   reorder_buffer u_rob (
@@ -115,7 +115,7 @@ module rename_core_struct (
     .rd_addr_cmt  (rd_addr_cmt),
     .rob_tag_cmt  (rob_tag_cmt),
     .rat_en       (rat_en),
-    .path_sel     (path_sel),
+    .path_sel     (path_sel_rob),
     .stb_en       (stb_en)
   );
 

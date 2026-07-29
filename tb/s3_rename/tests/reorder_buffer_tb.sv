@@ -169,8 +169,7 @@ module reorder_buffer_tb;
     i1_state_valid   = 0;
     i0_brch_state    = '0;
     i1_brch_state    = '0;
-    i0_rd_addr       = '0;
-    i1_rd_addr       = '0;
+    // Keep last i0/i1_rd_addr so idle/retire dumps stay identifiable.
     wback0_en        = 0;
     wback1_en        = 0;
     i0_rob_tag_wb    = '0;
@@ -198,7 +197,7 @@ module reorder_buffer_tb;
     tb_report_open(pass, name, detail);
 
     tb_log_section("inputs");
-    tb_field_in_bit("clk",             clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",           rst_n);
     tb_field_in_bit("flush",           flush);
     tb_field_in_bit("alloc0_en",       alloc0_en);
@@ -301,7 +300,9 @@ module reorder_buffer_tb;
     fail_cnt = 0;
     rst_n = 0;
     clear_stim();
-    tb_banner("reorder_buffer_tb — DUT vs LUT golden model");
+    i0_rd_addr = '0;
+    i1_rd_addr = '0;
+    tb_banner("reorder_buffer_tb - DUT vs LUT golden model");
 
     repeat (2) @(posedge clk);
     rst_n = 1;
@@ -319,13 +320,17 @@ module reorder_buffer_tb;
     cycle_hold;
     check_outs("after_dual_alloc", "tail advanced; next tags p34/p35");
 
-    // ---- WB both (combo complete) + dual retire/commit same cycle ----
+    // ---- WB both, then retire next cycle (complete is registered; no WB bypass) ----
     @(posedge clk);
     wback0_en     = 1; wback1_en = 1;
     i0_rob_tag_wb = rob_to_prf(5'd0);
     i1_rob_tag_wb = rob_to_prf(5'd1);
     #0;
-    check_outs("wb_ready", "combo WB → can_retire");
+    check_outs("wb_assert", "WB tags presented; complete not latched yet");
+    cycle_hold;
+    check_outs("after_wb", "entries complete; ready to retire");
+
+    @(posedge clk);
     retire0_en = 1; retire1_en = 1;
     #0;
     check_outs("dual_commit", "RRAT dual commit p32/p33 rd=1/2");
@@ -338,7 +343,7 @@ module reorder_buffer_tb;
     i0_reg_write = 1;
     i0_rd_addr   = 5'd3;
     #0;
-    check_outs("single_alloc0_idx", "only I0 → tag at current tail");
+    check_outs("single_alloc0_idx", "only I0 -> tag at current tail");
     cycle_hold;
     check_outs("after_single_alloc0", "tail +1");
 
@@ -352,11 +357,14 @@ module reorder_buffer_tb;
     check_outs("single_alloc1_idx", "I1 packs at tail (same as I0 slot)");
     cycle_hold;
 
-    // WB + retire same cycle (head is rd=3 ALU, then store)
+    // WB then retire next cycle (head is rd=3 ALU, then store)
     @(posedge clk);
     wback0_en = 1; i0_rob_tag_wb = rob_to_prf(5'd2);
     #0;
-    retire0_en = ref_i0_can_retire;
+    cycle_hold;
+
+    @(posedge clk);
+    retire0_en = 1;
     #0;
     check_outs("commit_single_alu", "commit head ALU (rd=3)");
     cycle_hold;
@@ -364,19 +372,22 @@ module reorder_buffer_tb;
     @(posedge clk);
     wback0_en = 1; i0_rob_tag_wb = rob_to_prf(5'd3);
     #0;
-    retire0_en = ref_i0_can_retire;
+    cycle_hold;
+
+    @(posedge clk);
+    retire0_en = 1;
     #0;
     check_outs("commit_store", "stb0_en on store commit");
     cycle_hold;
 
-    // ---- branch alloc + taken WB + path commit (combo) ----
+    // ---- branch alloc + taken WB + path commit (next cycle) ----
     begin
       prf_addr_t br_tag;
       @(posedge clk);
       alloc0_en   = 1;
       i0_is_brnch = 1;
       i0_spec_en  = 0;
-      i0_rd_addr  = 5'd0;
+      i0_rd_addr  = 5'd7;  // latched for dump; branch has no RRAT commit
       br_tag      = i0_rob_tag;
       #0;
       cycle_hold;
@@ -386,7 +397,10 @@ module reorder_buffer_tb;
       i0_rob_tag_wb    = br_tag;
       i0_brch_taken_wb = 1;
       #0;
-      retire0_en = ref_i0_can_retire;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
       #0;
       check_outs("branch_taken_commit", "rat0_en + path_sel=1");
       cycle_hold;
@@ -399,13 +413,15 @@ module reorder_buffer_tb;
         @(posedge clk);
         alloc0_en = 1; alloc1_en = 1;
         i0_reg_write = 1; i1_reg_write = 1;
-        i0_rd_addr = 5'd5; i1_rd_addr = 5'd6;
+        // Unique arch regs per fill pair (skip x0): 8..31 then wrap 1..7
+        i0_rd_addr = 5'(1 + ((8 + 2 * k) % 31));
+        i1_rd_addr = 5'(1 + ((9 + 2 * k) % 31));
         #0;
         cycle_hold;
       end
       @(posedge clk);
       #0;
-      check_outs("full_stall", "32 entries → stall");
+      check_outs("full_stall", "32 entries -> stall");
       // Snapshot full bank before flush clears it
       if ($test$plusargs("rob_dump")) begin
         string dump_path;

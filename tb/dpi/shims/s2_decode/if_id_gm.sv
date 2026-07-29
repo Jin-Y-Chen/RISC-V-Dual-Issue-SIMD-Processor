@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — model/s2_decode/if_id_gm.cpp
+// DPI shim - model/s2_decode/if_id_gm.cpp
 module if_id_gm (
   input  logic        clk,
   input  logic        rst_n,

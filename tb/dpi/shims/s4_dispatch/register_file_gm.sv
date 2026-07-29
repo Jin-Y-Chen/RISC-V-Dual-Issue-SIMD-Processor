@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — model/s4_dispatch/register_file_gm.cpp
+// DPI shim - model/s4_dispatch/register_file_gm.cpp
 module register_file_gm (
   input  logic        clk,
   input  logic        rst_n,

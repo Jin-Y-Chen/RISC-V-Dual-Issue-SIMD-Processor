@@ -107,7 +107,7 @@ module ex_mem_tb;
 
   task automatic log_dut_inputs;
     tb_log_section("inputs");
-    tb_field_in_bit("clk",               clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",             rst_n);
     tb_field_in_bit("enable",            enable);
     tb_field_in_bit("stall_od0",         stall_od0);

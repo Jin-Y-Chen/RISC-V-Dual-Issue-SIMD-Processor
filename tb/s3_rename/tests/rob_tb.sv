@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// Self-checking ROB TB: DUT ↔ C++ golden model via DPI-C.
-// Timing: posedge drive → #0 compare (combo) → negedge commit GM + DUT.
+// Self-checking ROB TB: DUT <-> C++ golden model via DPI-C.
+// Timing: posedge drive -> #0 compare (combo) -> negedge commit GM + DUT.
 import rv_dis_pkg::*;
 import rob_pkg::*;
 import dpi_pkg::*;
@@ -15,7 +15,7 @@ module rob_tb;
 
   logic clk, rst_n;
 
-  // DUT I/O — [2] arrays (index 0 = I0, 1 = I1)
+  // DUT I/O - [2] arrays (index 0 = I0, 1 = I1)
   logic        flush;
   logic        alloc_en      [2];
   logic        reg_write     [2];
@@ -100,7 +100,7 @@ module rob_tb;
     rob_gm_commit(gm, s);
   endtask
 
-  // One cycle: drive → compare combo → negedge commit.
+  // One cycle: drive -> compare combo -> negedge commit.
   // auto_retire: set retire*_en from can_retire after a peek eval.
   task automatic do_cycle(
     input string    name,
@@ -222,8 +222,8 @@ module rob_tb;
            "Allocate, idle several cycles, then WB; retire one cycle later.");
     do_flush();
     alloc_reg(0, 5'd5, 5'd0, "T4.alloc");
-    tag0 = rob_tag[0]; // sampled after clear — need capture before clear
-    // Re-capture via known mapping: first alloc after flush → p32
+    tag0 = rob_tag[0]; // sampled after clear - need capture before clear
+    // Re-capture via known mapping: first alloc after flush -> p32
     tag0 = rob_to_prf(5'd0);
     do_idle("T4.lat1");
     do_idle("T4.lat2");
@@ -237,8 +237,8 @@ module rob_tb;
     // The retire_try above was same cycle as... wait:
     // T4.wb: posedge drive WB, #0 compare (complete still 0), negedge apply WB
     // T4.retire_try: posedge can_retire=1
-    // Actually I already ran retire_try after wb — at retire_try posedge, complete is set. Good.
-    // But I set retire0_en=1 unconditionally — if can_retire, commits.
+    // Actually I already ran retire_try after wb - at retire_try posedge, complete is set. Good.
+    // But I set retire0_en=1 unconditionally - if can_retire, commits.
     do_idle("T4.drain");
 
     // T5 Head blocking
@@ -267,7 +267,7 @@ module rob_tb;
     s = stim_clear();
     s.alloc0_en = 1;
     s.i0_reg_write = 1;
-    do_cycle("T6.stall_alloc", s); // still allocates in DUT if forced — check stall high
+    do_cycle("T6.stall_alloc", s); // still allocates in DUT if forced - check stall high
 
     // T7 Empty retirement
     banner("T7 Empty ROB retirement",

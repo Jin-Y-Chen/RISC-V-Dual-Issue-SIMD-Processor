@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — golden logic in model/s1_fetch/instruction_cache_gm.cpp
+// DPI shim - golden logic in model/s1_fetch/instruction_cache_gm.cpp
 module instruction_cache_gm (
   input  word_t  pc0,
   input  word_t  pc1,

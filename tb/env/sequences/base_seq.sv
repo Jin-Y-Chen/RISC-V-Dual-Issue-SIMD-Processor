@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Virtual base sequence — subclasses override body().
+// Virtual base sequence - subclasses override body().
 // Include this file (and subclasses) from one compilation unit only (e.g. cpu_test).
 class base_seq;
   string name;

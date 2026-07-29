@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — model/s2_decode/decoder_gm.cpp
+// DPI shim - model/s2_decode/decoder_gm.cpp
 module decoder_gm (
   input  instr_t      instr,
   input  logic        fetch_valid,

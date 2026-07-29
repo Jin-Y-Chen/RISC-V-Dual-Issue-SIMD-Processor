@@ -2,7 +2,7 @@
 
 import rv_dis_pkg::*;
 
-// Top-level CPU testbench — wires interfaces, env, and risc_dis_unit.
+// Top-level CPU testbench - wires interfaces, env, and risc_dis_unit.
 // Probe nets on cpu_if / commit_if grow as more DUT ports are exposed.
 module tb_top;
   localparam time CLK_PERIOD = 10ns;
@@ -25,7 +25,7 @@ module tb_top;
   commit_if cmt  (.clk(clk), .rst_n(rst_n));
   memory_if mif  (.clk(clk), .rst_n(rst_n));
 
-  // DUT — currently only enable/flush/PC/stall are external.
+  // DUT - currently only enable/flush/PC/stall are external.
   risc_dis_unit u_dut (
     .clk            (clk),
     .rst_n          (rst_n),

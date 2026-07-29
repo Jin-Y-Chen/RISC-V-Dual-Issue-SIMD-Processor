@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// Smoke: dual issue → lane_sel demux onto ev[2]/od[2]; PRF data buffered.
+// Smoke: dual issue -> lane_sel demux onto ev[2]/od[2]; PRF data buffered.
 import rv_dis_pkg::*;
 
 module dp_ex_tb;

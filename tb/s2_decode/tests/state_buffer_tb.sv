@@ -127,7 +127,7 @@ module state_buffer_tb;
            (state_valid[1] === ref_state_valid[1]);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
-    tb_field_in_bit("clk",              clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",            rst_n);
     tb_field_in_u32("pc[0]",            pc[0]);
     tb_field_in_u32("pc[1]",            pc[1]);

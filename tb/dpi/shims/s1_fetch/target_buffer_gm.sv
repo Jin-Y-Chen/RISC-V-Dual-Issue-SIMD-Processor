@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — golden logic in model/s1_fetch/target_buffer_gm.cpp
+// DPI shim - golden logic in model/s1_fetch/target_buffer_gm.cpp
 module target_buffer_gm #(
   parameter integer INDEX_W = 13,
   parameter integer DATA_W  = 32,

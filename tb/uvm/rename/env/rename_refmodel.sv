@@ -169,7 +169,7 @@ class rename_refmodel extends uvm_object;
       active_spec = ready[1] ? path_after1 : path_after0;
     end
 
-    // Negedge-order storage updates for next cycle: WB → alloc → map
+    // Negedge-order storage updates for next cycle: WB -> alloc -> map
     for (int lane = 0; lane < 2; lane++) begin
       if (wb.wback_en[lane] && rob[to_flat(wb.rob_tag[lane])].valid) begin
         rob[to_flat(wb.rob_tag[lane])].complete = 1;

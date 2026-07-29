@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — model/s2_decode/target_predict_gm.cpp
+// DPI shim - model/s2_decode/target_predict_gm.cpp
 module target_predict_gm (
   input  logic        target_valid,
   input  logic        brnch_en,

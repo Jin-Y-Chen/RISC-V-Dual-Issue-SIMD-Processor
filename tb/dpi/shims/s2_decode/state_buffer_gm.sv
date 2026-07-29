@@ -4,7 +4,7 @@ import rv_dis_pkg::*;
 import cache_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — model/s2_decode/state_buffer_gm.cpp ([2] ports match DUT)
+// DPI shim - model/s2_decode/state_buffer_gm.cpp ([2] ports match DUT)
 module state_buffer_gm #(
   parameter integer INDEX_W = PC_INDEX_AW,
   parameter integer DATA_W  = 2,

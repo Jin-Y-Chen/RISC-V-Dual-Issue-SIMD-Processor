@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// if_id_tb - DUT vs gm/if_id_gm.sv (flush/stall/enable; IF→ID map).
+// if_id_tb - DUT vs gm/if_id_gm.sv (flush/stall/enable; IF->ID map).
 
 import rv_dis_pkg::*;
 
@@ -111,7 +111,7 @@ module if_id_tb;
            (spec_en_id[1] === ref_spec_en_id[1]);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
-    tb_field_in_bit("clk",                clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",              rst_n);
     tb_field_in_bit("enable",             enable);
     tb_field_in_bit("flush",              flush);
@@ -167,7 +167,7 @@ module if_id_tb;
              32'h00C5_8633, 32'h0052_0213, 32'h0000_1000, 32'h0000_1004,
              32'h0000_1200, 32'h0000_1300);
     tick();
-    check_id("capture_both", "both lanes map IF → ID");
+    check_id("capture_both", "both lanes map IF -> ID");
 
     stall = 1'b1;
     drive_if(1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1,

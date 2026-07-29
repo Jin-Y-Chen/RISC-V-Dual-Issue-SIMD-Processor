@@ -73,9 +73,12 @@ rtl/s3_rename/core_mod/rob_units/tail_alloc.sv
 rtl/s3_rename/core_mod/rob_units/head_retire.sv
 rtl/s3_rename/rename_core_struct.sv
 rtl/s4_dispatch/rn_dp.sv
+rtl/s4_dispatch/core_mod/rs_units/rs_wakeup.sv
 rtl/s4_dispatch/core_mod/rs_units/rs_issue.sv
 rtl/s4_dispatch/core_mod/rs_units/rs_alloc.sv
 rtl/s4_dispatch/core_mod/reservation_station.sv
+rtl/s4_dispatch/core_mod/bypass_unit.sv
+rtl/s4_dispatch/core_mod/selector_unit.sv
 rtl/s4_dispatch/issue_core_struct.sv
 rtl/s5_execution/dp_ex.sv
 rtl/s5_execution/core_mod/even_units/scalar_alu_unit.sv

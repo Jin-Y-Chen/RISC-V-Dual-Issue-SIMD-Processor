@@ -254,7 +254,7 @@ module register_file_tb;
            (exp_o_rs1_data === exp_o_rs1_data) && (exp_o_rs2_data === exp_o_rs2_data);
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
-    tb_field_in_bit("clk",         clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",       rst_n);
     tb_field_in_bit("i0_rs1_use",  i0_rs1_use);
     tb_field_in_bit("i0_rs2_use",  i0_rs2_use);

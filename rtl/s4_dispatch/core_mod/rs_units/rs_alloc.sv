@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
-// RS alloc / wakeup — bank wakeup, free issued bank ways, allocate non-bypass.
-// Bypassed dispatch (pick.bypass*) is not written into the bank.
+// RS alloc — path filter, free selected bank ways, store unselected bypass.
+// Unselected dispatch (valid && !pick.bypass*) is written into free RS ways.
 import rv_dis_pkg::*;
 import rs_pkg::*;
 
@@ -9,14 +9,13 @@ module rs_alloc (
   input  logic               enable,
   input  logic               flush,
   input  logic               stall_dp,
-  input  logic               path_resolve_en,
-  input  logic               winning_path_use,
+  input  logic               path_en,
+  input  logic               path_sel,
 
-  input  rs_entry_t          bank_q [RS_SETS][RS_WAYS],
-  input  logic [NUM_PRF-1:0] prf_ready_q,
+  input  rs_entry_t          bank_w [RS_SETS][RS_WAYS],
+  input  logic [NUM_PRF-1:0] prf_ready_w,
   input  logic [31:0]        age_q,
 
-  input  rs_wb_pair_t        wb,
   input  rs_pick_t           pick,
   input  rs_disp_pair_t      disp,
 
@@ -25,51 +24,29 @@ module rs_alloc (
   output logic [31:0]        age_n
 );
 
-  rs_entry_t way_n [RS_WAYS];
-  rs_mask_t  valid_after;
-  rs_mask_t  free_m;
-  rs_way_t   free0, free1, slot;
-  logic      dep_rs1, dep_rs2;
-  logic      ins0, ins1;
+  rs_mask_t valid_after;
+  rs_mask_t free_m;
+  rs_way_t  free0, free1, slot;
+  logic     dep_rs1, dep_rs2;
+  logic     store0, store1;
 
-  // Existing-entry wakeup from WB broadcast.
-  genvar w;
-  generate
-    for (w = 0; w < RS_WAYS; w++) begin : g_wake
-      always_comb begin
-        way_n[w] = bank_q[0][w];
-        if (way_n[w].valid) begin
-          if (!way_n[w].rs1_ready && rs_wb_hit(way_n[w].ps1, wb))
-            way_n[w].rs1_ready = 1'b1;
-          if (!way_n[w].rs2_ready && rs_wb_hit(way_n[w].ps2, wb))
-            way_n[w].rs2_ready = 1'b1;
-        end
-      end
-    end
-  endgenerate
-
-  assign ins0 = disp.i0.valid && !pick.bypass0;
-  assign ins1 = disp.i1.valid && !pick.bypass1;
+  // Store every valid dispatch lane the selector did not issue via bypass.
+  assign store0 = disp.i0.valid && !pick.bypass0;
+  assign store1 = disp.i1.valid && !pick.bypass1;
 
   always_comb begin
-    bank_n      = '{default: '0};
-    prf_ready_n = prf_ready_q;
+    bank_n      = bank_w;
+    prf_ready_n = prf_ready_w;
     age_n       = age_q;
 
-    for (int i = 0; i < RS_WAYS; i++)
-      bank_n[0][i] = way_n[i];
-
-    if (path_resolve_en) begin
+    if (path_en) begin
       for (int i = 0; i < RS_WAYS; i++) begin
-        if (bank_n[0][i].valid && (bank_n[0][i].spec_en != winning_path_use))
+        if (bank_n[0][i].valid && (bank_n[0][i].spec_en != path_sel))
           bank_n[0][i] = '0;
       end
     end
 
-    if (wb.wb0.en) prf_ready_n[wb.wb0.prd] = 1'b1;
-    if (wb.wb1.en) prf_ready_n[wb.wb1.prd] = 1'b1;
-
-    // Free only bank-sourced issues (bypass never occupied a way).
+    // Free bank ways the selector issued from the reservation station.
     if (pick.fire0 && !pick.src0_disp) bank_n[0][pick.sel0] = '0;
     if (pick.fire1 && !pick.src1_disp) bank_n[0][pick.sel1] = '0;
 
@@ -80,24 +57,24 @@ module rs_alloc (
     free1  = rs_pe_lo2(free_m);
 
     if (enable && !flush && !stall_dp) begin
-      if (ins0) begin
+      if (store0) begin
         bank_n[0][free0] = rs_make_entry(
-          disp.i0, age_n, prf_ready_n, wb, 1'b0, 1'b0);
+          disp.i0, age_n, prf_ready_n, '{default: '0}, 1'b0, 1'b0);
         age_n = age_n + 1'b1;
       end
 
-      if (ins1) begin
-        slot    = ins0 ? free1 : free0;
+      if (store1) begin
+        slot    = store0 ? free1 : free0;
         dep_rs1 = disp.i0.valid && disp.i0.reg_write &&
                   (disp.i0.prd != '0) && (disp.i1.ps1 == disp.i0.prd);
         dep_rs2 = disp.i0.valid && disp.i0.reg_write &&
                   (disp.i0.prd != '0) && (disp.i1.ps2 == disp.i0.prd);
         bank_n[0][slot] = rs_make_entry(
-          disp.i1, age_n, prf_ready_n, wb, dep_rs1, dep_rs2);
+          disp.i1, age_n, prf_ready_n, '{default: '0}, dep_rs1, dep_rs2);
         age_n = age_n + 1'b1;
       end
 
-      // Dest not ready once accepted (allocated or bypassed this cycle).
+      // Dest not ready once accepted (stored or bypass-issued this cycle).
       if (disp.i0.valid && disp.i0.reg_write && (disp.i0.prd != 6'd0))
         prf_ready_n[disp.i0.prd] = 1'b0;
       if (disp.i1.valid && disp.i1.reg_write && (disp.i1.prd != 6'd0))

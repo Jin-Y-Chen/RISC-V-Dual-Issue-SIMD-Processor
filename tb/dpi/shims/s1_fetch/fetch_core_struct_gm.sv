@@ -3,7 +3,7 @@
 import rv_dis_pkg::*;
 import dpi_pkg::*;
 
-// DPI shim — golden logic in model/s1_fetch/fetch_core_struct_gm.cpp
+// DPI shim - golden logic in model/s1_fetch/fetch_core_struct_gm.cpp
 // Port API matches s1_fetch_struct ([2] arrays); DPI stays scalar dual-slot.
 module fetch_core_struct_gm #(
   parameter word_t RESET_PC = RESET_PC_INIT

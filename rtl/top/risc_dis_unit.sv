@@ -179,8 +179,8 @@ module risc_dis_unit #(
 
   logic        valid_rs       [2];
   logic        path_use_rs    [2];
-  logic        path_resolve_en;
-  logic        winning_path_use;
+  logic        path_en;
+  logic        path_sel;
   prf_addr_t   ps1_tag_rs     [2];
   prf_addr_t   ps2_tag_rs     [2];
   prf_addr_t   rob_tag_rs     [2];
@@ -322,8 +322,8 @@ module risc_dis_unit #(
     .stall             (stall_id),
     .valid_rs          (valid_rs),
     .path_use_rs       (path_use_rs),
-    .path_resolve_en   (path_resolve_en),
-    .winning_path_use  (winning_path_use),
+    .path_en           (path_en),
+    .path_sel          (path_sel),
     .ps1_tag_rs        (ps1_tag_rs),
     .ps2_tag_rs        (ps2_tag_rs),
     .rob_tag_rs        (rob_tag_rs),
@@ -367,8 +367,8 @@ module risc_dis_unit #(
     .rst_n             (rst_n),
     .enable            (enable),
     .flush_rs          (flush),
-    .path_resolve_en   (path_resolve_en),
-    .winning_path_use  (winning_path_use),
+    .path_en           (path_en),
+    .path_sel          (path_sel),
     .rob_valid_dp,
     .path_use_dp,
     .lane_sel_dp,

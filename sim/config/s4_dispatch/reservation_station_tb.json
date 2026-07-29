@@ -1,8 +1,13 @@
 {
   "extra_sources": [
     "rtl/s4_dispatch/funct_pkg/rs.sv",
+    "rtl/s4_dispatch/core_mod/rs_units/rs_wakeup.sv",
     "rtl/s4_dispatch/core_mod/rs_units/rs_issue.sv",
     "rtl/s4_dispatch/core_mod/rs_units/rs_alloc.sv",
-    "rtl/s4_dispatch/core_mod/reservation_station.sv"
+    "rtl/s4_dispatch/core_mod/reservation_station.sv",
+    "rtl/s4_dispatch/core_mod/bypass_unit.sv",
+    "rtl/s4_dispatch/core_mod/selector_unit.sv",
+    "rtl/s4_dispatch/core_mod/p_register_file.sv",
+    "rtl/s4_dispatch/issue_core_struct.sv"
   ]
 }

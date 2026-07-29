@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// DPI shim — model/s3_rename/rob_gm.cpp (same C++ as rob_tb).
+// DPI shim - model/s3_rename/rob_gm.cpp (same C++ as rob_tb).
 // Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
 import rv_dis_pkg::*;
 import rob_pkg::*;
