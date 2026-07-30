@@ -96,6 +96,92 @@ def _ui_rel(path: str, root: Path) -> str:
     return p
 
 
+# UVM-layer headers for compile logging (compile order is unchanged).
+_SRC_GROUP_ORDER = (
+    "pkg",
+    "dut",
+    "model",
+    "interface",
+    "agent",
+    "env",
+    "sequence",
+    "test",
+    "tb_top",
+    "other",
+)
+
+
+def _sv_src_group(rel: str) -> str:
+    """Classify a source path into a UVM-layer compile group."""
+    r = rel.replace("\\", "/")
+    rl = r.lower()
+    base = Path(rl).name
+
+    # Finer UVM suite paths first (tb/uvm/...).
+    if "/uvm/" in rl:
+        if base.endswith("_pkg.sv") or "/pkg/" in rl:
+            return "pkg"
+        if "/agents/" in rl or base.endswith("_agent.sv"):
+            return "agent"
+        if "/env/" in rl or any(
+            base.endswith(s)
+            for s in ("_env.sv", "_scoreboard.sv", "_coverage.sv", "_refmodel.sv", "_env_cfg.sv")
+        ):
+            return "env"
+        if "/seq/" in rl or "/sequences/" in rl or "sequence" in base:
+            return "sequence"
+        if "/test/" in rl or "/tests/" in rl or base.endswith("_tests.sv") or base.endswith("_test.sv"):
+            return "test"
+        if "/top/" in rl or base.endswith("_tb_top.sv") or base.endswith("_top.sv"):
+            return "tb_top"
+        if base.endswith("_if.sv") or "/interfaces/" in rl:
+            return "interface"
+        return "other"
+
+    if (
+        base.endswith("_pkg.sv")
+        or "/import/" in rl
+        or "/funct_pkg/" in rl
+        or "/pkg/" in rl
+    ):
+        return "pkg"
+    if "/dpi/" in rl or rl.endswith("_gm.sv") or "/shims/" in rl or "/model/" in rl:
+        return "model"
+    if rl.startswith("rtl/") or "/rtl/" in rl:
+        return "dut"
+    if base.endswith("_if.sv") or "/interfaces/" in rl:
+        return "interface"
+    if "/agents/" in rl or base.endswith("_agent.sv"):
+        return "agent"
+    if "/env/" in rl:
+        return "env"
+    if "/seq/" in rl or "/sequences/" in rl:
+        return "sequence"
+    if base.endswith("_tb_top.sv") or "/top/" in rl:
+        return "tb_top"
+    if "/tests/" in rl or base.endswith("_tb.sv") or base.endswith("_test.sv"):
+        return "test"
+    if rl.startswith("tb/"):
+        return "other"
+    return "other"
+
+
+def _print_srcs_grouped(srcs: list[str], root: Path) -> None:
+    """Print SV sources under UVM-layer headers (pkg/dut/model/test/...)."""
+    err = __import__("sys").stderr
+    buckets: dict[str, list[str]] = {g: [] for g in _SRC_GROUP_ORDER}
+    for path in srcs:
+        rel = _ui_rel(path, root)
+        buckets[_sv_src_group(rel)].append(rel)
+    for key in _SRC_GROUP_ORDER:
+        files = buckets[key]
+        if not files:
+            continue
+        print(f"      {key} ({len(files)}):", file=err)
+        for rel in files:
+            print(f"        * {rel}", file=err)
+
+
 def _stage_has_error(toollog: Path) -> bool:
     if not toollog.is_file():
         return False
@@ -267,8 +353,7 @@ def run_vivado_sim(
             f"[1/3] xvlog - Compiling {len(srcs)} SystemVerilog source(s) into the work library.",
             file=__import__("sys").stderr,
         )
-        for path in srcs:
-            print(f"        * {_ui_rel(path, ROOT)}", file=__import__("sys").stderr)
+        _print_srcs_grouped(srcs, ROOT)
 
         with log.open("a", encoding="utf-8") as fh:
             fh.write(f"\n=== xvlog ({len(srcs)} sources) ===\n")

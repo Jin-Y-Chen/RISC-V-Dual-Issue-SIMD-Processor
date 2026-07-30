@@ -1,0 +1,11 @@
+{
+  "extra_sources": [
+    "rtl/s3_rename/funct_pkg/rat.sv",
+    "rtl/s3_rename/core_mod/alias_table.sv",
+    "tb/dpi/dpi_pkg.sv",
+    "tb/dpi/shims/s3_rename/alias_table_gm.sv"
+  ],
+  "dpi_cpp": [
+    "model/s3_rename/alias_table_gm.cpp"
+  ]
+}

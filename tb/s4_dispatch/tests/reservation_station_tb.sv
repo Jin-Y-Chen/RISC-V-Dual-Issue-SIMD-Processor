@@ -1,212 +1,275 @@
 `timescale 1ns / 1ps
 
-// Directed smoke for issue_core_struct (RS + bypass + selector + PRF).
-// Unused sources are p0. Ready dispatch can issue same cycle (no RS alloc).
+// Directed TB: reservation_station (bank + wakeup + alloc).
+// pick / stall_dp are driven as if from selector_unit.
 import rv_dis_pkg::*;
 import rs_pkg::*;
 
+`include "../../common/utils/tb_console.svh"
+
 module reservation_station_tb;
-  logic clk, rst_n, enable, flush_rs;
-  logic path_en, path_sel;
 
-  logic      rob_valid_dp  [2];
-  logic      path_use_dp   [2];
-  logic      lane_sel_dp   [2];
-  opcode_t   opcode_dp     [2];
-  funct3_t   funct3_dp     [2];
-  funct7_t   funct7_dp     [2];
-  prf_addr_t ps1_tag_dp    [2];
-  prf_addr_t ps2_tag_dp    [2];
-  prf_addr_t rob_tag_dp    [2];
-  word_t     imm_dp        [2];
-  word_t     pc_dp         [2];
+  localparam int CLK_PERIOD = 10;
 
-  logic      wb_en         [2];
-  prf_addr_t rob_tag_wb    [2];
-  word_t     wb_data       [2];
-  logic      stall_dp;
+  logic               clk, rst_n, enable, flush;
+  logic               path_en, path_sel, stall_dp;
+  rs_disp_pair_t      disp;
+  rs_wb_pair_t        wb;
+  rs_pick_t           pick;
+  rs_entry_t          bank_q [RS_SETS][RS_WAYS];
+  logic [NUM_PRF-1:0] prf_ready_q;
+  logic [31:0]        age_q;
 
-  logic      lane_sel      [2];
-  opcode_t   opcode        [2];
-  funct3_t   funct3        [2];
-  funct7_t   funct7        [2];
-  prf_addr_t rob_tag       [2];
-  word_t     imm           [2];
-  word_t     pc            [2];
-  word_t     rs1_data      [2];
-  word_t     rs2_data      [2];
+  int pass_cnt, fail_cnt;
 
-  issue_core_struct dut (.*);
+  reservation_station dut (
+    .clk, .rst_n, .enable, .flush,
+    .path_en, .path_sel, .stall_dp,
+    .disp, .wb, .pick,
+    .bank_q, .prf_ready_q, .age_q
+  );
 
-  initial clk = 1'b0;
-  always #5 clk = ~clk;
+  initial clk = 0;
+  always #(CLK_PERIOD/2) clk = ~clk;
 
-  task automatic clear_dispatch;
-    foreach (rob_valid_dp[i]) begin
-      rob_valid_dp[i]  = 0;
-      path_use_dp[i]   = 0;
-      lane_sel_dp[i]   = 0;
-      opcode_dp[i]     = '0;
-      funct3_dp[i]     = '0;
-      funct7_dp[i]     = '0;
-      ps1_tag_dp[i]    = '0;
-      ps2_tag_dp[i]    = '0;
-      rob_tag_dp[i]    = '0;
-      imm_dp[i]        = '0;
-      pc_dp[i]         = '0;
-    end
+  function automatic rs_disp_insn_t mk(
+      input logic v, input prf_addr_t prd,
+      input prf_addr_t ps1, input prf_addr_t ps2,
+      input logic spec
+  );
+    mk = '0;
+    mk.valid     = v;
+    mk.reg_write = (prd != '0);
+    mk.spec_en   = spec;
+    mk.opcode    = OPC_OP;
+    mk.ps1       = ps1;
+    mk.ps2       = ps2;
+    mk.prd       = prd;
+  endfunction
+
+  task automatic clear_stim;
+    flush    = 0;
+    path_en  = 0;
+    path_sel = 0;
+    stall_dp = 0;
+    enable   = 1;
+    disp     = '0;
+    wb       = '0;
+    pick     = '0;
   endtask
 
-  task automatic drive_pair(input prf_addr_t prd0, input prf_addr_t prd1);
-    rob_valid_dp[0] = 1;
-    opcode_dp[0]    = OPC_OP;
-    rob_tag_dp[0]   = prd0;
-    rob_valid_dp[1] = 1;
-    opcode_dp[1]    = OPC_OP;
-    rob_tag_dp[1]   = prd1;
-  endtask
-
-  task automatic commit_and_sample;
+  task automatic cycle_hold;
     @(negedge clk);
     #1;
+    clear_stim();
+    #0;
+  endtask
+
+  function automatic int count_valid;
+    int n;
+    n = 0;
+    for (int w = 0; w < RS_WAYS; w++)
+      if (bank_q[0][w].valid) n++;
+    return n;
+  endfunction
+
+  function automatic int count_path(input logic spec);
+    int n;
+    n = 0;
+    for (int w = 0; w < RS_WAYS; w++)
+      if (bank_q[0][w].valid && (bank_q[0][w].spec_en == spec)) n++;
+    return n;
+  endfunction
+
+  function automatic int find_prd(input prf_addr_t prd);
+    find_prd = -1;
+    for (int w = 0; w < RS_WAYS; w++)
+      if (bank_q[0][w].valid && (bank_q[0][w].prd == prd))
+        return w;
+  endfunction
+
+  task automatic expect_ok(
+      input string name, input string detail, input bit pass
+  );
+    tb_report_open(pass, name, detail);
+    tb_log_section("rs state");
+    tb_field_in_u32("valid_cnt", count_valid());
+    tb_field_in_u32("age_q",     age_q);
+    tb_report_close(pass);
+    if (pass) pass_cnt++; else fail_cnt++;
   endtask
 
   initial begin
+    pass_cnt = 0;
+    fail_cnt = 0;
     rst_n = 0;
-    enable = 1;
-    flush_rs = 0;
-    path_en = 0;
-    path_sel = 0;
-    foreach (wb_en[i]) begin
-      wb_en[i]      = 0;
-      rob_tag_wb[i] = '0;
-      wb_data[i]    = '0;
-    end
-    clear_dispatch();
+    clear_stim();
+    tb_banner("reservation_station_tb - RS bank/wakeup/alloc");
 
-    repeat (2) @(negedge clk);
+    repeat (2) @(posedge clk);
     rst_n = 1;
-    @(posedge clk);
-
-    // Same-cycle dispatch bypass: ready pair issues without waiting in RS.
-    drive_pair(6'd32, 6'd33);
-    ps1_tag_dp[0] = 6'd1;
-    ps2_tag_dp[1] = 6'd2;
-    #1;
-    if ((rob_tag[0] == '0) || (rob_tag[1] == '0))
-      $error("ready dispatch did not dual-issue (bypass)");
-    if (rob_tag[0] != 6'd32 || rob_tag[1] != 6'd33)
-      $error("bypass issue order is incorrect");
-    commit_and_sample();
-
-    clear_dispatch();
-    commit_and_sample();
-
-    // Producer bypasses; dependent consumer waits in RS until WB.
-    @(posedge clk);
-    drive_pair(6'd34, 6'd35);
-    ps1_tag_dp[1] = 6'd34;
-    #1;
-    if ((rob_tag[0] != 6'd34))
-      $error("producer did not bypass-issue");
-    if (rob_tag[1] != '0)
-      $error("dependent consumer issued before producer writeback");
-    commit_and_sample();
-
-    clear_dispatch();
-    commit_and_sample();
-
-    wb_en[0]      = 1;
-    rob_tag_wb[0] = 6'd34;
-    #1;
-    if (rob_tag[0] != 6'd35)
-      $error("writeback tag did not wake dependent consumer");
     @(negedge clk);
     #1;
-    wb_en[0] = 0;
+    expect_ok("reset", "empty bank, age=0, prf ready",
+              (count_valid() == 0) && (age_q == 0) && prf_ready_q[1]);
 
-    // Queue one path0 entry and one path1 entry, then squash the losing path.
+    // ---- store dual unready (no bypass) ----
     @(posedge clk);
-    drive_pair(6'd36, 6'd37);
-    path_use_dp[1] = 1'b0;
-    ps1_tag_dp[1]  = 6'd36;
-    commit_and_sample();
-    clear_dispatch();
-    commit_and_sample();
+    disp.i0 = mk(1, 6'd32, 6'd50, 6'd0, 0);
+    disp.i1 = mk(1, 6'd33, 6'd50, 6'd0, 0);
+    // mark producer unready already so stored entries stay blocked
+    // (prd becomes unready on accept; ps1=50 needs prior clear)
+    // Force via: first accept producer that marks 50 unready
+    clear_stim();
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd50, 6'd0, 6'd0, 0);
+    pick.bypass0 = 1;  // issue without storing
+    pick.fire0   = 1;
+    pick.src0_disp = 1;
+    #0;
+    cycle_hold;
 
     @(posedge clk);
-    drive_pair(6'd38, 6'd39);
-    path_use_dp[1] = 1'b1;
-    ps1_tag_dp[1]  = 6'd38;
-    commit_and_sample();
-    clear_dispatch();
-    commit_and_sample();
+    expect_ok("after_bypass_accept", "prd50 unready, bank still empty",
+              (count_valid() == 0) && !prf_ready_q[50]);
 
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd32, 6'd50, 6'd0, 0);
+    disp.i1 = mk(1, 6'd33, 6'd50, 6'd0, 0);
+    // no bypass -> both store
+    #0;
+    cycle_hold;
+
+    @(posedge clk);
+    expect_ok("store_dual_unready", "two entries waiting on p50",
+              (count_valid() == 2)
+              && (find_prd(6'd32) >= 0) && (find_prd(6'd33) >= 0)
+              && !bank_q[0][find_prd(6'd32)].rs1_ready);
+
+    // ---- WB wakeup ----
+    @(posedge clk);
+    wb.wb0.en  = 1;
+    wb.wb0.prd = 6'd50;
+    #0;
+    cycle_hold;
+
+    @(posedge clk);
     begin
-      int path0_count, path1_count;
-      path0_count = 0;
-      path1_count = 0;
-      for (int w = 0; w < RS_WAYS; w++) begin
-        if (dut.u_rs.bank_q[0][w].valid) begin
-          if (dut.u_rs.bank_q[0][w].spec_en) path1_count++;
-          else                               path0_count++;
-        end
-      end
-      if (path0_count != 1 || path1_count != 1)
-        $error("expected one queued entry on each path before selective squash");
+      int w0, w1;
+      bit pass;
+      w0 = find_prd(6'd32);
+      w1 = find_prd(6'd33);
+      pass = (w0 >= 0) && (w1 >= 0)
+          && bank_q[0][w0].rs1_ready && bank_q[0][w1].rs1_ready
+          && prf_ready_q[50];
+      expect_ok("wb_wakeup", "WB sets rs1_ready + prf_ready", pass);
     end
 
-    path_en  = 1'b1;
-    path_sel = 1'b1;
-    @(negedge clk);
-    #1;
-    path_en = 1'b0;
-
+    // ---- free bank way via pick ----
     begin
-      int path0_count, path1_count;
-      path0_count = 0;
-      path1_count = 0;
-      for (int w = 0; w < RS_WAYS; w++) begin
-        if (dut.u_rs.bank_q[0][w].valid) begin
-          if (dut.u_rs.bank_q[0][w].spec_en) path1_count++;
-          else                               path0_count++;
-        end
-      end
-      if (path0_count != 0 || path1_count != 1)
-        $error("selective squash did not keep only the winning path");
+      int w0;
+      w0 = find_prd(6'd32);
+      @(posedge clk);
+      pick.fire0     = 1;
+      pick.sel0_v    = 1;
+      pick.sel0      = rs_way_t'(w0);
+      pick.src0_disp = 0;
+      #0;
+      cycle_hold;
+      @(posedge clk);
+      expect_ok("free_issued_way", "issued bank way cleared",
+                (find_prd(6'd32) < 0) && (find_prd(6'd33) >= 0));
     end
 
-    flush_rs = 1;
+    // clear remaining
+    flush = 1;
     @(negedge clk);
     #1;
-    flush_rs = 0;
+    flush = 0;
+    #0;
+    expect_ok("flush", "bank cleared", count_valid() == 0);
 
-    // Bypass a producer so its dest is unready; dependents must enter the RS.
+    // ---- selective path squash ----
     @(posedge clk);
-    drive_pair(6'd50, 6'd51);
-    commit_and_sample();
-    clear_dispatch();
-    commit_and_sample();
+    disp.i0 = mk(1, 6'd36, 6'd1, 6'd0, 0);  // path0, ps1=p1 ready
+    disp.i1 = mk(1, 6'd37, 6'd2, 6'd0, 0);
+    // make unready so they stay queued: use missing tag
+    // Use prd accept then dependents - simpler: store with unready ps1
+    clear_stim();
+    // Mark p60 unready via bypass accept
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd60, 6'd0, 6'd0, 0);
+    pick.bypass0 = 1; pick.fire0 = 1; pick.src0_disp = 1;
+    #0;
+    cycle_hold;
 
-    // Fill all 16 ways with unready pairs (8 dual stores), then overflow.
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd36, 6'd60, 6'd0, 0);  // path0
+    disp.i1 = mk(1, 6'd37, 6'd60, 6'd0, 1);  // path1
+    #0;
+    cycle_hold;
+
+    @(posedge clk);
+    expect_ok("queued_both_paths", "one path0 + one path1",
+              (count_path(0) == 1) && (count_path(1) == 1));
+
+    @(posedge clk);
+    path_en  = 1;
+    path_sel = 1;  // keep path1
+    #0;
+    cycle_hold;
+
+    @(posedge clk);
+    expect_ok("path_squash", "only path1 remains",
+              (count_path(0) == 0) && (count_path(1) == 1));
+
+    flush = 1;
+    @(negedge clk);
+    #1;
+    flush = 0;
+
+    // ---- stall_dp blocks alloc ----
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd70, 6'd0, 6'd0, 0);
+    stall_dp = 1;
+    #0;
+    cycle_hold;
+    @(posedge clk);
+    expect_ok("stall_blocks_store", "stall_dp prevents alloc",
+              count_valid() == 0);
+
+    // ---- fill to capacity (16) then prove full ----
+    // Accept unready producer once
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd61, 6'd0, 6'd0, 0);
+    pick.bypass0 = 1; pick.fire0 = 1; pick.src0_disp = 1;
+    #0;
+    cycle_hold;
+
     for (int p = 0; p < 8; p++) begin
       @(posedge clk);
-      drive_pair(prf_addr_t'(32 + 2 * p), prf_addr_t'(33 + 2 * p));
-      ps1_tag_dp[0] = 6'd50;
-      ps1_tag_dp[1] = 6'd50;
-      @(negedge clk);
+      disp.i0 = mk(1, prf_addr_t'(32 + 2 * p), 6'd61, 6'd0, 0);
+      disp.i1 = mk(1, prf_addr_t'(33 + 2 * p), 6'd61, 6'd0, 0);
+      #0;
+      cycle_hold;
     end
-    clear_dispatch();
 
     @(posedge clk);
-    drive_pair(6'd48, 6'd49);
-    ps1_tag_dp[0] = 6'd50;
-    ps1_tag_dp[1] = 6'd50;
-    #1;
-    if (!stall_dp)
-      $error("full station did not backpressure dispatch");
+    expect_ok("bank_full", "16 ways occupied", count_valid() == RS_WAYS);
 
-    $display("OK reservation_station_tb");
+    // Dual store while full without freeing -> still full (stall would
+    // normally prevent this; with stall_dp=0 RTL still won't invent ways)
+    @(posedge clk);
+    disp.i0 = mk(1, 6'd48, 6'd61, 6'd0, 0);
+    disp.i1 = mk(1, 6'd49, 6'd61, 6'd0, 0);
+    #0;
+    cycle_hold;
+    @(posedge clk);
+    expect_ok("overflow_no_new", "still 16 (free_m empty)",
+              count_valid() == RS_WAYS);
+
+    tb_summary(pass_cnt, fail_cnt);
     $finish;
   end
+
 endmodule

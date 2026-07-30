@@ -3,6 +3,8 @@
 // S4 issue / dispatch glue — four peer cores:
 //   p_register_file | reservation_station | bypass_unit | selector_unit
 // Bypass and selector are not submodules of the reservation station.
+// Directed TBs: bypass_tb, selector_tb, reservation_station_tb
+//   (see tb/s4_dispatch/README.md)
 import rv_dis_pkg::*;
 import rs_pkg::*;
 

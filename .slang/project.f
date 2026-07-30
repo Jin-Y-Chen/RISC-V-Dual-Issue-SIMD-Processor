@@ -67,7 +67,7 @@ rtl/s2_decode/core_mod/state_buffer.sv
 rtl/s2_decode/core_mod/target_predict.sv
 rtl/s2_decode/decode_core_struct.sv
 rtl/s3_rename/id_rn.sv
-rtl/s3_rename/core_mod/allis_table.sv
+rtl/s3_rename/core_mod/alias_table.sv
 rtl/s3_rename/core_mod/reorder_buffer.sv
 rtl/s3_rename/core_mod/rob_units/tail_alloc.sv
 rtl/s3_rename/core_mod/rob_units/head_retire.sv
@@ -105,6 +105,7 @@ tb/dpi/shims/s2_decode/if_id_gm.sv
 tb/dpi/shims/s2_decode/state_buffer_gm.sv
 tb/dpi/shims/s2_decode/target_predict_gm.sv
 tb/dpi/shims/s3_rename/reorder_buffer_gm.sv
+tb/dpi/shims/s3_rename/alias_table_gm.sv
 tb/dpi/shims/s4_dispatch/register_file_gm.sv
 
 # ---- directed unit TBs ----
@@ -118,13 +119,12 @@ tb/s2_decode/tests/if_id_tb.sv
 tb/s2_decode/tests/state_buffer_tb.sv
 tb/s2_decode/tests/target_predict_tb.sv
 tb/s2_decode/tests/decode_core_struct_tb.sv
-tb/s3_rename/infra/rob_driver.sv
-tb/s3_rename/infra/rob_monitor.sv
-tb/s3_rename/infra/rob_scoreboard.sv
+tb/s3_rename/tests/alias_table_tb.sv
 tb/s3_rename/tests/reorder_buffer_tb.sv
-tb/s3_rename/tests/rob_tb.sv
 tb/s4_dispatch/tests/rn_dp_tb.sv
 tb/s4_dispatch/tests/reservation_station_tb.sv
+tb/s4_dispatch/tests/bypass_tb.sv
+tb/s4_dispatch/tests/selector_tb.sv
 tb/s5_execute/tests/dp_ex_tb.sv
 tb/s5_execute/tests/even_lane_tb.sv
 tb/s5_execute/tests/odd_lane_tb.sv

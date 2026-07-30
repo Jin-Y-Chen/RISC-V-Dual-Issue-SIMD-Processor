@@ -163,6 +163,44 @@ package dpi_pkg;
     input int retire0_en, input int retire1_en
   );
 
+  // ---- s3: alias_table (RAT + RRAT) ----
+  import "DPI-C" function chandle alias_dpi_create();
+  import "DPI-C" function void    alias_dpi_destroy(input chandle h);
+  import "DPI-C" function void    alias_dpi_reset(input chandle h);
+  import "DPI-C" function void alias_dpi_eval(
+    input  chandle h,
+    input  int flush,
+    input  int spec0, input int spec1,
+    input  int rs1_use0, input int rs1_use1, input int rs2_use0, input int rs2_use1,
+    input  int rs1_addr0, input int rs1_addr1, input int rs2_addr0, input int rs2_addr1,
+    input  int alloc_en0, input int alloc_en1,
+    input  int alloc_rd0, input int alloc_rd1,
+    input  int alloc_tag0, input int alloc_tag1,
+    input  int rrat_en0, input int rrat_en1,
+    input  int rd_cmt0, input int rd_cmt1,
+    input  int tag_cmt0, input int tag_cmt1,
+    input  int rat_en0, input int rat_en1,
+    input  int path_sel0, input int path_sel1,
+    output int path_use0, output int path_use1,
+    output int ps1_0, output int ps1_1,
+    output int ps2_0, output int ps2_1
+  );
+  import "DPI-C" function void alias_dpi_commit(
+    input chandle h,
+    input int flush,
+    input int spec0, input int spec1,
+    input int rs1_use0, input int rs1_use1, input int rs2_use0, input int rs2_use1,
+    input int rs1_addr0, input int rs1_addr1, input int rs2_addr0, input int rs2_addr1,
+    input int alloc_en0, input int alloc_en1,
+    input int alloc_rd0, input int alloc_rd1,
+    input int alloc_tag0, input int alloc_tag1,
+    input int rrat_en0, input int rrat_en1,
+    input int rd_cmt0, input int rd_cmt1,
+    input int tag_cmt0, input int tag_cmt1,
+    input int rat_en0, input int rat_en1,
+    input int path_sel0, input int path_sel1
+  );
+
   // ---- s4: register_file ----
   import "DPI-C" function chandle rf_dpi_create();
   import "DPI-C" function void    rf_dpi_destroy(input chandle h);

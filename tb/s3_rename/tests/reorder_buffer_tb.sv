@@ -442,6 +442,242 @@ module reorder_buffer_tb;
     #0;
     check_outs("flush", "pointers/valid cleared; tags back to p32/p33");
 
+    // ---- branch not-taken: rat_en with path_sel=0 ----
+    begin
+      prf_addr_t br_tag;
+      @(posedge clk);
+      alloc0_en   = 1;
+      i0_is_brnch = 1;
+      i0_rd_addr  = 5'd8;
+      br_tag      = i0_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en        = 1;
+      i0_rob_tag_wb    = br_tag;
+      i0_brch_taken_wb = 0;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
+      #0;
+      check_outs("branch_not_taken", "rat0_en + path_sel=0");
+      cycle_hold;
+    end
+
+    // ---- retire before complete: no commit ----
+    begin
+      prf_addr_t t0;
+      @(posedge clk);
+      alloc0_en    = 1;
+      i0_reg_write = 1;
+      i0_rd_addr   = 5'd9;
+      t0           = i0_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
+      #0;
+      check_outs("retire_before_wb", "head incomplete -> no RRAT");
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en     = 1;
+      i0_rob_tag_wb = t0;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
+      #0;
+      check_outs("retire_after_wb", "RRAT after registered complete");
+      cycle_hold;
+    end
+
+    // ---- OOO WB (younger first), in-order retire ----
+    begin
+      prf_addr_t t0, t1;
+      @(posedge clk);
+      alloc0_en = 1; alloc1_en = 1;
+      i0_reg_write = 1; i1_reg_write = 1;
+      i0_rd_addr = 5'd10; i1_rd_addr = 5'd11;
+      t0 = i0_rob_tag; t1 = i1_rob_tag;
+      #0;
+      check_outs("ooo_dual_alloc", "pair for OOO writeback");
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en     = 1;
+      i0_rob_tag_wb = t1;  // complete younger first
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1; retire1_en = 1;
+      #0;
+      check_outs("ooo_retire_blocked", "head incomplete blocks dual retire");
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en     = 1;
+      i0_rob_tag_wb = t0;  // complete head
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1; retire1_en = 1;
+      #0;
+      check_outs("ooo_dual_commit", "in-order dual RRAT after both complete");
+      cycle_hold;
+    end
+
+    // ---- dual store commit ----
+    begin
+      prf_addr_t t0, t1;
+      @(posedge clk);
+      alloc0_en = 1; alloc1_en = 1;
+      i0_is_store = 1; i1_is_store = 1;
+      i0_rd_addr = 5'd12; i1_rd_addr = 5'd13;
+      t0 = i0_rob_tag; t1 = i1_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en = 1; wback1_en = 1;
+      i0_rob_tag_wb = t0; i1_rob_tag_wb = t1;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1; retire1_en = 1;
+      #0;
+      check_outs("dual_store_commit", "stb0_en + stb1_en");
+      cycle_hold;
+    end
+
+    // ---- dual: ALU + branch taken ----
+    begin
+      prf_addr_t t0, t1;
+      @(posedge clk);
+      alloc0_en = 1; alloc1_en = 1;
+      i0_reg_write = 1; i0_rd_addr = 5'd14;
+      i1_is_brnch  = 1; i1_rd_addr = 5'd15;
+      t0 = i0_rob_tag; t1 = i1_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en = 1; wback1_en = 1;
+      i0_rob_tag_wb = t0; i1_rob_tag_wb = t1;
+      i1_brch_taken_wb = 1;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1; retire1_en = 1;
+      #0;
+      check_outs("alu_branch_dual_cmt", "rrat0 + rat1 path_sel=1");
+      cycle_hold;
+    end
+
+    // ---- speculative path: taken branch then on/off-path ALU ----
+    begin
+      prf_addr_t br_tag, alu_tag;
+      // active_spec is 1 from prior taken branch; flush to known path0 first
+      @(posedge clk);
+      flush = 1;
+      #0;
+      @(negedge clk);
+      #1;
+      flush = 0;
+      #0;
+      check_outs("flush_before_spec", "reset active_spec to path0");
+
+      @(posedge clk);
+      alloc0_en   = 1;
+      i0_is_brnch = 1;
+      i0_rd_addr  = 5'd16;
+      br_tag      = i0_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en = 1; i0_rob_tag_wb = br_tag; i0_brch_taken_wb = 1;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
+      #0;
+      check_outs("spec_branch_taken", "active_spec -> path1");
+      cycle_hold;
+
+      // on-path (spec_en=1) commits while active_spec=1
+      @(posedge clk);
+      alloc0_en    = 1;
+      i0_reg_write = 1;
+      i0_spec_en   = 1;
+      i0_rd_addr   = 5'd18;
+      alu_tag      = i0_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en = 1; i0_rob_tag_wb = alu_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
+      #0;
+      check_outs("on_path_commit", "spec_en==active_spec allows RRAT");
+      cycle_hold;
+
+      // off-path (spec_en=0) must not commit while active_spec=1
+      @(posedge clk);
+      alloc0_en    = 1;
+      i0_reg_write = 1;
+      i0_spec_en   = 0;
+      i0_rd_addr   = 5'd17;
+      alu_tag      = i0_rob_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      wback0_en = 1; i0_rob_tag_wb = alu_tag;
+      #0;
+      cycle_hold;
+
+      @(posedge clk);
+      retire0_en = 1;
+      #0;
+      check_outs("off_path_no_commit", "spec_en!=active_spec blocks retire");
+      cycle_hold;
+
+      // clear residual off-path head + path state
+      @(posedge clk);
+      flush = 1;
+      #0;
+      @(negedge clk);
+      #1;
+      flush = 0;
+      #0;
+      check_outs("flush_after_spec", "clean ROB after path tests");
+    end
+
+    // ---- alloc after flush: tags restart ----
+    @(posedge clk);
+    alloc0_en = 1; alloc1_en = 1;
+    i0_reg_write = 1; i1_reg_write = 1;
+    i0_rd_addr = 5'd19; i1_rd_addr = 5'd20;
+    #0;
+    check_outs("realloc_after_flush", "tags restart at p32/p33");
+    cycle_hold;
+    check_outs("after_realloc", "tail advanced after fresh dual alloc");
+
     tb_summary(pass_cnt, fail_cnt);
     $finish;
   end

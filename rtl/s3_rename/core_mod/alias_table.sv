@@ -9,10 +9,11 @@
 // RRAT ports: rrat_en / rd_addr_cmt / rob_tag_cmt (PRF tag = head ROB idx)
 // Path ports: rat_en / path_sel
 // Flush restores both speculative maps from RRAT.
+// Directed TB: tb/s3_rename/tests/alias_table_tb.sv (see tb/s3_rename/README.md)
 import rv_dis_pkg::*;
 import rat_pkg::*;
 
-module allis_table (
+module alias_table (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        flush,

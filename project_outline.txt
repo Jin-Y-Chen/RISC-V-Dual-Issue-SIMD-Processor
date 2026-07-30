@@ -875,7 +875,7 @@ S3_Rename:
             type bits), not EX data.
 
     Register Alias Table (RAT):
-            Path: `rtl/s3_rename/core_mod/allis_table.sv`
+            Path: `rtl/s3_rename/core_mod/alias_table.sv`
             Helper package: `rtl/s3_rename/funct_pkg/rat.sv`
 
             input  logic        clk,
@@ -966,8 +966,10 @@ S3_Rename:
     Reorder Buffer (primary rename structure):
             Path: `rtl/s3_rename/core_mod/reorder_buffer.sv`
             Helper package: `rtl/s3_rename/funct_pkg/rob.sv`
-            Golden model: `tb/s3_rename/gm/reorder_buffer_gm.sv` (flat LUT)
-            Directed TB: `tb/s3_rename/reorder_buffer_tb.sv`
+            Golden model: `model/s3_rename/rob_gm.cpp` + `tb/dpi/shims/s3_rename/reorder_buffer_gm.sv`
+            Directed TB: `tb/s3_rename/tests/reorder_buffer_tb.sv`
+            RAT directed TB: `tb/s3_rename/tests/alias_table_tb.sv`
+              (C++ GM: `model/s3_rename/alias_table_gm.cpp`)
 
             // external controls
             input  logic        clk,
@@ -1210,13 +1212,22 @@ S4_Dispatch:
             commits I1 only (I0 suppressed). Independent prds commit both
             lanes. Reset clears p1..p{NUM_PRF-1} to zero.
 
-    Reservation Station:
+    Reservation Station / issue peers:
+            Glue: `rtl/s4_dispatch/issue_core_struct.sv`
+              peers: reservation_station | bypass_unit | selector_unit | p_register_file
             Path: `rtl/s4_dispatch/core_mod/reservation_station.sv`
+            Bypass:  `rtl/s4_dispatch/core_mod/bypass_unit.sv`
+            Select:  `rtl/s4_dispatch/core_mod/selector_unit.sv` (instances rs_issue)
             Helper package: `rtl/s4_dispatch/funct_pkg/rs.sv`
-            Issue unit:  `rtl/s4_dispatch/core_mod/rs_units/rs_issue.sv`
-            Alloc unit:  `rtl/s4_dispatch/core_mod/rs_units/rs_alloc.sv`
+            Wakeup:  `rtl/s4_dispatch/core_mod/rs_units/rs_wakeup.sv`
+            Issue:   `rtl/s4_dispatch/core_mod/rs_units/rs_issue.sv`
+            Alloc:   `rtl/s4_dispatch/core_mod/rs_units/rs_alloc.sv`
             Geometry: `RS_SETS=1`, `RS_WAYS=16` (fully associative bank)
-            Directed TB: `tb/s4_dispatch/tests/reservation_station_tb.sv`
+            Directed TBs:
+              `tb/s4_dispatch/tests/bypass_tb.sv`
+              `tb/s4_dispatch/tests/selector_tb.sv`
+              `tb/s4_dispatch/tests/reservation_station_tb.sv`
+            Stage doc: `tb/s4_dispatch/README.md`
 
             Ports (external API remains flat dual-slot; internals use packed
             `rs_disp_pair_t` / `rs_wb_pair_t` / `rs_pick_t` / `rs_iss_pair_t`):

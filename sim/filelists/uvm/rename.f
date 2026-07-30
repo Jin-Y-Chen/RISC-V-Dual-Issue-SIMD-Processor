@@ -5,7 +5,7 @@
 rtl/import/rv_dis_pkg.sv
 rtl/s3_rename/funct_pkg/rat.sv
 rtl/s3_rename/funct_pkg/rob.sv
-rtl/s3_rename/core_mod/allis_table.sv
+rtl/s3_rename/core_mod/alias_table.sv
 rtl/s3_rename/core_mod/reorder_buffer.sv
 rtl/s3_rename/core_mod/rob_units/tail_alloc.sv
 rtl/s3_rename/core_mod/rob_units/head_retire.sv

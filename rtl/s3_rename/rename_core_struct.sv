@@ -73,7 +73,7 @@ module rename_core_struct (
     assign retire_en[i]    = enable && !flush;
   end
 
-  allis_table u_allis (
+  alias_table u_alias (
     .clk, .rst_n, .flush,
     .spec_en      (spec_en_rn),
     .rs1_use      (rs1_use_rn),
