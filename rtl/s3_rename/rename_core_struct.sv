@@ -45,6 +45,7 @@ module rename_core_struct (
 
   logic      path_use [2];
   prf_addr_t rob_tag [2];
+  logic      is_brnch [2];
 
   logic      rat_alloc_en [2];
   logic      rob_alloc_en [2];
@@ -66,10 +67,12 @@ module rename_core_struct (
   for (genvar i = 0; i < N_DUAL; i++) begin : g_lane
     assign rob_alloc_en[i] = go && valid_rn[i];
     assign rat_alloc_en[i] = rob_valid[i] && reg_write_rn[i];
+    assign is_brnch[i]     = valid_rn[i] && brch_en_rn[i];
 
     assign valid_rs[i]     = rob_valid[i];
     assign path_use_rs[i]  = path_use[i];
-    assign rob_tag_rs[i]   = rat_alloc_en[i] ? rob_tag[i] : '0;
+    // ROB tag for every allocated op (stores/branches included); RAT uses rat_alloc_en.
+    assign rob_tag_rs[i]   = rob_valid[i] ? rob_tag[i] : '0;
     assign retire_en[i]    = enable && !flush;
   end
 
@@ -97,8 +100,7 @@ module rename_core_struct (
     .clk, .rst_n, .flush,
     .alloc_en     (rob_alloc_en),
     .reg_write    (reg_write_rn),
-    .is_brnch     ({valid_rn[1] && brch_en_rn[1],
-                   valid_rn[0] && brch_en_rn[0]}),
+    .is_brnch     (is_brnch),
     .is_store     (store_en_rn),
     .spec_en      (spec_en_rn),
     .state_valid  (state_valid_rn),

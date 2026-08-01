@@ -1,8 +1,15 @@
 `timescale 1ns / 1ps
 
-// RV-DIS scalar OoO core:
-//   fetch → decode → id_rn → rename → rn_dp → issue (RS+PRF+dp_ex)
-//         → execute lanes → ex_mem → memory → ex_mem_wb → PRF/ROB complete
+// RV-DIS scalar OoO core top — stage-by-stage glue.
+//
+//   S1 Fetch  →  S2 Decode  →  S3 Rename  →  S4 Issue  →  S5 Execute
+//        ↑            ↑             ↑            ↑              │
+//        │            │             │            │              ▼
+//        └──────── recover / BHT ───┴── WB tags ─┴──── S6 Mem → S7 WB
+//
+// Dual-issue ports use [2] arrays: index 0 = I0, index 1 = I1.
+// Branch recover flushes the in-order front-end (flush_core) but leaves the
+// RS for path_en/path_sel selective squash (flush_rs = pin flush only).
 import rv_dis_pkg::*;
 
 module risc_dis_unit #(
@@ -18,15 +25,22 @@ module risc_dis_unit #(
   output logic        stall_id
 );
 
-  logic flush_core;
+  // -------------------------------------------------------------------------
+  // Global control
+  // -------------------------------------------------------------------------
+  logic flush_core;   // pin flush | MEM branch recover
   logic br_recover;
-  logic stall_rn;
-  logic stall_dp;
-  logic stall_ex;
+  logic stall_rn;     // driven by rn_dp (= stall_dp); holds rename
+  logic stall_dp;     // driven by issue (RS full)
+  logic stall_ex;     // driven by dcache_busy
+  logic stall_fe;     // front-end: ROB full | RS full
+
+  assign stall_fe = stall_id | stall_rn;
 
   // -------------------------------------------------------------------------
-  // Fetch / IF-ID  ([2]: index 0 = I0, 1 = I1)
+  // Cross-stage nets (declared up front — used by multiple stages)
   // -------------------------------------------------------------------------
+  // S1 fetch outs
   logic        pred_taken      [2];
   logic        brch_recover    [2];
   word_t       pc_execute      [2];
@@ -36,7 +50,11 @@ module risc_dis_unit #(
   logic        valid_if        [2];
   logic        target_valid_if [2];
   logic        spec_en_if      [2];
+  logic        nest_spec_stall [2];
+  logic        pred_valid_wb   [2];
+  word_t       pc_predict      [2];
 
+  // S2 IF/ID outs
   instr_t      instr_id        [2];
   word_t       pc_id           [2];
   word_t       pc_target_id    [2];
@@ -44,27 +62,42 @@ module risc_dis_unit #(
   logic        target_valid_id [2];
   logic        spec_en_id      [2];
 
-  logic        nest_spec_stall [2];
-  logic        pred_valid_wb   [2];
-  word_t       pc_predict      [2];
+  // S2 decode outs
+  logic        valid_dec       [2];
+  logic        store_en_dec    [2];
+  logic        brch_en_dec     [2];
+  logic        lane_sel_dec    [2];
+  opcode_t     opcode_dec      [2];
+  funct3_t     funct3_dec      [2];
+  funct7_t     funct7_dec      [2];
+  gpr_addr_t   rd_addr_dec     [2];
+  gpr_addr_t   rs1_addr_dec    [2];
+  gpr_addr_t   rs2_addr_dec    [2];
+  word_t       imm_dec         [2];
+  logic        rs1_use_dec     [2];
+  logic        rs2_use_dec     [2];
+  logic        reg_write_dec   [2];
+  br_state_t   brch_state      [2];
+  logic        state_valid_dec [2];
 
-  // MEM branch resolve → BHT train / fetch recover (BTB train is decode pred_valid_wb)
+  // MEM → BHT / recover
   word_t       brch_pc_wb      [2];
   br_state_t   brch_state_wb   [2];
-
-  // Declared early: MEM-stage branch taken feeds fetch recover / rename / BHT
   logic        od0_brch_taken_mem, od1_brch_taken_mem;
 
-  assign pc_fetch      = pc_if[0];
+  assign pc_fetch       = pc_if[0];
   assign pc_fetch_plus4 = pc_if[1];
 
+  // =========================================================================
+  // S1 — Fetch
+  // =========================================================================
   s1_fetch_struct #(
     .RESET_PC(RESET_PC)
-  ) u_fetch (
+  ) u_s1_fetch (
     .clk            (clk),
     .rst_n          (rst_n),
     .enable         (enable),
-    .dispatch_stall (stall_id),
+    .dispatch_stall (stall_fe),
     .spec_stall     (nest_spec_stall),
     .pred_taken     (pred_taken),
     .brch_recover   (brch_recover),
@@ -80,12 +113,15 @@ module risc_dis_unit #(
     .target_valid   (target_valid_if)
   );
 
-  if_id u_if_id (
+  // =========================================================================
+  // S2 — Decode (IF/ID + decode struct)
+  // =========================================================================
+  if_id u_s2_if_id (
     .clk             (clk),
     .rst_n           (rst_n),
     .enable          (enable),
     .flush           (flush_core),
-    .stall           (stall_id),
+    .stall           (stall_fe),
     .fetch_valid_if  (valid_if),
     .target_valid_if (target_valid_if),
     .spec_en_if      (spec_en_if),
@@ -100,27 +136,7 @@ module risc_dis_unit #(
     .spec_en_id      (spec_en_id)
   );
 
-  // -------------------------------------------------------------------------
-  // Decode  ([2] arrays through id_rn; rename still scalar dual-slot)
-  // -------------------------------------------------------------------------
-  logic        valid_dec     [2];
-  logic        store_en_dec  [2];
-  logic        brch_en_dec   [2];
-  logic        lane_sel_dec  [2];
-  opcode_t     opcode_dec    [2];
-  funct3_t     funct3_dec    [2];
-  funct7_t     funct7_dec    [2];
-  gpr_addr_t   rd_addr_dec   [2];
-  gpr_addr_t   rs1_addr_dec  [2];
-  gpr_addr_t   rs2_addr_dec  [2];
-  word_t       imm_dec       [2];
-  logic        rs1_use_dec   [2];
-  logic        rs2_use_dec   [2];
-  logic        reg_write_dec [2];
-  br_state_t   brch_state    [2];
-  logic        state_valid_dec [2];
-
-  s2_decode_struct u_decode (
+  s2_decode_struct u_s2_decode (
     .clk             (clk),
     .rst_n           (rst_n),
     .fetch_valid_id  (fetch_valid_id),
@@ -154,28 +170,27 @@ module risc_dis_unit #(
     .nest_spec_stall (nest_spec_stall)
   );
 
-  // -------------------------------------------------------------------------
-  // ID/RN → Rename → RN/DP → Issue
-  // -------------------------------------------------------------------------
-  // id_rn / rename / rn_dp / issue use [2] arrays; EX demux stays ev*/od*.
-  logic        valid_rn     [2];
-  logic        lane_sel_rn  [2];
-  logic        reg_write_rn [2];
-  logic        store_en_rn  [2];
-  logic        brch_en_rn   [2];
+  // =========================================================================
+  // S3 — Rename (ID/RN + RAT/ROB)
+  // =========================================================================
+  logic        valid_rn       [2];
+  logic        lane_sel_rn    [2];
+  logic        reg_write_rn   [2];
+  logic        store_en_rn    [2];
+  logic        brch_en_rn     [2];
   logic        state_valid_rn [2];
   br_state_t   brch_state_rn  [2];
-  logic        rs1_use_rn   [2];
-  logic        rs2_use_rn   [2];
-  logic        spec_en_rn   [2];
-  opcode_t     opcode_rn    [2];
-  funct3_t     funct3_rn    [2];
-  funct7_t     funct7_rn    [2];
-  gpr_addr_t   rd_addr_rn   [2];
-  gpr_addr_t   rs1_addr_rn  [2];
-  gpr_addr_t   rs2_addr_rn  [2];
-  word_t       imm_rn       [2];
-  word_t       pc_rn        [2];
+  logic        rs1_use_rn     [2];
+  logic        rs2_use_rn     [2];
+  logic        spec_en_rn     [2];
+  opcode_t     opcode_rn      [2];
+  funct3_t     funct3_rn      [2];
+  funct7_t     funct7_rn      [2];
+  gpr_addr_t   rd_addr_rn     [2];
+  gpr_addr_t   rs1_addr_rn    [2];
+  gpr_addr_t   rs2_addr_rn    [2];
+  word_t       imm_rn         [2];
+  word_t       pc_rn          [2];
 
   logic        valid_rs       [2];
   logic        path_use_rs    [2];
@@ -184,74 +199,27 @@ module risc_dis_unit #(
   prf_addr_t   ps1_tag_rs     [2];
   prf_addr_t   ps2_tag_rs     [2];
   prf_addr_t   rob_tag_rs     [2];
-  logic        stb_en_rn      [2];
+  logic        stb_en_rn      [2];  // store-buffer enable (no STB consumer yet)
 
+  // S7 → S3/S4 writeback / complete
   logic        wback_en       [2];
   prf_addr_t   rob_tag_wb     [2];
-  logic        brch_taken_wb   [2];
+  logic        brch_taken_wb  [2];
+  logic        wb_en_iss      [2];
+  word_t       wb_data_iss    [2];
 
-  logic        rob_valid_dp   [2];
-  logic        path_use_dp    [2];
-  logic        lane_sel_dp    [2];
-  opcode_t     opcode_dp      [2];
-  funct3_t     funct3_dp      [2];
-  funct7_t     funct7_dp      [2];
-  prf_addr_t   ps1_tag_dp     [2];
-  prf_addr_t   ps2_tag_dp     [2];
-  prf_addr_t   rob_tag_dp     [2];
-  word_t       imm_dp         [2];
-  word_t       pc_dp          [2];
-
-  logic        lane_sel_iss   [2];
-  opcode_t     opcode_iss     [2];
-  funct3_t     funct3_iss     [2];
-  funct7_t     funct7_iss     [2];
-  prf_addr_t   rob_tag_iss    [2];
-  word_t       imm_iss        [2];
-  word_t       pc_iss         [2];
-  word_t       rs1_data_iss   [2];
-  word_t       rs2_data_iss   [2];
-
-  logic        ev_enable_ex    [2];
-  logic        ev_reg_write_ex [2];
-  opcode_t     ev_opcode_ex    [2];
-  funct3_t     ev_funct3_ex    [2];
-  funct7_t     ev_funct7_ex    [2];
-  prf_addr_t   ev_prd_ex       [2];
-  word_t       ev_imm_ex       [2];
-  word_t       ev_pc_ex        [2];
-  word_t       ev_rs1_data_ex  [2];
-  word_t       ev_rs2_data_ex  [2];
-
-  logic        od_enable_ex    [2];
-  logic        od_reg_write_ex [2];
-  opcode_t     od_opcode_ex    [2];
-  funct3_t     od_funct3_ex    [2];
-  prf_addr_t   od_prd_ex       [2];
-  word_t       od_imm_ex       [2];
-  word_t       od_pc_ex        [2];
-  word_t       od_rs1_data_ex  [2];
-  word_t       od_rs2_data_ex  [2];
-
-  // WB push bundle (ex_mem_wb → PRF wakeup + ROB mark-done)
   logic        wb_push0_valid, wb_push1_valid;
   prf_addr_t   wb_push0_rd_addr, wb_push1_rd_addr;
   logic [31:0] wb_push0_wdata, wb_push1_wdata;
+  logic        wb_cmt0_valid, wb_cmt1_valid;
+  prf_addr_t   wb_cmt0_rd_addr, wb_cmt1_rd_addr;
 
-  logic        wb_en_iss   [2];
-  word_t       wb_data_iss [2];
-
-  assign wb_en_iss[0]   = wb_push0_valid;
-  assign wb_en_iss[1]   = wb_push1_valid;
-  assign wb_data_iss[0] = wb_push0_wdata;
-  assign wb_data_iss[1] = wb_push1_wdata;
-
-  id_rn u_id_rn (
-    .clk          (clk),
-    .rst_n        (rst_n),
-    .enable       (enable),
-    .flush        (flush_core),
-    .stall        (stall_id),
+  id_rn u_s3_id_rn (
+    .clk             (clk),
+    .rst_n           (rst_n),
+    .enable          (enable),
+    .flush           (flush_core),
+    .stall           (stall_fe),
     .decode_valid_id (valid_dec),
     .lane_sel_id     (lane_sel_dec),
     .reg_write_id    (reg_write_dec),
@@ -290,65 +258,117 @@ module risc_dis_unit #(
     .pc_rn           (pc_rn)
   );
 
-  assign wback_en[0]       = wb_push0_valid;
-  assign wback_en[1]       = wb_push1_valid;
-  assign rob_tag_wb[0]     = wb_push0_rd_addr;
-  assign rob_tag_wb[1]     = wb_push1_rd_addr;
-  assign brch_taken_wb[0]  = od0_brch_taken_mem;
-  assign brch_taken_wb[1]  = od1_brch_taken_mem;
+  // ROB complete (any finishing op) vs PRF write (reg-write only)
+  assign wback_en[0]      = wb_cmt0_valid;
+  assign wback_en[1]      = wb_cmt1_valid;
+  assign rob_tag_wb[0]    = wb_cmt0_rd_addr;
+  assign rob_tag_wb[1]    = wb_cmt1_rd_addr;
+  assign brch_taken_wb[0] = od0_brch_taken_mem;
+  assign brch_taken_wb[1] = od1_brch_taken_mem;
+  assign wb_en_iss[0]     = wb_push0_valid;
+  assign wb_en_iss[1]     = wb_push1_valid;
+  assign wb_data_iss[0]   = wb_push0_wdata;
+  assign wb_data_iss[1]   = wb_push1_wdata;
 
-
-  rename_core_struct u_rename (
-    .clk               (clk),
-    .rst_n             (rst_n),
-    .flush             (flush_core),
-    .stall_rn          (stall_rn),
-    .enable            (enable),
-    .spec_en_rn        (spec_en_rn),
-    .valid_rn          (valid_rn),
-    .reg_write_rn      (reg_write_rn),
-    .store_en_rn       (store_en_rn),
-    .brch_en_rn        (brch_en_rn),
-    .state_valid_rn    (state_valid_rn),
-    .brch_state_rn     (brch_state_rn),
-    .rs1_use_rn        (rs1_use_rn),
-    .rs2_use_rn        (rs2_use_rn),
-    .rd_addr_rn        (rd_addr_rn),
-    .rs1_addr_rn       (rs1_addr_rn),
-    .rs2_addr_rn       (rs2_addr_rn),
-    .wback_en          (wback_en),
-    .rob_tag_wb        (rob_tag_wb),
-    .brch_taken_wb     (brch_taken_wb),
-    .stall             (stall_id),
-    .valid_rs          (valid_rs),
-    .path_use_rs       (path_use_rs),
-    .path_en           (path_en),
-    .path_sel          (path_sel),
-    .ps1_tag_rs        (ps1_tag_rs),
-    .ps2_tag_rs        (ps2_tag_rs),
-    .rob_tag_rs        (rob_tag_rs),
-    .stb_en            (stb_en_rn)
+  rename_core_struct u_s3_rename (
+    .clk            (clk),
+    .rst_n          (rst_n),
+    .flush          (flush_core),
+    .stall_rn       (stall_rn),
+    .enable         (enable),
+    .spec_en_rn     (spec_en_rn),
+    .valid_rn       (valid_rn),
+    .reg_write_rn   (reg_write_rn),
+    .store_en_rn    (store_en_rn),
+    .brch_en_rn     (brch_en_rn),
+    .state_valid_rn (state_valid_rn),
+    .brch_state_rn  (brch_state_rn),
+    .rs1_use_rn     (rs1_use_rn),
+    .rs2_use_rn     (rs2_use_rn),
+    .rd_addr_rn     (rd_addr_rn),
+    .rs1_addr_rn    (rs1_addr_rn),
+    .rs2_addr_rn    (rs2_addr_rn),
+    .wback_en       (wback_en),
+    .rob_tag_wb     (rob_tag_wb),
+    .brch_taken_wb  (brch_taken_wb),
+    .stall          (stall_id),
+    .valid_rs       (valid_rs),
+    .path_use_rs    (path_use_rs),
+    .path_en        (path_en),
+    .path_sel       (path_sel),
+    .ps1_tag_rs     (ps1_tag_rs),
+    .ps2_tag_rs     (ps2_tag_rs),
+    .rob_tag_rs     (rob_tag_rs),
+    .stb_en         (stb_en_rn)
   );
 
-  // Decode payload bypasses rename (ROB stall holds id_rn aligned with valid_rs).
-  rn_dp u_rn_dp (
-    .clk             (clk),
-    .rst_n           (rst_n),
-    .enable          (enable),
-    .flush           (flush_core),
-    .stall_dp        (stall_dp),
-    .stall_rn        (stall_rn),
-    .rob_valid_rn    (valid_rs),
-    .path_use_rn     (path_use_rs),
-    .lane_sel_rn     (lane_sel_rn),
-    .opcode_rn       (opcode_rn),
-    .funct3_rn       (funct3_rn),
-    .funct7_rn       (funct7_rn),
-    .ps1_tag_rn      (ps1_tag_rs),
-    .ps2_tag_rn      (ps2_tag_rs),
-    .rob_tag_rn      (rob_tag_rs),
-    .imm_rn          (imm_rn),
-    .pc_rn           (pc_rn),
+  // =========================================================================
+  // S4 — Issue (RN/DP + issue peers + DP/EX)
+  // Decode payload (lane/opcode/imm/pc) bypasses rename via id_rn → rn_dp.
+  // =========================================================================
+  logic        rob_valid_dp [2];
+  logic        path_use_dp  [2];
+  logic        lane_sel_dp  [2];
+  opcode_t     opcode_dp    [2];
+  funct3_t     funct3_dp    [2];
+  funct7_t     funct7_dp    [2];
+  prf_addr_t   ps1_tag_dp   [2];
+  prf_addr_t   ps2_tag_dp   [2];
+  prf_addr_t   rob_tag_dp   [2];
+  word_t       imm_dp       [2];
+  word_t       pc_dp        [2];
+
+  logic        valid_iss    [2];
+  logic        lane_sel_iss [2];
+  logic        reg_write_iss[2];
+  opcode_t     opcode_iss   [2];
+  funct3_t     funct3_iss   [2];
+  funct7_t     funct7_iss   [2];
+  prf_addr_t   rob_tag_iss  [2];
+  word_t       imm_iss      [2];
+  word_t       pc_iss       [2];
+  word_t       rs1_data_iss [2];
+  word_t       rs2_data_iss [2];
+
+  logic        ev_enable_ex    [2];
+  logic        ev_reg_write_ex [2];
+  opcode_t     ev_opcode_ex    [2];
+  funct3_t     ev_funct3_ex    [2];
+  funct7_t     ev_funct7_ex    [2];
+  prf_addr_t   ev_prd_ex       [2];
+  word_t       ev_imm_ex       [2];
+  word_t       ev_pc_ex        [2];
+  word_t       ev_rs1_data_ex  [2];
+  word_t       ev_rs2_data_ex  [2];
+
+  logic        od_enable_ex    [2];
+  logic        od_reg_write_ex [2];
+  opcode_t     od_opcode_ex    [2];
+  funct3_t     od_funct3_ex    [2];
+  prf_addr_t   od_prd_ex       [2];
+  word_t       od_imm_ex       [2];
+  word_t       od_pc_ex        [2];
+  word_t       od_rs1_data_ex  [2];
+  word_t       od_rs2_data_ex  [2];
+
+  rn_dp u_s4_rn_dp (
+    .clk          (clk),
+    .rst_n        (rst_n),
+    .enable       (enable),
+    .flush        (flush_core),
+    .stall_dp     (stall_dp),
+    .stall_rn     (stall_rn),
+    .rob_valid_rn (valid_rs),
+    .path_use_rn  (path_use_rs),
+    .lane_sel_rn  (lane_sel_rn),
+    .opcode_rn    (opcode_rn),
+    .funct3_rn    (funct3_rn),
+    .funct7_rn    (funct7_rn),
+    .ps1_tag_rn   (ps1_tag_rs),
+    .ps2_tag_rn   (ps2_tag_rs),
+    .rob_tag_rn   (rob_tag_rs),
+    .imm_rn       (imm_rn),
+    .pc_rn        (pc_rn),
     .rob_valid_dp,
     .path_use_dp,
     .lane_sel_dp,
@@ -362,13 +382,13 @@ module risc_dis_unit #(
     .pc_dp
   );
 
-  issue_core_struct u_issue (
-    .clk               (clk),
-    .rst_n             (rst_n),
-    .enable            (enable),
-    .flush_rs          (flush),
-    .path_en           (path_en),
-    .path_sel          (path_sel),
+  issue_core_struct u_s4_issue (
+    .clk          (clk),
+    .rst_n        (rst_n),
+    .enable       (enable && !stall_ex),
+    .flush_rs     (flush),
+    .path_en      (path_en),
+    .path_sel     (path_sel),
     .rob_valid_dp,
     .path_use_dp,
     .lane_sel_dp,
@@ -380,36 +400,40 @@ module risc_dis_unit #(
     .rob_tag_dp,
     .imm_dp,
     .pc_dp,
-    .wb_en             (wb_en_iss),
-    .rob_tag_wb        (rob_tag_wb),
-    .wb_data           (wb_data_iss),
-    .stall_dp          (stall_dp),
-    .lane_sel          (lane_sel_iss),
-    .opcode            (opcode_iss),
-    .funct3            (funct3_iss),
-    .funct7            (funct7_iss),
-    .rob_tag           (rob_tag_iss),
-    .imm               (imm_iss),
-    .pc                (pc_iss),
-    .rs1_data          (rs1_data_iss),
-    .rs2_data          (rs2_data_iss)
+    .wb_en        (wb_en_iss),
+    .rob_tag_wb   (rob_tag_wb),
+    .wb_data      (wb_data_iss),
+    .stall_dp     (stall_dp),
+    .valid        (valid_iss),
+    .lane_sel     (lane_sel_iss),
+    .reg_write    (reg_write_iss),
+    .opcode       (opcode_iss),
+    .funct3       (funct3_iss),
+    .funct7       (funct7_iss),
+    .rob_tag      (rob_tag_iss),
+    .imm          (imm_iss),
+    .pc           (pc_iss),
+    .rs1_data     (rs1_data_iss),
+    .rs2_data     (rs2_data_iss)
   );
 
-  dp_ex u_dp_ex (
-    .clk               (clk),
-    .rst_n             (rst_n),
-    .enable            (enable),
-    .flush             (flush_core),
-    .stall             (stall_ex),
-    .lane_sel          (lane_sel_iss),
-    .opcode            (opcode_iss),
-    .funct3            (funct3_iss),
-    .funct7            (funct7_iss),
-    .rob_tag           (rob_tag_iss),
-    .imm               (imm_iss),
-    .pc                (pc_iss),
-    .rs1_data          (rs1_data_iss),
-    .rs2_data          (rs2_data_iss),
+  dp_ex u_s4_dp_ex (
+    .clk       (clk),
+    .rst_n     (rst_n),
+    .enable    (enable),
+    .flush     (flush_core),
+    .stall     (stall_ex),
+    .valid     (valid_iss),
+    .lane_sel  (lane_sel_iss),
+    .reg_write (reg_write_iss),
+    .opcode    (opcode_iss),
+    .funct3    (funct3_iss),
+    .funct7    (funct7_iss),
+    .rob_tag   (rob_tag_iss),
+    .imm       (imm_iss),
+    .pc        (pc_iss),
+    .rs1_data  (rs1_data_iss),
+    .rs2_data  (rs2_data_iss),
     .ev_enable_ex,
     .ev_reg_write_ex,
     .ev_opcode_ex,
@@ -431,9 +455,9 @@ module risc_dis_unit #(
     .od_rs2_data_ex
   );
 
-  // -------------------------------------------------------------------------
-  // Execute → MEM → WB
-  // -------------------------------------------------------------------------
+  // =========================================================================
+  // S5 — Execute (even/odd lanes)
+  // =========================================================================
   word_t       ev_alu_result  [2];
   logic        od_use_link_ex [2];
   logic        od_brch_taken  [2];
@@ -446,23 +470,7 @@ module risc_dis_unit #(
   word_t       od_link_pc     [2];
   word_t       od_alu_result  [2];
 
-  logic        od0_use_link_mem, od1_use_link_mem;
-  logic        od0_reg_write_mem, od1_reg_write_mem;
-  prf_addr_t   od0_rd_addr_mem, od1_rd_addr_mem;
-  logic [31:0] od0_brch_pc_mem, od1_brch_pc_mem;
-  logic        od0_mem_en_mem, od1_mem_en_mem;
-  logic        od0_mem_write_mem, od1_mem_write_mem;
-  logic [31:0] od0_mem_addr_mem, od1_mem_addr_mem;
-  logic [31:0] od0_mem_wdata_mem, od1_mem_wdata_mem;
-  logic [3:0]  od0_mem_besel_mem, od1_mem_besel_mem;
-  logic [31:0] od0_alu_result_mem, od1_alu_result_mem;
-  logic [31:0] od0_pc_mem, od1_pc_mem;
-  logic [31:0] od0_load_mem_data, od1_load_mem_data;
-  logic        dcache_busy;
-
-  assign stall_ex = dcache_busy;
-
-  s4_execute_struct u_execute (
+  s4_execute_struct u_s5_execute (
     .ev_enable_ex,
     .ev_opcode_ex,
     .ev_funct3_ex,
@@ -490,10 +498,31 @@ module risc_dis_unit #(
     .od_alu_result
   );
 
-  ex_mem u_ex_mem (
+  // =========================================================================
+  // S6 — Memory (EX/MEM + D$ + branch recover / BHT train)
+  // =========================================================================
+  logic        od0_enable_mem, od1_enable_mem;
+  logic        od0_use_link_mem, od1_use_link_mem;
+  logic        od0_reg_write_mem, od1_reg_write_mem;
+  prf_addr_t   od0_rd_addr_mem, od1_rd_addr_mem;
+  logic [31:0] od0_brch_pc_mem, od1_brch_pc_mem;
+  logic        od0_mem_en_mem, od1_mem_en_mem;
+  logic        od0_mem_write_mem, od1_mem_write_mem;
+  logic [31:0] od0_mem_addr_mem, od1_mem_addr_mem;
+  logic [31:0] od0_mem_wdata_mem, od1_mem_wdata_mem;
+  logic [3:0]  od0_mem_besel_mem, od1_mem_besel_mem;
+  logic [31:0] od0_alu_result_mem, od1_alu_result_mem;
+  logic [31:0] od0_pc_mem, od1_pc_mem;
+  logic [31:0] od0_load_mem_data, od1_load_mem_data;
+  logic        dcache_busy;
+
+  assign stall_ex = dcache_busy;
+
+  ex_mem u_s6_ex_mem (
     .clk                 (clk),
     .rst_n               (rst_n),
     .enable              (enable),
+    .flush               (flush_core),
     .stall_od0           (dcache_busy && od0_mem_en_mem),
     .stall_od1           (dcache_busy && od1_mem_en_mem),
     .od0_enable_ex       (od_enable_ex[0]),
@@ -524,6 +553,7 @@ module risc_dis_unit #(
     .od1_alu_result_ex   (od_alu_result[1]),
     .od1_use_link_ex     (od_use_link_ex[1]),
     .od1_pc_ex           (od_pc_ex[1]),
+    .od0_enable_mem      (od0_enable_mem),
     .od0_reg_write_mem   (od0_reg_write_mem),
     .od0_rd_addr_mem     (od0_rd_addr_mem),
     .od0_brch_taken_mem  (od0_brch_taken_mem),
@@ -537,6 +567,7 @@ module risc_dis_unit #(
     .od0_alu_result_mem  (od0_alu_result_mem),
     .od0_use_link_mem    (od0_use_link_mem),
     .od0_pc_mem          (od0_pc_mem),
+    .od1_enable_mem      (od1_enable_mem),
     .od1_reg_write_mem   (od1_reg_write_mem),
     .od1_rd_addr_mem     (od1_rd_addr_mem),
     .od1_brch_taken_mem  (od1_brch_taken_mem),
@@ -552,8 +583,7 @@ module risc_dis_unit #(
     .od1_pc_mem          (od1_pc_mem)
   );
 
-  // Branch recover / flush (MEM-stage taken → fetch redirect + core flush)
-  // BTB train is decode pred_valid_wb + pc_predict; BHT still trains on MEM taken
+  // Branch recover: MEM taken → fetch redirect + front-end flush
   assign brch_recover[0] = od0_brch_taken_mem;
   assign brch_recover[1] = od1_brch_taken_mem;
   assign pc_execute[0]   = od0_brch_pc_mem;
@@ -563,19 +593,19 @@ module risc_dis_unit #(
   assign br_recover      = brch_recover[0] | brch_recover[1];
   assign flush_core      = flush | br_recover;
 
-  state_LUT u_state_lut0 (
+  state_LUT u_s6_bht0 (
     .state      (brch_state[0]),
     .pc_sctrl   (brch_recover[0]),
     .next_state (brch_state_wb[0])
   );
 
-  state_LUT u_state_lut1 (
+  state_LUT u_s6_bht1 (
     .state      (brch_state[1]),
     .pc_sctrl   (brch_recover[1]),
     .next_state (brch_state_wb[1])
   );
 
-  s5_memory_struct u_memory (
+  s5_memory_struct u_s6_memory (
     .clk               (clk),
     .rst_n             (rst_n),
     .enable            (enable),
@@ -594,19 +624,25 @@ module risc_dis_unit #(
     .dcache_busy       (dcache_busy)
   );
 
-  ex_mem_wb u_ex_mem_wb (
+  // =========================================================================
+  // S7 — Writeback (merge even EX + odd MEM → PRF / ROB complete)
+  // =========================================================================
+  ex_mem_wb u_s7_wb (
     .clk                (clk),
     .rst_n              (rst_n),
     .enable             (enable),
     .flush              (flush_core),
+    .ev0_enable_ex      (ev_enable_ex[0]),
     .ev0_reg_write_ex   (ev_enable_ex[0] && ev_reg_write_ex[0]),
     .ev0_rd_addr_ex     (ev_prd_ex[0]),
     .ev0_wdata_ex       (ev_alu_result[0]),
     .ev0_pc_ex          (ev_pc_ex[0]),
+    .ev1_enable_ex      (ev_enable_ex[1]),
     .ev1_reg_write_ex   (ev_enable_ex[1] && ev_reg_write_ex[1]),
     .ev1_rd_addr_ex     (ev_prd_ex[1]),
     .ev1_wdata_ex       (ev_alu_result[1]),
     .ev1_pc_ex          (ev_pc_ex[1]),
+    .od0_enable_mem     (od0_enable_mem),
     .od0_reg_write_mem  (od0_reg_write_mem),
     .od0_rd_addr_mem    (od0_rd_addr_mem),
     .od0_pc_mem         (od0_pc_mem),
@@ -615,6 +651,7 @@ module risc_dis_unit #(
     .od0_mem_en_mem     (od0_mem_en_mem),
     .od0_mem_write_mem  (od0_mem_write_mem),
     .od0_load_mem_data  (od0_load_mem_data),
+    .od1_enable_mem     (od1_enable_mem),
     .od1_reg_write_mem  (od1_reg_write_mem),
     .od1_rd_addr_mem    (od1_rd_addr_mem),
     .od1_pc_mem         (od1_pc_mem),
@@ -640,7 +677,11 @@ module risc_dis_unit #(
     .push1_valid        (wb_push1_valid),
     .push1_rd_addr      (wb_push1_rd_addr),
     .push1_wdata        (wb_push1_wdata),
-    .push1_pc           ()
+    .push1_pc           (),
+    .cmt0_valid         (wb_cmt0_valid),
+    .cmt0_rd_addr       (wb_cmt0_rd_addr),
+    .cmt1_valid         (wb_cmt1_valid),
+    .cmt1_rd_addr       (wb_cmt1_rd_addr)
   );
 
 endmodule

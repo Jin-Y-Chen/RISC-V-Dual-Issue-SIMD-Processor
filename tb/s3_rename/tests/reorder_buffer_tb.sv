@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 
-// Directed TB: reorder_buffer vs flat LUT golden model (gm/reorder_buffer_gm.sv).
+// Directed TB: reorder_buffer vs flat LUT golden model.
+// Stim/observe use the same [2] array ports as reorder_buffer (I0=0, I1=1).
 import rv_dis_pkg::*;
 import rob_pkg::*;
 
@@ -10,20 +11,8 @@ module reorder_buffer_tb;
 
   localparam int CLK_PERIOD = 10;
 
+  // ---- DUT ports (match reorder_buffer.sv) ----
   logic        clk, rst_n, flush;
-  // Scalar stim (legacy test sequences) packed into [2] for DUT/GM
-  logic        alloc0_en, alloc1_en;
-  logic        i0_reg_write, i1_reg_write;
-  logic        i0_is_brnch, i1_is_brnch;
-  logic        i0_is_store, i1_is_store;
-  logic        i0_spec_en, i1_spec_en;
-  logic        i0_state_valid, i1_state_valid;
-  br_state_t   i0_brch_state, i1_brch_state;
-  gpr_addr_t   i0_rd_addr, i1_rd_addr;
-  logic        wback0_en, wback1_en;
-  prf_addr_t   i0_rob_tag_wb, i1_rob_tag_wb;
-  logic        i0_brch_taken_wb, i1_brch_taken_wb;
-  logic        retire0_en, retire1_en;
 
   logic        alloc_en      [2];
   logic        reg_write     [2];
@@ -34,28 +23,25 @@ module reorder_buffer_tb;
   br_state_t   brch_state    [2];
   gpr_addr_t   rd_addr       [2];
   prf_addr_t   rob_tag       [2];
+  logic        rob_valid     [2];
   logic        stall;
+
   logic        wback_en      [2];
   prf_addr_t   rob_tag_wb    [2];
   logic        brch_taken_wb [2];
+
   logic        retire_en     [2];
-  logic        rob_valid     [2];
+
   logic        rrat_en       [2];
   gpr_addr_t   rd_addr_cmt   [2];
   prf_addr_t   rob_tag_cmt   [2];
+
   logic        rat_en        [2];
   logic        path_sel      [2];
+
   logic        stb_en        [2];
 
-  // Scalar views of DUT outputs (for existing check helpers)
-  prf_addr_t   i0_rob_tag, i1_rob_tag;
-  logic        rrat0_en, rrat1_en;
-  gpr_addr_t   i0_rd_addr_cmt, i1_rd_addr_cmt;
-  prf_addr_t   i0_rob_tag_cmt, i1_rob_tag_cmt;
-  logic        rat0_en, rat1_en;
-  logic        i0_path_sel, i1_path_sel;
-  logic        stb0_en, stb1_en;
-
+  // ---- GM mirrors ----
   prf_addr_t   ref_rob_tag     [2];
   logic        ref_stall;
   logic        ref_can_retire  [2];
@@ -66,68 +52,13 @@ module reorder_buffer_tb;
   logic        ref_path_sel    [2];
   logic        ref_stb_en      [2];
 
-  prf_addr_t   ref_i0_rob_tag, ref_i1_rob_tag;
-  logic        ref_i0_can_retire, ref_i1_can_retire;
-  logic        ref_rrat0_en, ref_rrat1_en;
-  gpr_addr_t   ref_i0_rd_addr_cmt, ref_i1_rd_addr_cmt;
-  prf_addr_t   ref_i0_rob_tag_cmt, ref_i1_rob_tag_cmt;
-  logic        ref_rat0_en, ref_rat1_en;
-  logic        ref_i0_path_sel, ref_i1_path_sel;
-  logic        ref_stb0_en, ref_stb1_en;
-
   int pass_cnt, fail_cnt;
-
-  always_comb begin
-    alloc_en[0] = alloc0_en;           alloc_en[1] = alloc1_en;
-    reg_write[0] = i0_reg_write;       reg_write[1] = i1_reg_write;
-    is_brnch[0] = i0_is_brnch;         is_brnch[1] = i1_is_brnch;
-    is_store[0] = i0_is_store;         is_store[1] = i1_is_store;
-    spec_en[0] = i0_spec_en;           spec_en[1] = i1_spec_en;
-    state_valid[0] = i0_state_valid;   state_valid[1] = i1_state_valid;
-    brch_state[0] = i0_brch_state;     brch_state[1] = i1_brch_state;
-    rd_addr[0] = i0_rd_addr;           rd_addr[1] = i1_rd_addr;
-    wback_en[0] = wback0_en;           wback_en[1] = wback1_en;
-    rob_tag_wb[0] = i0_rob_tag_wb;     rob_tag_wb[1] = i1_rob_tag_wb;
-    brch_taken_wb[0] = i0_brch_taken_wb; brch_taken_wb[1] = i1_brch_taken_wb;
-    retire_en[0] = retire0_en;         retire_en[1] = retire1_en;
-  end
-
-  assign i0_rob_tag       = rob_tag[0];
-  assign i1_rob_tag       = rob_tag[1];
-  assign rrat0_en         = rrat_en[0];
-  assign rrat1_en         = rrat_en[1];
-  assign i0_rd_addr_cmt   = rd_addr_cmt[0];
-  assign i1_rd_addr_cmt   = rd_addr_cmt[1];
-  assign i0_rob_tag_cmt   = rob_tag_cmt[0];
-  assign i1_rob_tag_cmt   = rob_tag_cmt[1];
-  assign rat0_en          = rat_en[0];
-  assign rat1_en          = rat_en[1];
-  assign i0_path_sel      = path_sel[0];
-  assign i1_path_sel      = path_sel[1];
-  assign stb0_en          = stb_en[0];
-  assign stb1_en          = stb_en[1];
-
-  assign ref_i0_rob_tag     = ref_rob_tag[0];
-  assign ref_i1_rob_tag     = ref_rob_tag[1];
-  assign ref_i0_can_retire  = ref_can_retire[0];
-  assign ref_i1_can_retire  = ref_can_retire[1];
-  assign ref_rrat0_en       = ref_rrat_en[0];
-  assign ref_rrat1_en       = ref_rrat_en[1];
-  assign ref_i0_rd_addr_cmt = ref_rd_addr_cmt[0];
-  assign ref_i1_rd_addr_cmt = ref_rd_addr_cmt[1];
-  assign ref_i0_rob_tag_cmt = ref_rob_tag_cmt[0];
-  assign ref_i1_rob_tag_cmt = ref_rob_tag_cmt[1];
-  assign ref_rat0_en        = ref_rat_en[0];
-  assign ref_rat1_en        = ref_rat_en[1];
-  assign ref_i0_path_sel    = ref_path_sel[0];
-  assign ref_i1_path_sel    = ref_path_sel[1];
-  assign ref_stb0_en        = ref_stb_en[0];
-  assign ref_stb1_en        = ref_stb_en[1];
 
   reorder_buffer dut (
     .clk, .rst_n, .flush,
     .alloc_en, .reg_write, .is_brnch, .is_store, .spec_en,
-    .state_valid, .brch_state, .rd_addr, .rob_tag, .rob_valid, .stall,
+    .state_valid, .brch_state, .rd_addr,
+    .rob_tag, .rob_valid, .stall,
     .wback_en, .rob_tag_wb, .brch_taken_wb,
     .retire_en,
     .rrat_en, .rd_addr_cmt, .rob_tag_cmt,
@@ -154,90 +85,88 @@ module reorder_buffer_tb;
   always #(CLK_PERIOD/2) clk = ~clk;
 
   task automatic clear_stim;
-    flush            = 0;
-    alloc0_en        = 0;
-    alloc1_en        = 0;
-    i0_reg_write     = 0;
-    i1_reg_write     = 0;
-    i0_is_brnch      = 0;
-    i1_is_brnch      = 0;
-    i0_is_store      = 0;
-    i1_is_store      = 0;
-    i0_spec_en       = 0;
-    i1_spec_en       = 0;
-    i0_state_valid   = 0;
-    i1_state_valid   = 0;
-    i0_brch_state    = '0;
-    i1_brch_state    = '0;
-    // Keep last i0/i1_rd_addr so idle/retire dumps stay identifiable.
-    wback0_en        = 0;
-    wback1_en        = 0;
-    i0_rob_tag_wb    = '0;
-    i1_rob_tag_wb    = '0;
-    i0_brch_taken_wb = 0;
-    i1_brch_taken_wb = 0;
-    retire0_en       = 0;
-    retire1_en       = 0;
+    flush = 0;
+    for (int i = 0; i < 2; i++) begin
+      alloc_en[i]      = 0;
+      reg_write[i]     = 0;
+      is_brnch[i]      = 0;
+      is_store[i]      = 0;
+      spec_en[i]       = 0;
+      state_valid[i]   = 0;
+      brch_state[i]    = '0;
+      // Keep last rd_addr so idle/retire dumps stay identifiable.
+      wback_en[i]      = 0;
+      rob_tag_wb[i]    = '0;
+      brch_taken_wb[i] = 0;
+      retire_en[i]     = 0;
+    end
   endtask
 
   task automatic check_outs(input string name, input string detail);
     bit pass;
-    pass = (i0_rob_tag === ref_i0_rob_tag) && (i1_rob_tag === ref_i1_rob_tag)
+    // rob_valid tracks alloc_en in rob_alloc (GM has no rob_valid port)
+    pass = (rob_tag[0] === ref_rob_tag[0]) && (rob_tag[1] === ref_rob_tag[1])
+        && (rob_valid[0] === alloc_en[0]) && (rob_valid[1] === alloc_en[1])
         && (stall === ref_stall)
-        && (rrat0_en === ref_rrat0_en) && (rrat1_en === ref_rrat1_en)
-        && (i0_rd_addr_cmt === ref_i0_rd_addr_cmt)
-        && (i1_rd_addr_cmt === ref_i1_rd_addr_cmt)
-        && (i0_rob_tag_cmt === ref_i0_rob_tag_cmt)
-        && (i1_rob_tag_cmt === ref_i1_rob_tag_cmt)
-        && (rat0_en === ref_rat0_en) && (rat1_en === ref_rat1_en)
-        && (i0_path_sel === ref_i0_path_sel)
-        && (i1_path_sel === ref_i1_path_sel)
-        && (stb0_en === ref_stb0_en) && (stb1_en === ref_stb1_en);
+        && (rrat_en[0] === ref_rrat_en[0]) && (rrat_en[1] === ref_rrat_en[1])
+        && (rd_addr_cmt[0] === ref_rd_addr_cmt[0])
+        && (rd_addr_cmt[1] === ref_rd_addr_cmt[1])
+        && (rob_tag_cmt[0] === ref_rob_tag_cmt[0])
+        && (rob_tag_cmt[1] === ref_rob_tag_cmt[1])
+        && (rat_en[0] === ref_rat_en[0]) && (rat_en[1] === ref_rat_en[1])
+        && (path_sel[0] === ref_path_sel[0]) && (path_sel[1] === ref_path_sel[1])
+        && (stb_en[0] === ref_stb_en[0]) && (stb_en[1] === ref_stb_en[1]);
 
     tb_report_open(pass, name, detail);
 
     tb_log_section("inputs");
     tb_field_in_clk(clk);
-    tb_field_in_bit("rst_n",           rst_n);
-    tb_field_in_bit("flush",           flush);
-    tb_field_in_bit("alloc0_en",       alloc0_en);
-    tb_field_in_bit("alloc1_en",       alloc1_en);
-    tb_field_in_bit("i0_reg_write",    i0_reg_write);
-    tb_field_in_bit("i1_reg_write",    i1_reg_write);
-    tb_field_in_bit("i0_is_brnch",     i0_is_brnch);
-    tb_field_in_bit("i1_is_brnch",     i1_is_brnch);
-    tb_field_in_bit("i0_is_store",     i0_is_store);
-    tb_field_in_bit("i1_is_store",     i1_is_store);
-    tb_field_in_bit("i0_spec_en",      i0_spec_en);
-    tb_field_in_bit("i1_spec_en",      i1_spec_en);
-    tb_field_in_u32("i0_rd_addr",      i0_rd_addr);
-    tb_field_in_u32("i1_rd_addr",      i1_rd_addr);
-    tb_field_in_bit("wback0_en",       wback0_en);
-    tb_field_in_bit("wback1_en",       wback1_en);
-    tb_field_in_u32("i0_rob_tag_wb",   i0_rob_tag_wb);
-    tb_field_in_u32("i1_rob_tag_wb",   i1_rob_tag_wb);
-    tb_field_in_bit("i0_brch_taken_wb", i0_brch_taken_wb);
-    tb_field_in_bit("i1_brch_taken_wb", i1_brch_taken_wb);
-    tb_field_in_bit("retire0_en",      retire0_en);
-    tb_field_in_bit("retire1_en",      retire1_en);
+    tb_field_in_bit("rst_n",            rst_n);
+    tb_field_in_bit("flush",            flush);
+    tb_field_in_bit("alloc_en[0]",      alloc_en[0]);
+    tb_field_in_bit("alloc_en[1]",      alloc_en[1]);
+    tb_field_in_bit("reg_write[0]",     reg_write[0]);
+    tb_field_in_bit("reg_write[1]",     reg_write[1]);
+    tb_field_in_bit("is_brnch[0]",      is_brnch[0]);
+    tb_field_in_bit("is_brnch[1]",      is_brnch[1]);
+    tb_field_in_bit("is_store[0]",      is_store[0]);
+    tb_field_in_bit("is_store[1]",      is_store[1]);
+    tb_field_in_bit("spec_en[0]",       spec_en[0]);
+    tb_field_in_bit("spec_en[1]",       spec_en[1]);
+    tb_field_in_bit("state_valid[0]",   state_valid[0]);
+    tb_field_in_bit("state_valid[1]",   state_valid[1]);
+    tb_field_in_u32("brch_state[0]",    brch_state[0]);
+    tb_field_in_u32("brch_state[1]",    brch_state[1]);
+    tb_field_in_u32("rd_addr[0]",       rd_addr[0]);
+    tb_field_in_u32("rd_addr[1]",       rd_addr[1]);
+    tb_field_in_bit("wback_en[0]",      wback_en[0]);
+    tb_field_in_bit("wback_en[1]",      wback_en[1]);
+    tb_field_in_u32("rob_tag_wb[0]",    rob_tag_wb[0]);
+    tb_field_in_u32("rob_tag_wb[1]",    rob_tag_wb[1]);
+    tb_field_in_bit("brch_taken_wb[0]", brch_taken_wb[0]);
+    tb_field_in_bit("brch_taken_wb[1]", brch_taken_wb[1]);
+    tb_field_in_bit("retire_en[0]",     retire_en[0]);
+    tb_field_in_bit("retire_en[1]",     retire_en[1]);
     $display("");
 
     tb_log_section("outputs (DUT vs GM)");
-    tb_field_u32("i0_rob_tag",     i0_rob_tag,     ref_i0_rob_tag);
-    tb_field_u32("i1_rob_tag",     i1_rob_tag,     ref_i1_rob_tag);
+    tb_field_u32("rob_tag[0]",     rob_tag[0],     ref_rob_tag[0]);
+    tb_field_u32("rob_tag[1]",     rob_tag[1],     ref_rob_tag[1]);
+    tb_field_bit("rob_valid[0]",   rob_valid[0],   alloc_en[0]);
+    tb_field_bit("rob_valid[1]",   rob_valid[1],   alloc_en[1]);
     tb_field_bit("stall",          stall,          ref_stall);
-    tb_field_bit("rrat0_en",       rrat0_en,       ref_rrat0_en);
-    tb_field_bit("rrat1_en",       rrat1_en,       ref_rrat1_en);
-    tb_field_u32("i0_rd_addr_cmt", i0_rd_addr_cmt, ref_i0_rd_addr_cmt);
-    tb_field_u32("i1_rd_addr_cmt", i1_rd_addr_cmt, ref_i1_rd_addr_cmt);
-    tb_field_u32("i0_rob_tag_cmt", i0_rob_tag_cmt, ref_i0_rob_tag_cmt);
-    tb_field_u32("i1_rob_tag_cmt", i1_rob_tag_cmt, ref_i1_rob_tag_cmt);
-    tb_field_bit("rat0_en",        rat0_en,        ref_rat0_en);
-    tb_field_bit("rat1_en",        rat1_en,        ref_rat1_en);
-    tb_field_bit("i0_path_sel",    i0_path_sel,    ref_i0_path_sel);
-    tb_field_bit("i1_path_sel",    i1_path_sel,    ref_i1_path_sel);
-    tb_field_bit("stb0_en",        stb0_en,        ref_stb0_en);
-    tb_field_bit("stb1_en",        stb1_en,        ref_stb1_en);
+    tb_field_bit("rrat_en[0]",     rrat_en[0],     ref_rrat_en[0]);
+    tb_field_bit("rrat_en[1]",     rrat_en[1],     ref_rrat_en[1]);
+    tb_field_u32("rd_addr_cmt[0]", rd_addr_cmt[0], ref_rd_addr_cmt[0]);
+    tb_field_u32("rd_addr_cmt[1]", rd_addr_cmt[1], ref_rd_addr_cmt[1]);
+    tb_field_u32("rob_tag_cmt[0]", rob_tag_cmt[0], ref_rob_tag_cmt[0]);
+    tb_field_u32("rob_tag_cmt[1]", rob_tag_cmt[1], ref_rob_tag_cmt[1]);
+    tb_field_bit("rat_en[0]",      rat_en[0],      ref_rat_en[0]);
+    tb_field_bit("rat_en[1]",      rat_en[1],      ref_rat_en[1]);
+    tb_field_bit("path_sel[0]",    path_sel[0],    ref_path_sel[0]);
+    tb_field_bit("path_sel[1]",    path_sel[1],    ref_path_sel[1]);
+    tb_field_bit("stb_en[0]",      stb_en[0],      ref_stb_en[0]);
+    tb_field_bit("stb_en[1]",      stb_en[1],      ref_stb_en[1]);
     tb_report_close(pass);
 
     if (pass) pass_cnt++;
@@ -300,8 +229,8 @@ module reorder_buffer_tb;
     fail_cnt = 0;
     rst_n = 0;
     clear_stim();
-    i0_rd_addr = '0;
-    i1_rd_addr = '0;
+    rd_addr[0] = '0;
+    rd_addr[1] = '0;
     tb_banner("reorder_buffer_tb - DUT vs LUT golden model");
 
     repeat (2) @(posedge clk);
@@ -312,26 +241,26 @@ module reorder_buffer_tb;
 
     // ---- dual alloc ALU pair ----
     @(posedge clk);
-    alloc0_en    = 1; alloc1_en = 1;
-    i0_reg_write = 1; i1_reg_write = 1;
-    i0_rd_addr   = 5'd1; i1_rd_addr = 5'd2;
+    alloc_en[0] = 1; alloc_en[1] = 1;
+    reg_write[0] = 1; reg_write[1] = 1;
+    rd_addr[0] = 5'd1; rd_addr[1] = 5'd2;
     #0;
     check_outs("dual_alloc_idx", "combo tags p32/p33 before latch");
     cycle_hold;
     check_outs("after_dual_alloc", "tail advanced; next tags p34/p35");
 
-    // ---- WB both, then retire next cycle (complete is registered; no WB bypass) ----
+    // ---- WB both, then retire next cycle ----
     @(posedge clk);
-    wback0_en     = 1; wback1_en = 1;
-    i0_rob_tag_wb = rob_to_prf(5'd0);
-    i1_rob_tag_wb = rob_to_prf(5'd1);
+    wback_en[0] = 1; wback_en[1] = 1;
+    rob_tag_wb[0] = rob_to_prf(5'd0);
+    rob_tag_wb[1] = rob_to_prf(5'd1);
     #0;
     check_outs("wb_assert", "WB tags presented; complete not latched yet");
     cycle_hold;
     check_outs("after_wb", "entries complete; ready to retire");
 
     @(posedge clk);
-    retire0_en = 1; retire1_en = 1;
+    retire_en[0] = 1; retire_en[1] = 1;
     #0;
     check_outs("dual_commit", "RRAT dual commit p32/p33 rd=1/2");
     cycle_hold;
@@ -339,9 +268,9 @@ module reorder_buffer_tb;
 
     // ---- single-instruction alloc (I0 only) ----
     @(posedge clk);
-    alloc0_en    = 1;
-    i0_reg_write = 1;
-    i0_rd_addr   = 5'd3;
+    alloc_en[0]  = 1;
+    reg_write[0] = 1;
+    rd_addr[0]   = 5'd3;
     #0;
     check_outs("single_alloc0_idx", "only I0 -> tag at current tail");
     cycle_hold;
@@ -349,60 +278,59 @@ module reorder_buffer_tb;
 
     // ---- single alloc I1-only (bubble in I0) ----
     @(posedge clk);
-    alloc1_en    = 1;
-    i1_reg_write = 1;
-    i1_is_store  = 1;
-    i1_rd_addr   = 5'd4;
+    alloc_en[1] = 1;
+    reg_write[1] = 1;
+    is_store[1] = 1;
+    rd_addr[1]  = 5'd4;
     #0;
     check_outs("single_alloc1_idx", "I1 packs at tail (same as I0 slot)");
     cycle_hold;
 
-    // WB then retire next cycle (head is rd=3 ALU, then store)
     @(posedge clk);
-    wback0_en = 1; i0_rob_tag_wb = rob_to_prf(5'd2);
+    wback_en[0] = 1; rob_tag_wb[0] = rob_to_prf(5'd2);
     #0;
     cycle_hold;
 
     @(posedge clk);
-    retire0_en = 1;
+    retire_en[0] = 1;
     #0;
     check_outs("commit_single_alu", "commit head ALU (rd=3)");
     cycle_hold;
 
     @(posedge clk);
-    wback0_en = 1; i0_rob_tag_wb = rob_to_prf(5'd3);
+    wback_en[0] = 1; rob_tag_wb[0] = rob_to_prf(5'd3);
     #0;
     cycle_hold;
 
     @(posedge clk);
-    retire0_en = 1;
+    retire_en[0] = 1;
     #0;
-    check_outs("commit_store", "stb0_en on store commit");
+    check_outs("commit_store", "stb_en[0] on store commit");
     cycle_hold;
 
-    // ---- branch alloc + taken WB + path commit (next cycle) ----
+    // ---- branch alloc + taken WB + path commit ----
     begin
       prf_addr_t br_tag;
       @(posedge clk);
-      alloc0_en   = 1;
-      i0_is_brnch = 1;
-      i0_spec_en  = 0;
-      i0_rd_addr  = 5'd7;  // latched for dump; branch has no RRAT commit
-      br_tag      = i0_rob_tag;
+      alloc_en[0] = 1;
+      is_brnch[0] = 1;
+      spec_en[0]  = 0;
+      rd_addr[0]  = 5'd7;
+      br_tag      = rob_tag[0];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en        = 1;
-      i0_rob_tag_wb    = br_tag;
-      i0_brch_taken_wb = 1;
+      wback_en[0]      = 1;
+      rob_tag_wb[0]    = br_tag;
+      brch_taken_wb[0] = 1;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
-      check_outs("branch_taken_commit", "rat0_en + path_sel=1");
+      check_outs("branch_taken_commit", "rat_en[0] + path_sel[0]=1");
       cycle_hold;
     end
 
@@ -411,18 +339,16 @@ module reorder_buffer_tb;
       int k;
       for (k = 0; k < 16; k++) begin
         @(posedge clk);
-        alloc0_en = 1; alloc1_en = 1;
-        i0_reg_write = 1; i1_reg_write = 1;
-        // Unique arch regs per fill pair (skip x0): 8..31 then wrap 1..7
-        i0_rd_addr = 5'(1 + ((8 + 2 * k) % 31));
-        i1_rd_addr = 5'(1 + ((9 + 2 * k) % 31));
+        alloc_en[0] = 1; alloc_en[1] = 1;
+        reg_write[0] = 1; reg_write[1] = 1;
+        rd_addr[0] = 5'(1 + ((8 + 2 * k) % 31));
+        rd_addr[1] = 5'(1 + ((9 + 2 * k) % 31));
         #0;
         cycle_hold;
       end
       @(posedge clk);
       #0;
       check_outs("full_stall", "32 entries -> stall");
-      // Snapshot full bank before flush clears it
       if ($test$plusargs("rob_dump")) begin
         string dump_path;
         dump_path = "rob_bank.txt";
@@ -442,93 +368,93 @@ module reorder_buffer_tb;
     #0;
     check_outs("flush", "pointers/valid cleared; tags back to p32/p33");
 
-    // ---- branch not-taken: rat_en with path_sel=0 ----
+    // ---- branch not-taken ----
     begin
       prf_addr_t br_tag;
       @(posedge clk);
-      alloc0_en   = 1;
-      i0_is_brnch = 1;
-      i0_rd_addr  = 5'd8;
-      br_tag      = i0_rob_tag;
+      alloc_en[0] = 1;
+      is_brnch[0] = 1;
+      rd_addr[0]  = 5'd8;
+      br_tag      = rob_tag[0];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en        = 1;
-      i0_rob_tag_wb    = br_tag;
-      i0_brch_taken_wb = 0;
+      wback_en[0]      = 1;
+      rob_tag_wb[0]    = br_tag;
+      brch_taken_wb[0] = 0;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
-      check_outs("branch_not_taken", "rat0_en + path_sel=0");
+      check_outs("branch_not_taken", "rat_en[0] + path_sel[0]=0");
       cycle_hold;
     end
 
-    // ---- retire before complete: no commit ----
+    // ---- retire before complete ----
     begin
       prf_addr_t t0;
       @(posedge clk);
-      alloc0_en    = 1;
-      i0_reg_write = 1;
-      i0_rd_addr   = 5'd9;
-      t0           = i0_rob_tag;
+      alloc_en[0]  = 1;
+      reg_write[0] = 1;
+      rd_addr[0]   = 5'd9;
+      t0           = rob_tag[0];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
       check_outs("retire_before_wb", "head incomplete -> no RRAT");
       cycle_hold;
 
       @(posedge clk);
-      wback0_en     = 1;
-      i0_rob_tag_wb = t0;
+      wback_en[0]   = 1;
+      rob_tag_wb[0] = t0;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
       check_outs("retire_after_wb", "RRAT after registered complete");
       cycle_hold;
     end
 
-    // ---- OOO WB (younger first), in-order retire ----
+    // ---- OOO WB, in-order retire ----
     begin
       prf_addr_t t0, t1;
       @(posedge clk);
-      alloc0_en = 1; alloc1_en = 1;
-      i0_reg_write = 1; i1_reg_write = 1;
-      i0_rd_addr = 5'd10; i1_rd_addr = 5'd11;
-      t0 = i0_rob_tag; t1 = i1_rob_tag;
+      alloc_en[0] = 1; alloc_en[1] = 1;
+      reg_write[0] = 1; reg_write[1] = 1;
+      rd_addr[0] = 5'd10; rd_addr[1] = 5'd11;
+      t0 = rob_tag[0]; t1 = rob_tag[1];
       #0;
       check_outs("ooo_dual_alloc", "pair for OOO writeback");
       cycle_hold;
 
       @(posedge clk);
-      wback0_en     = 1;
-      i0_rob_tag_wb = t1;  // complete younger first
+      wback_en[0]   = 1;
+      rob_tag_wb[0] = t1;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1; retire1_en = 1;
+      retire_en[0] = 1; retire_en[1] = 1;
       #0;
       check_outs("ooo_retire_blocked", "head incomplete blocks dual retire");
       cycle_hold;
 
       @(posedge clk);
-      wback0_en     = 1;
-      i0_rob_tag_wb = t0;  // complete head
+      wback_en[0]   = 1;
+      rob_tag_wb[0] = t0;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1; retire1_en = 1;
+      retire_en[0] = 1; retire_en[1] = 1;
       #0;
       check_outs("ooo_dual_commit", "in-order dual RRAT after both complete");
       cycle_hold;
@@ -538,23 +464,23 @@ module reorder_buffer_tb;
     begin
       prf_addr_t t0, t1;
       @(posedge clk);
-      alloc0_en = 1; alloc1_en = 1;
-      i0_is_store = 1; i1_is_store = 1;
-      i0_rd_addr = 5'd12; i1_rd_addr = 5'd13;
-      t0 = i0_rob_tag; t1 = i1_rob_tag;
+      alloc_en[0] = 1; alloc_en[1] = 1;
+      is_store[0] = 1; is_store[1] = 1;
+      rd_addr[0] = 5'd12; rd_addr[1] = 5'd13;
+      t0 = rob_tag[0]; t1 = rob_tag[1];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en = 1; wback1_en = 1;
-      i0_rob_tag_wb = t0; i1_rob_tag_wb = t1;
+      wback_en[0] = 1; wback_en[1] = 1;
+      rob_tag_wb[0] = t0; rob_tag_wb[1] = t1;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1; retire1_en = 1;
+      retire_en[0] = 1; retire_en[1] = 1;
       #0;
-      check_outs("dual_store_commit", "stb0_en + stb1_en");
+      check_outs("dual_store_commit", "stb_en[0] + stb_en[1]");
       cycle_hold;
     end
 
@@ -562,31 +488,30 @@ module reorder_buffer_tb;
     begin
       prf_addr_t t0, t1;
       @(posedge clk);
-      alloc0_en = 1; alloc1_en = 1;
-      i0_reg_write = 1; i0_rd_addr = 5'd14;
-      i1_is_brnch  = 1; i1_rd_addr = 5'd15;
-      t0 = i0_rob_tag; t1 = i1_rob_tag;
+      alloc_en[0] = 1; alloc_en[1] = 1;
+      reg_write[0] = 1; rd_addr[0] = 5'd14;
+      is_brnch[1]  = 1; rd_addr[1] = 5'd15;
+      t0 = rob_tag[0]; t1 = rob_tag[1];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en = 1; wback1_en = 1;
-      i0_rob_tag_wb = t0; i1_rob_tag_wb = t1;
-      i1_brch_taken_wb = 1;
+      wback_en[0] = 1; wback_en[1] = 1;
+      rob_tag_wb[0] = t0; rob_tag_wb[1] = t1;
+      brch_taken_wb[1] = 1;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1; retire1_en = 1;
+      retire_en[0] = 1; retire_en[1] = 1;
       #0;
-      check_outs("alu_branch_dual_cmt", "rrat0 + rat1 path_sel=1");
+      check_outs("alu_branch_dual_cmt", "rrat_en[0] + rat_en[1] path_sel[1]=1");
       cycle_hold;
     end
 
     // ---- speculative path: taken branch then on/off-path ALU ----
     begin
       prf_addr_t br_tag, alu_tag;
-      // active_spec is 1 from prior taken branch; flush to known path0 first
       @(posedge clk);
       flush = 1;
       #0;
@@ -597,67 +522,64 @@ module reorder_buffer_tb;
       check_outs("flush_before_spec", "reset active_spec to path0");
 
       @(posedge clk);
-      alloc0_en   = 1;
-      i0_is_brnch = 1;
-      i0_rd_addr  = 5'd16;
-      br_tag      = i0_rob_tag;
+      alloc_en[0] = 1;
+      is_brnch[0] = 1;
+      rd_addr[0]  = 5'd16;
+      br_tag      = rob_tag[0];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en = 1; i0_rob_tag_wb = br_tag; i0_brch_taken_wb = 1;
+      wback_en[0] = 1; rob_tag_wb[0] = br_tag; brch_taken_wb[0] = 1;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
       check_outs("spec_branch_taken", "active_spec -> path1");
       cycle_hold;
 
-      // on-path (spec_en=1) commits while active_spec=1
       @(posedge clk);
-      alloc0_en    = 1;
-      i0_reg_write = 1;
-      i0_spec_en   = 1;
-      i0_rd_addr   = 5'd18;
-      alu_tag      = i0_rob_tag;
+      alloc_en[0]  = 1;
+      reg_write[0] = 1;
+      spec_en[0]   = 1;
+      rd_addr[0]   = 5'd18;
+      alu_tag      = rob_tag[0];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en = 1; i0_rob_tag_wb = alu_tag;
+      wback_en[0] = 1; rob_tag_wb[0] = alu_tag;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
       check_outs("on_path_commit", "spec_en==active_spec allows RRAT");
       cycle_hold;
 
-      // off-path (spec_en=0) must not commit while active_spec=1
       @(posedge clk);
-      alloc0_en    = 1;
-      i0_reg_write = 1;
-      i0_spec_en   = 0;
-      i0_rd_addr   = 5'd17;
-      alu_tag      = i0_rob_tag;
+      alloc_en[0]  = 1;
+      reg_write[0] = 1;
+      spec_en[0]   = 0;
+      rd_addr[0]   = 5'd17;
+      alu_tag      = rob_tag[0];
       #0;
       cycle_hold;
 
       @(posedge clk);
-      wback0_en = 1; i0_rob_tag_wb = alu_tag;
+      wback_en[0] = 1; rob_tag_wb[0] = alu_tag;
       #0;
       cycle_hold;
 
       @(posedge clk);
-      retire0_en = 1;
+      retire_en[0] = 1;
       #0;
       check_outs("off_path_no_commit", "spec_en!=active_spec blocks retire");
       cycle_hold;
 
-      // clear residual off-path head + path state
       @(posedge clk);
       flush = 1;
       #0;
@@ -668,11 +590,11 @@ module reorder_buffer_tb;
       check_outs("flush_after_spec", "clean ROB after path tests");
     end
 
-    // ---- alloc after flush: tags restart ----
+    // ---- alloc after flush ----
     @(posedge clk);
-    alloc0_en = 1; alloc1_en = 1;
-    i0_reg_write = 1; i1_reg_write = 1;
-    i0_rd_addr = 5'd19; i1_rd_addr = 5'd20;
+    alloc_en[0] = 1; alloc_en[1] = 1;
+    reg_write[0] = 1; reg_write[1] = 1;
+    rd_addr[0] = 5'd19; rd_addr[1] = 5'd20;
     #0;
     check_outs("realloc_after_flush", "tags restart at p32/p33");
     cycle_hold;

@@ -3,7 +3,7 @@
 // RN/DP pipeline register — renamed tags/controls held while RS is full.
 // Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
 // Latches ROB valid + RAT source-ready with renamed tags for the RS.
-// reg_write is implied by prd != 0 (rename zeros prd for non-writes).
+// Architectural reg_write stays in the ROB; RS derives produces from opcode.
 import rv_dis_pkg::*;
 
 module rn_dp (

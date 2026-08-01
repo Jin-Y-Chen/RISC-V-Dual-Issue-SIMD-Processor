@@ -23,6 +23,8 @@ interface rename_if(input logic clk);
   logic      stall;
   logic      valid_rs        [2];
   logic      path_use_rs     [2];
+  logic      path_en;
+  logic      path_sel;
   prf_addr_t ps1_tag_rs      [2];
   prf_addr_t ps2_tag_rs      [2];
   prf_addr_t rob_tag_rs      [2];

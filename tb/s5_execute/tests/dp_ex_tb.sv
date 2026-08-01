@@ -6,8 +6,9 @@ import rv_dis_pkg::*;
 module dp_ex_tb;
   logic clk, rst_n, enable, flush, stall;
 
-  logic        rob_valid [2];
+  logic        valid     [2];
   logic        lane_sel  [2];
+  logic        reg_write [2];
   opcode_t     opcode    [2];
   funct3_t     funct3    [2];
   funct7_t     funct7    [2];
@@ -45,8 +46,9 @@ module dp_ex_tb;
 
   task automatic clear_iss;
     for (int i = 0; i < N_DUAL; i++) begin
-      rob_valid[i] = 0;
+      valid[i]     = 0;
       lane_sel[i]  = 0;
+      reg_write[i] = 0;
       opcode[i]    = '0;
       funct3[i]    = '0;
       funct7[i]    = '0;
@@ -65,10 +67,10 @@ module dp_ex_tb;
     rst_n = 1;
 
     @(negedge clk);
-    rob_valid[0] = 1; lane_sel[0] = 0;
+    valid[0] = 1; reg_write[0] = 1; lane_sel[0] = 0;
     opcode[0] = OPC_OP; rob_tag[0] = 6'd32;
     rs1_data[0] = 32'hA000_0001; rs2_data[0] = 32'hA000_0002;
-    rob_valid[1] = 1; lane_sel[1] = 0;
+    valid[1] = 1; reg_write[1] = 1; lane_sel[1] = 0;
     opcode[1] = OPC_OP; rob_tag[1] = 6'd33;
     rs1_data[1] = 32'hB000_0001; rs2_data[1] = 32'hB000_0002;
     @(posedge clk);
@@ -82,9 +84,9 @@ module dp_ex_tb;
 
     @(negedge clk);
     clear_iss();
-    rob_valid[0] = 1; lane_sel[0] = 0; rob_tag[0] = 6'd40;
+    valid[0] = 1; reg_write[0] = 1; lane_sel[0] = 0; rob_tag[0] = 6'd40;
     rs1_data[0] = 32'h1;
-    rob_valid[1] = 1; lane_sel[1] = 1; rob_tag[1] = 6'd41;
+    valid[1] = 1; reg_write[1] = 1; lane_sel[1] = 1; rob_tag[1] = 6'd41;
     opcode[1] = OPC_LOAD; rs1_data[1] = 32'h2;
     @(posedge clk);
     #1;
@@ -95,8 +97,8 @@ module dp_ex_tb;
 
     @(negedge clk);
     clear_iss();
-    rob_valid[0] = 1; lane_sel[0] = 1; rob_tag[0] = 6'd50;
-    rob_valid[1] = 1; lane_sel[1] = 1; rob_tag[1] = 6'd51;
+    valid[0] = 1; reg_write[0] = 1; lane_sel[0] = 1; rob_tag[0] = 6'd50;
+    valid[1] = 1; reg_write[1] = 1; lane_sel[1] = 1; rob_tag[1] = 6'd51;
     @(posedge clk);
     #1;
     if (ev_enable_ex[0] || ev_enable_ex[1] || !od_enable_ex[0] || !od_enable_ex[1])

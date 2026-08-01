@@ -1,10 +1,8 @@
 `timescale 1ns / 1ps
 
-// S4 issue / dispatch glue — four peer cores:
-//   p_register_file | reservation_station | bypass_unit | selector_unit
-// Bypass and selector are not submodules of the reservation station.
-// Directed TBs: bypass_tb, selector_tb, reservation_station_tb
-//   (see tb/s4_dispatch/README.md)
+// S4 issue / dispatch glue — three peers:
+//   p_register_file | reservation_station | selector_unit
+// Pick: src_en (1=RS / 0=rename), store_en, rs_tag → RS ↓clk update.
 import rv_dis_pkg::*;
 import rs_pkg::*;
 
@@ -33,7 +31,9 @@ module issue_core_struct (
   input  word_t       wb_data       [2],
 
   output logic        stall_dp,
+  output logic        valid         [2],
   output logic        lane_sel      [2],
+  output logic        reg_write     [2],
   output opcode_t     opcode        [2],
   output funct3_t     funct3        [2],
   output funct7_t     funct7        [2],
@@ -44,86 +44,91 @@ module issue_core_struct (
   output word_t       rs2_data      [2]
 );
 
-  rs_disp_pair_t      disp;
-  rs_wb_pair_t        wb;
-  rs_pick_t           pick;
-  rs_iss_pair_t       iss;
-  rs_prf_rd_pair_t    prf;
+  logic        bank_valid    [RS_WAYS];
+  rs_way_t     bank_rs_tag   [RS_WAYS];
+  rs_age_t     bank_age      [RS_WAYS];
+  logic        bank_lane_sel [RS_WAYS];
+  logic        bank_spec     [RS_WAYS];
+  logic        bank_rs1_rdy  [RS_WAYS];
+  logic        bank_rs2_rdy  [RS_WAYS];
+  opcode_t     bank_opcode   [RS_WAYS];
+  funct3_t     bank_funct3   [RS_WAYS];
+  funct7_t     bank_funct7   [RS_WAYS];
+  prf_addr_t   bank_ps1      [RS_WAYS];
+  prf_addr_t   bank_ps2      [RS_WAYS];
+  prf_addr_t   bank_prd      [RS_WAYS];
+  word_t       bank_imm      [RS_WAYS];
+  word_t       bank_pc       [RS_WAYS];
 
-  rs_entry_t          bank_q [RS_SETS][RS_WAYS];
-  logic [NUM_PRF-1:0] prf_ready_q;
-  logic [31:0]        age_q;
+  logic        src_en   [2];
+  logic        store_en [2];
+  rs_way_t     rs_tag   [2];
 
-  logic               byp_ready [2];
-  logic [31:0]        byp_age   [2];
+  logic        iss_valid    [2];
+  logic        iss_lane_sel [2];
+  opcode_t     iss_opcode   [2];
+  funct3_t     iss_funct3   [2];
+  funct7_t     iss_funct7   [2];
+  prf_addr_t   iss_prd      [2];
+  word_t       iss_imm      [2];
+  word_t       iss_pc       [2];
+  prf_addr_t   ps1_prf      [2];
+  prf_addr_t   ps2_prf      [2];
 
-  prf_addr_t          ps1_prf [2];
-  prf_addr_t          ps2_prf [2];
-
-  always_comb begin
-    disp.i0 = '{
-      valid: rob_valid_dp[0], lane_sel: lane_sel_dp[0],
-      reg_write: (rob_tag_dp[0] != '0), spec_en: path_use_dp[0],
-      opcode: opcode_dp[0], funct3: funct3_dp[0], funct7: funct7_dp[0],
-      ps1: ps1_tag_dp[0], ps2: ps2_tag_dp[0], prd: rob_tag_dp[0],
-      imm: imm_dp[0], pc: pc_dp[0]
-    };
-    disp.i1 = '{
-      valid: rob_valid_dp[1], lane_sel: lane_sel_dp[1],
-      reg_write: (rob_tag_dp[1] != '0), spec_en: path_use_dp[1],
-      opcode: opcode_dp[1], funct3: funct3_dp[1], funct7: funct7_dp[1],
-      ps1: ps1_tag_dp[1], ps2: ps2_tag_dp[1], prd: rob_tag_dp[1],
-      imm: imm_dp[1], pc: pc_dp[1]
-    };
-    wb.wb0 = '{en: wb_en[0], prd: rob_tag_wb[0]};
-    wb.wb1 = '{en: wb_en[1], prd: rob_tag_wb[1]};
+  for (genvar i = 0; i < 2; i++) begin : g_iss
+    assign valid[i]     = iss_valid[i];
+    assign lane_sel[i]  = iss_lane_sel[i];
+    assign reg_write[i] = rs_produces(iss_opcode[i], iss_funct3[i], iss_prd[i]);
+    assign opcode[i]    = iss_opcode[i];
+    assign funct3[i]    = iss_funct3[i];
+    assign funct7[i]    = iss_funct7[i];
+    assign rob_tag[i]   = iss_prd[i];
+    assign imm[i]       = iss_imm[i];
+    assign pc[i]        = iss_pc[i];
   end
-
-  assign lane_sel[0] = iss.i0.lane_sel;
-  assign opcode[0]   = iss.i0.opcode;
-  assign funct3[0]   = iss.i0.funct3;
-  assign funct7[0]   = iss.i0.funct7;
-  assign rob_tag[0]  = iss.i0.prd;
-  assign imm[0]      = iss.i0.imm;
-  assign pc[0]       = iss.i0.pc;
-  assign ps1_prf[0]  = prf.i0.ps1;
-  assign ps2_prf[0]  = prf.i0.ps2;
-
-  assign lane_sel[1] = iss.i1.lane_sel;
-  assign opcode[1]   = iss.i1.opcode;
-  assign funct3[1]   = iss.i1.funct3;
-  assign funct7[1]   = iss.i1.funct7;
-  assign rob_tag[1]  = iss.i1.prd;
-  assign imm[1]      = iss.i1.imm;
-  assign pc[1]       = iss.i1.pc;
-  assign ps1_prf[1]  = prf.i1.ps1;
-  assign ps2_prf[1]  = prf.i1.ps2;
 
   reservation_station u_rs (
     .clk, .rst_n, .enable,
     .flush(flush_rs),
     .path_en, .path_sel,
     .stall_dp,
-    .disp, .wb, .pick,
-    .bank_q, .prf_ready_q, .age_q
-  );
-
-  bypass_unit u_bypass (
-    .disp,
-    .prf_ready(prf_ready_q),
-    .wb,
-    .age_q,
-    .ready(byp_ready),
-    .age(byp_age)
+    .valid_dp(rob_valid_dp),
+    .lane_sel_dp,
+    .path_use_dp,
+    .opcode_dp, .funct3_dp, .funct7_dp,
+    .ps1_tag_dp, .ps2_tag_dp, .rob_tag_dp,
+    .imm_dp, .pc_dp,
+    .wb_en, .rob_tag_wb,
+    .src_en, .store_en, .rs_tag,
+    .bank_valid, .bank_rs_tag, .bank_age, .bank_lane_sel, .bank_spec,
+    .bank_rs1_rdy, .bank_rs2_rdy,
+    .bank_opcode, .bank_funct3, .bank_funct7,
+    .bank_ps1, .bank_ps2, .bank_prd, .bank_imm, .bank_pc
   );
 
   selector_unit u_select (
     .enable,
     .flush(flush_rs),
-    .bank_q, .wb, .disp,
-    .byp_ready, .byp_age,
-    .pick, .stall_dp,
-    .prf, .iss
+    .path_en, .path_sel,
+    .bank_valid, .bank_rs_tag, .bank_age, .bank_lane_sel, .bank_spec,
+    .bank_rs1_rdy, .bank_rs2_rdy,
+    .bank_opcode, .bank_funct3, .bank_funct7,
+    .bank_ps1, .bank_ps2, .bank_prd, .bank_imm, .bank_pc,
+    .wb_en, .rob_tag_wb,
+    .valid_dp    (rob_valid_dp),
+    .path_use_dp,
+    .lane_sel_dp,
+    .opcode_dp, .funct3_dp, .funct7_dp,
+    .ps1_dp      (ps1_tag_dp),
+    .ps2_dp      (ps2_tag_dp),
+    .prd_dp      (rob_tag_dp),
+    .imm_dp, .pc_dp,
+    .src_en, .rs_tag, .store_en,
+    .stall_dp,
+    .iss_valid, .iss_lane_sel,
+    .iss_opcode, .iss_funct3, .iss_funct7,
+    .iss_prd, .iss_imm, .iss_pc,
+    .ps1_prf, .ps2_prf
   );
 
   p_register_file u_prf (

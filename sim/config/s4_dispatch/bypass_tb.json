@@ -1,6 +1,0 @@
-{
-  "extra_sources": [
-    "rtl/s4_dispatch/funct_pkg/rs.sv",
-    "rtl/s4_dispatch/core_mod/bypass_unit.sv"
-  ]
-}

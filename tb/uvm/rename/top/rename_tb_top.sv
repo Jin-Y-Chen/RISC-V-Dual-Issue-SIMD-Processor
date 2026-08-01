@@ -36,6 +36,8 @@ module rename_tb_top;
     .stall(vif.stall),
     .valid_rs(vif.valid_rs),
     .path_use_rs(vif.path_use_rs),
+    .path_en(vif.path_en),
+    .path_sel(vif.path_sel),
     .ps1_tag_rs(vif.ps1_tag_rs),
     .ps2_tag_rs(vif.ps2_tag_rs),
     .rob_tag_rs(vif.rob_tag_rs),

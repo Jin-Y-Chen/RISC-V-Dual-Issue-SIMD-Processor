@@ -1,7 +1,9 @@
 {
   "extra_sources": [
     "rtl/s4_dispatch/funct_pkg/rs.sv",
-    "rtl/s4_dispatch/core_mod/rs_units/rs_issue.sv",
+    "rtl/s4_dispatch/core_mod/rs_units/sel_issue.sv",
+    "rtl/s4_dispatch/core_mod/rs_units/sel_ready.sv",
+    "rtl/s4_dispatch/core_mod/rs_units/sel_pick.sv",
     "rtl/s4_dispatch/core_mod/selector_unit.sv"
   ]
 }

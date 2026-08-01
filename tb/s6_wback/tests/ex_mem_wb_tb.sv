@@ -14,16 +14,19 @@ module ex_mem_wb_tb;
   logic        enable;
   logic        flush;
 
+  logic        ev0_enable_ex;
   logic        ev0_reg_write_ex;
   prf_addr_t   ev0_rd_addr_ex;
   logic [31:0] ev0_wdata_ex;
   logic [31:0] ev0_pc_ex;
 
+  logic        ev1_enable_ex;
   logic        ev1_reg_write_ex;
   prf_addr_t   ev1_rd_addr_ex;
   logic [31:0] ev1_wdata_ex;
   logic [31:0] ev1_pc_ex;
 
+  logic        od0_enable_mem;
   logic        od0_reg_write_mem;
   prf_addr_t   od0_rd_addr_mem;
   logic [31:0] od0_pc_mem;
@@ -33,6 +36,7 @@ module ex_mem_wb_tb;
   logic        od0_mem_write_mem;
   logic [31:0] od0_load_mem_data;
 
+  logic        od1_enable_mem;
   logic        od1_reg_write_mem;
   prf_addr_t   od1_rd_addr_mem;
   logic [31:0] od1_pc_mem;
@@ -59,11 +63,14 @@ module ex_mem_wb_tb;
   prf_addr_t   push0_rd_addr;
   logic [31:0] push0_wdata;
   logic [31:0] push0_pc;
-
   logic        push1_valid;
   prf_addr_t   push1_rd_addr;
   logic [31:0] push1_wdata;
   logic [31:0] push1_pc;
+  logic        cmt0_valid;
+  prf_addr_t   cmt0_rd_addr;
+  logic        cmt1_valid;
+  prf_addr_t   cmt1_rd_addr;
 
   int pass_cnt;
   int fail_cnt;
@@ -80,14 +87,17 @@ module ex_mem_wb_tb;
   task automatic clear_inputs;
     enable = 1'b1;
     flush  = 1'b0;
+    ev0_enable_ex = 1'b0;
     ev0_reg_write_ex = 1'b0;
     ev0_rd_addr_ex = '0;
     ev0_wdata_ex = '0;
     ev0_pc_ex = '0;
+    ev1_enable_ex = 1'b0;
     ev1_reg_write_ex = 1'b0;
     ev1_rd_addr_ex = '0;
     ev1_wdata_ex = '0;
     ev1_pc_ex = '0;
+    od0_enable_mem = 1'b0;
     od0_reg_write_mem = 1'b0;
     od0_rd_addr_mem = '0;
     od0_pc_mem = '0;
@@ -96,6 +106,7 @@ module ex_mem_wb_tb;
     od0_mem_en_mem = 1'b0;
     od0_mem_write_mem = 1'b0;
     od0_load_mem_data = '0;
+    od1_enable_mem = 1'b0;
     od1_reg_write_mem = 1'b0;
     od1_rd_addr_mem = '0;
     od1_pc_mem = '0;
@@ -240,6 +251,7 @@ module ex_mem_wb_tb;
                    1'b0, 5'd0, 32'd0, 32'd0);
     check_push0("reset_push0", "no retire candidate", 1'b0, 5'd0, 32'd0, 32'd0);
 
+    ev0_enable_ex = 1'b1;
     ev0_reg_write_ex = 1'b1;
     ev0_rd_addr_ex   = 5'd2;
     ev0_wdata_ex     = 32'h1234_5678;
@@ -251,6 +263,7 @@ module ex_mem_wb_tb;
                 1'b1, 5'd2, 32'h1234_5678, 32'h0000_1000);
 
     clear_inputs();
+    od0_enable_mem = 1'b1;
     od0_reg_write_mem = 1'b1;
     od0_rd_addr_mem   = 5'd7;
     od0_pc_mem        = 32'h0000_2000;
@@ -283,6 +296,7 @@ module ex_mem_wb_tb;
                     32'h0004_5000);
 
     clear_inputs();
+    ev0_enable_ex = 1'b1;
     ev0_reg_write_ex = 1'b1;
     ev0_rd_addr_ex   = 5'd9;
     ev0_wdata_ex     = 32'h1;
@@ -301,6 +315,7 @@ module ex_mem_wb_tb;
                    1'b1, 5'd9, 32'h9999_9999, 32'h5000);
 
     clear_inputs();
+    ev0_enable_ex = 1'b1;
     ev0_reg_write_ex = 1'b1;
     ev0_rd_addr_ex   = 5'd10;
     ev0_wdata_ex     = 32'h2;

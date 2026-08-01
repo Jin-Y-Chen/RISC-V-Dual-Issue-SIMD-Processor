@@ -3,7 +3,7 @@
 // DP/EX pipeline register: dual RS issue + PRF data → even/odd EX ports by lane_sel.
 //   lane_sel=0 → even (ev[0] then ev[1]); lane_sel=1 → odd (od[0] then od[1]).
 // Operand values from the PRF are buffered here (not in the reservation station).
-// rob_tag is the ROB-owned dest tag (same as ROB index).
+// rob_tag is the ROB-owned dest tag; reg_write is derived at issue from opcode.
 import rv_dis_pkg::*;
 
 module dp_ex (
@@ -13,7 +13,9 @@ module dp_ex (
   input  logic        flush,
   input  logic        stall,
 
+  input  logic        valid     [2],
   input  logic        lane_sel  [2],
+  input  logic        reg_write [2],
   input  opcode_t     opcode    [2],
   input  funct3_t     funct3    [2],
   input  funct7_t     funct7    [2],
@@ -62,7 +64,7 @@ module dp_ex (
     odd_used  = 1'b0;
     for (int i = 0; i < N_DUAL; i++) begin
       port_sel[i] = P_NONE;
-      if (rob_tag[i] != '0) begin
+      if (valid[i]) begin
         if (lane_sel[i] == 1'b0) begin
           port_sel[i] = even_used ? P_EV1 : P_EV0;
           even_used   = 1'b1;
@@ -91,7 +93,7 @@ module dp_ex (
     for (int i = 0; i < N_DUAL; i++) begin
       if (port_sel[i] != P_NONE) begin
         n_en[port_sel[i]]  = 1'b1;
-        n_rw[port_sel[i]]  = (rob_tag[i] != '0);
+        n_rw[port_sel[i]]  = reg_write[i];
         n_op[port_sel[i]]  = opcode[i];
         n_f3[port_sel[i]]  = funct3[i];
         n_f7[port_sel[i]]  = funct7[i];

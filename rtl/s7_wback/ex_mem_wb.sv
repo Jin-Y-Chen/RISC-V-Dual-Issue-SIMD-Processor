@@ -12,12 +12,16 @@ module ex_mem_wb (
   input  logic        flush,
 
   // internal controls
+  input  logic        ev0_enable_ex,
   input  logic        ev0_reg_write_ex,
+  input  logic        ev1_enable_ex,
   input  logic        ev1_reg_write_ex,
+  input  logic        od0_enable_mem,
   input  logic        od0_reg_write_mem,
   input  logic        od0_use_link_mem,
   input  logic        od0_mem_en_mem,
   input  logic        od0_mem_write_mem,
+  input  logic        od1_enable_mem,
   input  logic        od1_reg_write_mem,
   input  logic        od1_use_link_mem,
   input  logic        od1_mem_en_mem,
@@ -42,8 +46,10 @@ module ex_mem_wb (
   // output controls
   output logic        ev0_reg_write_exwb,
   output logic        ev1_reg_write_exwb,
-  output logic        push0_valid,
+  output logic        push0_valid,   // PRF write (reg-write ops)
   output logic        push1_valid,
+  output logic        cmt0_valid,    // ROB complete (any finishing op)
+  output logic        cmt1_valid,
 
   // output data
   output prf_addr_t   ev0_rd_addr_exwb,
@@ -59,7 +65,9 @@ module ex_mem_wb (
   output word_t       push0_pc,
   output prf_addr_t   push1_rd_addr,
   output word_t       push1_wdata,
-  output word_t       push1_pc
+  output word_t       push1_pc,
+  output prf_addr_t   cmt0_rd_addr,
+  output prf_addr_t   cmt1_rd_addr
 );
 
   logic        od0_odd_load_mem;
@@ -137,15 +145,22 @@ module ex_mem_wb (
     end
   end
 
-  // output controls/data — 4→2 retire merge (slot I0 then I1)
-  assign push0_valid = enable && (ev0_reg_write_ex | od0_reg_write_mem);
-  assign push0_rd_addr    = ev0_reg_write_ex ? ev0_rd_addr_ex : od0_rd_addr_mem;
-  assign push0_wdata = ev0_reg_write_ex ? ev0_wdata_ex   : od0_wdata_mem;
-  assign push0_pc    = ev0_reg_write_ex ? ev0_pc_ex      : od0_pc_mem;
+  // output controls/data — 4→2 merge (slot I0 then I1)
+  // PRF write: reg-write ops only
+  assign push0_valid   = enable && (ev0_reg_write_ex | od0_reg_write_mem);
+  assign push0_rd_addr = ev0_reg_write_ex ? ev0_rd_addr_ex : od0_rd_addr_mem;
+  assign push0_wdata   = ev0_reg_write_ex ? ev0_wdata_ex   : od0_wdata_mem;
+  assign push0_pc      = ev0_reg_write_ex ? ev0_pc_ex      : od0_pc_mem;
 
-  assign push1_valid = enable && (ev1_reg_write_ex | od1_reg_write_mem);
-  assign push1_rd_addr    = ev1_reg_write_ex ? ev1_rd_addr_ex : od1_rd_addr_mem;
-  assign push1_wdata = ev1_reg_write_ex ? ev1_wdata_ex   : od1_wdata_mem;
-  assign push1_pc    = ev1_reg_write_ex ? ev1_pc_ex      : od1_pc_mem;
+  assign push1_valid   = enable && (ev1_reg_write_ex | od1_reg_write_mem);
+  assign push1_rd_addr = ev1_reg_write_ex ? ev1_rd_addr_ex : od1_rd_addr_mem;
+  assign push1_wdata   = ev1_reg_write_ex ? ev1_wdata_ex   : od1_wdata_mem;
+  assign push1_pc      = ev1_reg_write_ex ? ev1_pc_ex      : od1_pc_mem;
+
+  // ROB complete: any finishing op (ALU write, load, store, branch)
+  assign cmt0_valid   = enable && (ev0_enable_ex | od0_enable_mem);
+  assign cmt0_rd_addr = ev0_enable_ex ? ev0_rd_addr_ex : od0_rd_addr_mem;
+  assign cmt1_valid   = enable && (ev1_enable_ex | od1_enable_mem);
+  assign cmt1_rd_addr = ev1_enable_ex ? ev1_rd_addr_ex : od1_rd_addr_mem;
 
 endmodule

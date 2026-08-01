@@ -2,7 +2,6 @@
   "extra_sources": [
     "rtl/s4_dispatch/funct_pkg/rs.sv",
     "rtl/s4_dispatch/core_mod/rs_units/rs_wakeup.sv",
-    "rtl/s4_dispatch/core_mod/rs_units/rs_alloc.sv",
     "rtl/s4_dispatch/core_mod/reservation_station.sv"
   ]
 }
