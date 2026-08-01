@@ -16,8 +16,6 @@ This repo is a **SystemVerilog** design of a small **RISC-V** CPU.
 - Match directed tests against C++ golden models via DPI-C where it helps.
 - Prefer readable structure over maximum IPC / area.
 
-**Assumption:** the repo name says “SIMD,” but the current outline and RTL target a **scalar** RV32I core. Treat SIMD as a future/naming leftover unless you find vector RTL.
-
 More design notes: [`project_outline.txt`](project_outline.txt).  
 Course/spec text: [`arm_spu_spulite_project_spec.txt`](arm_spu_spulite_project_spec.txt).
 
@@ -299,7 +297,7 @@ python sim/run.py --list
 
 Known gaps / honest TODOs (not a roadmap promise):
 
-- **SIMD / vector:** name vs RV32I scalar implementation — clarify or implement.
+- **Vector / SIMD extension:** optional future ISA work; current core is scalar RV32I only.
 - **Full-core bring-up:** more program-level runs through `program/` + `risc_dis_unit`.
 - **`rename_uvm` on XSim:** timescale / UVM lib issues; stabilize or document Questa-only.
 - **PRF directed TB** for `p_register_file` (replace or revive `register_file_tb`).
