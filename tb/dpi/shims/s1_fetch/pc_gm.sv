@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-// DPI shim — golden logic in model/s1_fetch/pc_gm.cpp
+// DPI shim - golden logic in model/s1_fetch/pc_gm.cpp
 import dpi_pkg::*;
 
 module pc_gm #(

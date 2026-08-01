@@ -12,6 +12,7 @@ package rv_dis_pkg;
   // =========================================================================
   localparam int ILEN = 32;          // instruction width
   localparam int RLEN = 32;          // GPR / datapath width
+  localparam int N_DUAL = 2;         // dual-issue slot count
   localparam int NUM_GPR = 32;     // x0–x31
   // Physical register file (PRF) — arch x0–x31 plus rename temps (e.g. p32+)
   localparam int NUM_PRF = 64;

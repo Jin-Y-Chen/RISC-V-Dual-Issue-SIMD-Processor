@@ -6,7 +6,7 @@ import imem_hex_loader_pkg::*;
 `include "../../common/utils/tb_console.svh"
 
 // fetch_core_struct_tb - integrated fetch; DUT vs gm/fetch_core_struct_gm.sv.
-// Nested-speculation freeze uses decode-style spec*_stall (no fetch_stall).
+// Nested-speculation freeze uses decode-style spec_stall (no fetch_stall).
 module fetch_core_struct_tb;
 
   localparam int CLK_PERIOD = 10;
@@ -16,39 +16,26 @@ module fetch_core_struct_tb;
   logic   rst_n;
   logic   enable;
   logic   dispatch_stall;
-  logic   spec0_stall;
-  logic   spec1_stall;
-  logic   i0_pred_taken;
-  logic   i1_pred_taken;
-  logic   i0_brch_recover;
-  logic   i1_brch_recover;
-  word_t  i0_pc_execute;
-  word_t  i1_pc_execute;
-  logic   i0_valid_wb;
-  logic   i1_valid_wb;
-  word_t  i0_pc_wb;
-  word_t  i1_pc_wb;
-  word_t  i0_pc_target_wb;
-  word_t  i1_pc_target_wb;
-  word_t  pc0;
-  word_t  pc1;
-  word_t  i0_pc_target;
-  word_t  i1_pc_target;
-  instr_t instr0;
-  instr_t instr1;
-  logic    spec0_en, spec1_en;
-  logic    i0_valid, i1_valid;
-  logic    i0_target_valid, i1_target_valid;
+  logic   spec_stall   [2];
+  logic   pred_taken   [2];
+  logic   brch_recover [2];
+  logic   valid_wb     [2];
+  word_t  pc_execute   [2];
+  word_t  pc_wb        [2];
+  word_t  pc_target_wb [2];
+  word_t  pc_if        [2];
+  word_t  pc_target    [2];
+  instr_t instr        [2];
+  logic   spec_en      [2];
+  logic   valid        [2];
+  logic   target_valid [2];
 
-  word_t  ref_pc0;
-  word_t  ref_pc1;
-  word_t  ref_i0_pc_target;
-  word_t  ref_i1_pc_target;
-  instr_t ref_instr0;
-  instr_t ref_instr1;
-  logic   ref_spec0_en, ref_spec1_en;
-  logic   ref_i0_valid, ref_i1_valid;
-  logic   ref_i0_target_valid, ref_i1_target_valid;
+  word_t  ref_pc_if        [2];
+  word_t  ref_pc_target    [2];
+  instr_t ref_instr        [2];
+  logic   ref_spec_en      [2];
+  logic   ref_valid        [2];
+  logic   ref_target_valid [2];
 
   imem_prog_entry_t prog [256];
   int               prog_len;
@@ -60,71 +47,20 @@ module fetch_core_struct_tb;
   s1_fetch_struct #(
     .RESET_PC(TB_RESET_PC)
   ) dut (
-    .clk              (clk),
-    .rst_n            (rst_n),
-    .enable           (enable),
-    .dispatch_stall   (dispatch_stall),
-    .spec0_stall      (spec0_stall),
-    .spec1_stall      (spec1_stall),
-    .i0_pred_taken    (i0_pred_taken),
-    .i1_pred_taken    (i1_pred_taken),
-    .i0_brch_recover  (i0_brch_recover),
-    .i1_brch_recover  (i1_brch_recover),
-    .i0_pc_execute    (i0_pc_execute),
-    .i1_pc_execute    (i1_pc_execute),
-    .i0_valid_wb      (i0_valid_wb),
-    .i1_valid_wb      (i1_valid_wb),
-    .i0_pc_wb         (i0_pc_wb),
-    .i1_pc_wb         (i1_pc_wb),
-    .i0_pc_target_wb  (i0_pc_target_wb),
-    .i1_pc_target_wb  (i1_pc_target_wb),
-    .pc0              (pc0),
-    .pc1              (pc1),
-    .i0_pc_target     (i0_pc_target),
-    .i1_pc_target     (i1_pc_target),
-    .instr0           (instr0),
-    .instr1           (instr1),
-    .spec0_en         (spec0_en),
-    .spec1_en         (spec1_en),
-    .i0_valid         (i0_valid),
-    .i1_valid         (i1_valid),
-    .i0_target_valid  (i0_target_valid),
-    .i1_target_valid  (i1_target_valid)
+    .clk, .rst_n, .enable, .dispatch_stall,
+    .spec_stall, .pred_taken, .brch_recover, .valid_wb,
+    .pc_execute, .pc_wb, .pc_target_wb,
+    .pc_if, .pc_target, .instr, .spec_en, .valid, .target_valid
   );
 
   fetch_core_struct_gm #(
     .RESET_PC(TB_RESET_PC)
   ) u_fetch_gm (
-    .clk              (clk),
-    .rst_n            (rst_n),
-    .enable           (enable),
-    .dispatch_stall   (dispatch_stall),
-    .spec0_stall      (spec0_stall),
-    .spec1_stall      (spec1_stall),
-    .i0_pred_taken    (i0_pred_taken),
-    .i1_pred_taken    (i1_pred_taken),
-    .i0_brch_recover  (i0_brch_recover),
-    .i1_brch_recover  (i1_brch_recover),
-    .i0_pc_execute    (i0_pc_execute),
-    .i1_pc_execute    (i1_pc_execute),
-    .i0_valid_wb      (i0_valid_wb),
-    .i1_valid_wb      (i1_valid_wb),
-    .i0_pc_wb         (i0_pc_wb),
-    .i1_pc_wb         (i1_pc_wb),
-    .i0_pc_target_wb  (i0_pc_target_wb),
-    .i1_pc_target_wb  (i1_pc_target_wb),
-    .pc0              (ref_pc0),
-    .pc1              (ref_pc1),
-    .i0_pc_target     (ref_i0_pc_target),
-    .i1_pc_target     (ref_i1_pc_target),
-    .instr0           (ref_instr0),
-    .instr1           (ref_instr1),
-    .spec0_en         (ref_spec0_en),
-    .spec1_en         (ref_spec1_en),
-    .i0_valid         (ref_i0_valid),
-    .i1_valid         (ref_i1_valid),
-    .i0_target_valid  (ref_i0_target_valid),
-    .i1_target_valid  (ref_i1_target_valid)
+    .clk, .rst_n, .enable, .dispatch_stall,
+    .spec_stall, .pred_taken, .brch_recover, .valid_wb,
+    .pc_execute, .pc_wb, .pc_target_wb,
+    .pc_if(ref_pc_if), .pc_target(ref_pc_target), .instr(ref_instr),
+    .spec_en(ref_spec_en), .valid(ref_valid), .target_valid(ref_target_valid)
   );
 
   initial clk = 1'b0;
@@ -143,22 +79,17 @@ module fetch_core_struct_tb;
   endtask
 
   task automatic idle_ctrl;
-    enable          = 1'b1;
-    dispatch_stall  = 1'b0;
-    spec0_stall     = 1'b0;
-    spec1_stall     = 1'b0;
-    i0_pred_taken   = 1'b0;
-    i1_pred_taken   = 1'b0;
-    i0_brch_recover = 1'b0;
-    i1_brch_recover = 1'b0;
-    i0_pc_execute   = '0;
-    i1_pc_execute   = '0;
-    i0_valid_wb     = 1'b0;
-    i1_valid_wb     = 1'b0;
-    i0_pc_wb        = '0;
-    i1_pc_wb        = '0;
-    i0_pc_target_wb = '0;
-    i1_pc_target_wb = '0;
+    enable         = 1'b1;
+    dispatch_stall = 1'b0;
+    for (int i = 0; i < N_DUAL; i++) begin
+      spec_stall[i]   = 1'b0;
+      pred_taken[i]   = 1'b0;
+      brch_recover[i] = 1'b0;
+      valid_wb[i]     = 1'b0;
+      pc_execute[i]   = '0;
+      pc_wb[i]        = '0;
+      pc_target_wb[i] = '0;
+    end
   endtask
 
   task automatic step_and_check(input string name, input string detail);
@@ -169,48 +100,48 @@ module fetch_core_struct_tb;
     @(posedge clk);
     #0;
 
-    pass = (pc0 === ref_pc0) && (pc1 === ref_pc1)
-        && (i0_pc_target === ref_i0_pc_target) && (i1_pc_target === ref_i1_pc_target)
-        && (instr0 === ref_instr0) && (instr1 === ref_instr1)
-        && (spec0_en === ref_spec0_en) && (spec1_en === ref_spec1_en)
-        && (i0_valid === ref_i0_valid) && (i1_valid === ref_i1_valid)
-        && (i0_target_valid === ref_i0_target_valid)
-        && (i1_target_valid === ref_i1_target_valid);
+    pass = (pc_if[0] === ref_pc_if[0]) && (pc_if[1] === ref_pc_if[1])
+        && (pc_target[0] === ref_pc_target[0]) && (pc_target[1] === ref_pc_target[1])
+        && (instr[0] === ref_instr[0]) && (instr[1] === ref_instr[1])
+        && (spec_en[0] === ref_spec_en[0]) && (spec_en[1] === ref_spec_en[1])
+        && (valid[0] === ref_valid[0]) && (valid[1] === ref_valid[1])
+        && (target_valid[0] === ref_target_valid[0])
+        && (target_valid[1] === ref_target_valid[1]);
 
     tb_report_open(pass, name, detail);
     tb_log_section("inputs");
-    tb_field_in_bit("clk",             clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",           rst_n);
     tb_field_in_bit("enable",          enable);
     tb_field_in_bit("dispatch_stall",  dispatch_stall);
-    tb_field_in_bit("spec0_stall",     spec0_stall);
-    tb_field_in_bit("spec1_stall",     spec1_stall);
-    tb_field_in_bit("i0_pred_taken",   i0_pred_taken);
-    tb_field_in_bit("i1_pred_taken",   i1_pred_taken);
-    tb_field_in_bit("i0_brch_recover", i0_brch_recover);
-    tb_field_in_bit("i1_brch_recover", i1_brch_recover);
-    tb_field_in_u32("i0_pc_execute",   i0_pc_execute);
-    tb_field_in_u32("i1_pc_execute",   i1_pc_execute);
-    tb_field_in_bit("i0_valid_wb",     i0_valid_wb);
-    tb_field_in_bit("i1_valid_wb",     i1_valid_wb);
-    tb_field_in_u32("i0_pc_wb",        i0_pc_wb);
-    tb_field_in_u32("i1_pc_wb",        i1_pc_wb);
-    tb_field_in_u32("i0_pc_target_wb", i0_pc_target_wb);
-    tb_field_in_u32("i1_pc_target_wb", i1_pc_target_wb);
+    tb_field_in_bit("spec_stall[0]",   spec_stall[0]);
+    tb_field_in_bit("spec_stall[1]",   spec_stall[1]);
+    tb_field_in_bit("pred_taken[0]",   pred_taken[0]);
+    tb_field_in_bit("pred_taken[1]",   pred_taken[1]);
+    tb_field_in_bit("brch_recover[0]", brch_recover[0]);
+    tb_field_in_bit("brch_recover[1]", brch_recover[1]);
+    tb_field_in_u32("pc_execute[0]",   pc_execute[0]);
+    tb_field_in_u32("pc_execute[1]",   pc_execute[1]);
+    tb_field_in_bit("valid_wb[0]",     valid_wb[0]);
+    tb_field_in_bit("valid_wb[1]",     valid_wb[1]);
+    tb_field_in_u32("pc_wb[0]",        pc_wb[0]);
+    tb_field_in_u32("pc_wb[1]",        pc_wb[1]);
+    tb_field_in_u32("pc_target_wb[0]", pc_target_wb[0]);
+    tb_field_in_u32("pc_target_wb[1]", pc_target_wb[1]);
     $display("");
     tb_log_section("check");
-    tb_field_u32("pc0",          pc0,          ref_pc0);
-    tb_field_u32("pc1",          pc1,          ref_pc1);
-    tb_field_u32("i0_pc_target", i0_pc_target, ref_i0_pc_target);
-    tb_field_u32("i1_pc_target", i1_pc_target, ref_i1_pc_target);
-    tb_field_u32("instr0",       instr0,       ref_instr0);
-    tb_field_u32("instr1",       instr1,       ref_instr1);
-    tb_field_bit("spec0_en",     spec0_en,     ref_spec0_en);
-    tb_field_bit("spec1_en",     spec1_en,     ref_spec1_en);
-    tb_field_bit("i0_valid",      i0_valid,      ref_i0_valid);
-    tb_field_bit("i1_valid",      i1_valid,      ref_i1_valid);
-    tb_field_bit("i0_target_valid", i0_target_valid, ref_i0_target_valid);
-    tb_field_bit("i1_target_valid", i1_target_valid, ref_i1_target_valid);
+    tb_field_u32("pc_if[0]",          pc_if[0],          ref_pc_if[0]);
+    tb_field_u32("pc_if[1]",          pc_if[1],          ref_pc_if[1]);
+    tb_field_u32("pc_target[0]",      pc_target[0],      ref_pc_target[0]);
+    tb_field_u32("pc_target[1]",      pc_target[1],      ref_pc_target[1]);
+    tb_field_u32("instr[0]",          instr[0],          ref_instr[0]);
+    tb_field_u32("instr[1]",          instr[1],          ref_instr[1]);
+    tb_field_bit("spec_en[0]",        spec_en[0],        ref_spec_en[0]);
+    tb_field_bit("spec_en[1]",        spec_en[1],        ref_spec_en[1]);
+    tb_field_bit("valid[0]",          valid[0],          ref_valid[0]);
+    tb_field_bit("valid[1]",          valid[1],          ref_valid[1]);
+    tb_field_bit("target_valid[0]",   target_valid[0],   ref_target_valid[0]);
+    tb_field_bit("target_valid[1]",   target_valid[1],   ref_target_valid[1]);
     tb_report_close(pass);
     if (pass) pass_cnt++; else fail_cnt++;
   endtask
@@ -237,14 +168,15 @@ module fetch_core_struct_tb;
     @(negedge clk);
     idle_ctrl();
     dispatch_stall  = 1'b1;
-    i0_pc_wb        = pc0;
-    i0_pc_target_wb = word_t'(32'h0000_2000);
-    i0_valid_wb     = 1'b1;
+    pc_wb[0]        = pc_if[0];
+    pc_target_wb[0] = word_t'(32'h0000_2000);
+    valid_wb[0]     = 1'b1;
     step_and_check("btb_wb_hold", "dispatch_stall holds PC during BTB write");
 
     @(negedge clk);
     idle_ctrl();
-    i0_pred_taken = 1'b1;
+    pred_taken[0]   = 1'b1;
+    pc_target_wb[0] = word_t'(32'h0000_2000); // decode pc_predict
     step_and_check("i0_predict", "spec sticky both, I0 target into next-PC bases");
 
     @(negedge clk);
@@ -254,13 +186,13 @@ module fetch_core_struct_tb;
     // Decode-style nested-speculation stall freezes PC
     @(negedge clk);
     idle_ctrl();
-    spec0_stall = 1'b1;
-    step_and_check("spec_stall_hold", "spec0_stall freezes PC");
+    spec_stall[0] = 1'b1;
+    step_and_check("spec_stall_hold", "spec_stall[0] freezes PC");
 
     @(negedge clk);
     idle_ctrl();
-    i0_brch_recover = 1'b1;
-    i0_pc_execute   = word_t'(32'h0000_3000);
+    brch_recover[0] = 1'b1;
+    pc_execute[0]   = word_t'(32'h0000_3000);
     step_and_check("i0_recover", "recover clears spec, execute+4/+8");
 
     @(negedge clk);

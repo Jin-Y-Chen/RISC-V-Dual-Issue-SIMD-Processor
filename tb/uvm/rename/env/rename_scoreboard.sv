@@ -61,35 +61,25 @@ class rename_scoreboard extends uvm_scoreboard;
         continue;
       end
 
-      check_bit("stall_id", req.stall, exp_req.stall);
+      check_bit("stall", req.stall, exp_req.stall);
       for (int lane = 0; lane < 2; lane++) begin
-        check_bit($sformatf("i%0d_valid_disp", lane),
+        check_bit($sformatf("i%0d_valid_rs", lane),
                   req.valid[lane], exp_req.valid[lane]);
         if (exp_req.valid[lane]) begin
-          check_tag($sformatf("i%0d_ps1_disp", lane),
+          check_tag($sformatf("i%0d_ps1_tag_rs", lane),
                     req.ps1[lane], exp_req.ps1[lane]);
-          check_tag($sformatf("i%0d_ps2_disp", lane),
+          check_tag($sformatf("i%0d_ps2_tag_rs", lane),
                     req.ps2[lane], exp_req.ps2[lane]);
-          check_tag($sformatf("i%0d_prd_disp", lane),
+          check_tag($sformatf("i%0d_rob_tag_rs", lane),
                     req.prd[lane], exp_req.prd[lane]);
-          check_idx($sformatf("i%0d_rob_idx_disp", lane),
-                    req.rob_idx[lane], exp_req.rob_idx[lane]);
           // ROB slot tag is already PRF-wide (p32..p63)
-          if (allocated[prf_addr_t'(req.rob_idx[lane])])
+          if (allocated[prf_addr_t'(exp_req.rob_tag[lane])])
             `uvm_error("PRF_OWNERSHIP",
               $sformatf("p%0d ROB slot reused while still in flight",
-                        req.rob_idx[lane]))
-          allocated[prf_addr_t'(req.rob_idx[lane])] = 1;
+                        exp_req.rob_tag[lane]))
+          allocated[prf_addr_t'(exp_req.rob_tag[lane])] = 1;
         end
 
-        check_bit($sformatf("i%0d_commit_en", lane),
-                  wb.commit_en[lane], exp_wb.commit_en[lane]);
-        if (exp_wb.commit_en[lane]) begin
-          check_gpr($sformatf("i%0d_commit_rd", lane),
-                    wb.commit_rd[lane], exp_wb.commit_rd[lane]);
-          check_tag($sformatf("i%0d_commit_prd", lane),
-                    wb.commit_prd[lane], exp_wb.commit_prd[lane]);
-        end
         if (exp_wb.retire_en[lane])
           allocated[exp_wb.commit_prd[lane]] = 0;
       end

@@ -1,203 +1,104 @@
 `timescale 1ns / 1ps
-
+//=====================================================================
+// Project:      RISC-V Dual-Issue SIMD Processor
+// Module:       ID/RN Pipeline Register (dual-issue)
+// Description:  Decode → Rename boundary. Array ports [2]; lane 0 = even, 1 = odd.
+//               Pass-through FFs only. stall holds; flush/rst clear.
+//               Carries BHT snapshot (brch_state / state_valid) for ROB metadata.
+//=====================================================================
 import rv_dis_pkg::*;
 
-// ID/RN pipeline register — decode bundle latched on posedge before rename.
-// Pass-through flip-flops only (no NOP mux). Valid rides with the bundle.
-// stall holds; flush/rst clear. No GPR operand data.
 module id_rn (
-  // external controls
-  input  logic        clk,
-  input  logic        rst_n,
-  input  logic        enable,
+  input  logic      clk,
+  input  logic      rst_n,
+  input  logic      flush,
+  input  logic      enable,
+  input  logic      stall,
 
-  // internal controls (stage)
-  input  logic        flush,
-  input  logic        stall,
+  // Decode → ID/RN (combinational from decode)
+  input  logic      decode_valid_id [2],
+  input  logic      lane_sel_id     [2],
+  input  logic      reg_write_id    [2],
+  input  logic      store_en_id     [2],
+  input  logic      brch_en_id      [2],
+  input  logic      state_valid_id  [2],
+  input  br_state_t brch_state_id   [2],
+  input  logic      rs1_use_id      [2],
+  input  logic      rs2_use_id      [2],
+  input  opcode_t   opcode_id       [2],
+  input  funct3_t   funct3_id       [2],
+  input  funct7_t   funct7_id       [2],
+  input  gpr_addr_t rd_addr_id      [2],
+  input  gpr_addr_t rs1_addr_id     [2],
+  input  gpr_addr_t rs2_addr_id     [2],
+  input  word_t     imm_id          [2],
+  input  word_t     pc_id           [2],
+  input  logic      spec_en_id      [2],
 
-  // internal controls (I0) — from decode / IF-ID
-  input  logic        i0_valid_id,
-  input  logic        i0_lane_sel_id,
-  input  logic        i0_reg_write_id,
-  input  logic        i0_store_en_id,
-  input  logic        i0_rs1_use_id,
-  input  logic        i0_rs2_use_id,
-  input  br_state_t   i0_brch_state_id,
-  input  logic        spec0_en_id,
-  // internal controls (I1)
-  input  logic        i1_valid_id,
-  input  logic        i1_lane_sel_id,
-  input  logic        i1_reg_write_id,
-  input  logic        i1_store_en_id,
-  input  logic        i1_rs1_use_id,
-  input  logic        i1_rs2_use_id,
-  input  br_state_t   i1_brch_state_id,
-  input  logic        spec1_en_id,
-
-  // input data (I0) — arch addresses / immediate / PC
-  input  opcode_t     i0_opcode_id,
-  input  funct3_t     i0_funct3_id,
-  input  funct7_t     i0_funct7_id,
-  input  gpr_addr_t   i0_rd_addr_id,
-  input  gpr_addr_t   i0_rs1_addr_id,
-  input  gpr_addr_t   i0_rs2_addr_id,
-  input  word_t       i0_imm_id,
-  input  word_t       i0_pc_id,
-
-  // input data (I1)
-  input  opcode_t     i1_opcode_id,
-  input  funct3_t     i1_funct3_id,
-  input  funct7_t     i1_funct7_id,
-  input  gpr_addr_t   i1_rd_addr_id,
-  input  gpr_addr_t   i1_rs1_addr_id,
-  input  gpr_addr_t   i1_rs2_addr_id,
-  input  word_t       i1_imm_id,
-  input  word_t       i1_pc_id,
-
-  // output controls (I0) → rename_core_struct
-  output logic        i0_valid_rn,
-  output logic        i0_lane_sel_rn,
-  output logic        i0_reg_write_rn,
-  output logic        i0_store_en_rn,
-  output logic        i0_rs1_use_rn,
-  output logic        i0_rs2_use_rn,
-  output br_state_t   i0_brch_state_rn,
-  output logic        spec0_en_rn,
-
-  // output controls (I1)
-  output logic        i1_valid_rn,
-  output logic        i1_lane_sel_rn,
-  output logic        i1_reg_write_rn,
-  output logic        i1_store_en_rn,
-  output logic        i1_rs1_use_rn,
-  output logic        i1_rs2_use_rn,
-  output br_state_t   i1_brch_state_rn,
-  output logic        spec1_en_rn,
-
-  // output data (I0)
-  output opcode_t     i0_opcode_rn,
-  output funct3_t     i0_funct3_rn,
-  output funct7_t     i0_funct7_rn,
-  output gpr_addr_t   i0_rd_addr_rn,
-  output gpr_addr_t   i0_rs1_addr_rn,
-  output gpr_addr_t   i0_rs2_addr_rn,
-  output word_t       i0_imm_rn,
-  output word_t       i0_pc_rn,
-
-  // output data (I1)
-  output opcode_t     i1_opcode_rn,
-  output funct3_t     i1_funct3_rn,
-  output funct7_t     i1_funct7_rn,
-  output gpr_addr_t   i1_rd_addr_rn,
-  output gpr_addr_t   i1_rs1_addr_rn,
-  output gpr_addr_t   i1_rs2_addr_rn,
-  output word_t       i1_imm_rn,
-  output word_t       i1_pc_rn
+  // ID/RN → Rename (registered)
+  output logic      valid_rn        [2],
+  output logic      lane_sel_rn     [2],
+  output logic      reg_write_rn    [2],
+  output logic      store_en_rn     [2],
+  output logic      brch_en_rn      [2],
+  output logic      state_valid_rn  [2],
+  output br_state_t brch_state_rn   [2],
+  output logic      rs1_use_rn      [2],
+  output logic      rs2_use_rn      [2],
+  output opcode_t   opcode_rn       [2],
+  output funct3_t   funct3_rn       [2],
+  output funct7_t   funct7_rn       [2],
+  output gpr_addr_t rd_addr_rn      [2],
+  output gpr_addr_t rs1_addr_rn     [2],
+  output gpr_addr_t rs2_addr_rn     [2],
+  output word_t     imm_rn          [2],
+  output word_t     pc_rn           [2],
+  output logic      spec_en_rn      [2]
 );
 
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      i0_valid_rn      <= 1'b0;
-      i0_lane_sel_rn   <= 1'b0;
-      i0_reg_write_rn  <= 1'b0;
-      i0_store_en_rn   <= 1'b0;
-      i0_rs1_use_rn    <= 1'b0;
-      i0_rs2_use_rn    <= 1'b0;
-      i0_brch_state_rn <= '0;
-      spec0_en_rn      <= 1'b0;
-      i0_opcode_rn     <= '0;
-      i0_funct3_rn     <= '0;
-      i0_funct7_rn     <= '0;
-      i0_rd_addr_rn    <= '0;
-      i0_rs1_addr_rn   <= '0;
-      i0_rs2_addr_rn   <= '0;
-      i0_imm_rn        <= '0;
-      i0_pc_rn         <= '0;
-
-      i1_valid_rn      <= 1'b0;
-      i1_lane_sel_rn   <= 1'b0;
-      i1_reg_write_rn  <= 1'b0;
-      i1_store_en_rn   <= 1'b0;
-      i1_rs1_use_rn    <= 1'b0;
-      i1_rs2_use_rn    <= 1'b0;
-      i1_brch_state_rn <= '0;
-      spec1_en_rn      <= 1'b0;
-      i1_opcode_rn     <= '0;
-      i1_funct3_rn     <= '0;
-      i1_funct7_rn     <= '0;
-      i1_rd_addr_rn    <= '0;
-      i1_rs1_addr_rn   <= '0;
-      i1_rs2_addr_rn   <= '0;
-      i1_imm_rn        <= '0;
-      i1_pc_rn         <= '0;
-    end else if (flush) begin
-      i0_valid_rn      <= 1'b0;
-      i0_lane_sel_rn   <= 1'b0;
-      i0_reg_write_rn  <= 1'b0;
-      i0_store_en_rn   <= 1'b0;
-      i0_rs1_use_rn    <= 1'b0;
-      i0_rs2_use_rn    <= 1'b0;
-      i0_brch_state_rn <= '0;
-      spec0_en_rn      <= 1'b0;
-      i0_opcode_rn     <= '0;
-      i0_funct3_rn     <= '0;
-      i0_funct7_rn     <= '0;
-      i0_rd_addr_rn    <= '0;
-      i0_rs1_addr_rn   <= '0;
-      i0_rs2_addr_rn   <= '0;
-      i0_imm_rn        <= '0;
-      i0_pc_rn         <= '0;
-
-      i1_valid_rn      <= 1'b0;
-      i1_lane_sel_rn   <= 1'b0;
-      i1_reg_write_rn  <= 1'b0;
-      i1_store_en_rn   <= 1'b0;
-      i1_rs1_use_rn    <= 1'b0;
-      i1_rs2_use_rn    <= 1'b0;
-      i1_brch_state_rn <= '0;
-      spec1_en_rn      <= 1'b0;
-      i1_opcode_rn     <= '0;
-      i1_funct3_rn     <= '0;
-      i1_funct7_rn     <= '0;
-      i1_rd_addr_rn    <= '0;
-      i1_rs1_addr_rn   <= '0;
-      i1_rs2_addr_rn   <= '0;
-      i1_imm_rn        <= '0;
-      i1_pc_rn         <= '0;
+    if (!rst_n || flush) begin
+      for (int i = 0; i < N_DUAL; i++) begin
+        valid_rn[i]       <= 1'b0;
+        lane_sel_rn[i]    <= 1'b0;
+        reg_write_rn[i]   <= 1'b0;
+        store_en_rn[i]    <= 1'b0;
+        brch_en_rn[i]     <= 1'b0;
+        state_valid_rn[i] <= 1'b0;
+        brch_state_rn[i]  <= '0;
+        rs1_use_rn[i]     <= 1'b0;
+        rs2_use_rn[i]     <= 1'b0;
+        opcode_rn[i]      <= '0;
+        funct3_rn[i]      <= '0;
+        funct7_rn[i]      <= '0;
+        rd_addr_rn[i]     <= '0;
+        rs1_addr_rn[i]    <= '0;
+        rs2_addr_rn[i]    <= '0;
+        imm_rn[i]         <= '0;
+        pc_rn[i]          <= '0;
+        spec_en_rn[i]     <= 1'b0;
+      end
     end else if (enable && !stall) begin
-      i0_valid_rn      <= i0_valid_id;
-      i0_lane_sel_rn   <= i0_lane_sel_id;
-      i0_reg_write_rn  <= i0_reg_write_id;
-      i0_store_en_rn   <= i0_store_en_id;
-      i0_rs1_use_rn    <= i0_rs1_use_id;
-      i0_rs2_use_rn    <= i0_rs2_use_id;
-      i0_brch_state_rn <= i0_brch_state_id;
-      spec0_en_rn      <= spec0_en_id;
-      i0_opcode_rn     <= i0_opcode_id;
-      i0_funct3_rn     <= i0_funct3_id;
-      i0_funct7_rn     <= i0_funct7_id;
-      i0_rd_addr_rn    <= i0_rd_addr_id;
-      i0_rs1_addr_rn   <= i0_rs1_addr_id;
-      i0_rs2_addr_rn   <= i0_rs2_addr_id;
-      i0_imm_rn        <= i0_imm_id;
-      i0_pc_rn         <= i0_pc_id;
-
-      i1_valid_rn      <= i1_valid_id;
-      i1_lane_sel_rn   <= i1_lane_sel_id;
-      i1_reg_write_rn  <= i1_reg_write_id;
-      i1_store_en_rn   <= i1_store_en_id;
-      i1_rs1_use_rn    <= i1_rs1_use_id;
-      i1_rs2_use_rn    <= i1_rs2_use_id;
-      i1_brch_state_rn <= i1_brch_state_id;
-      spec1_en_rn      <= spec1_en_id;
-      i1_opcode_rn     <= i1_opcode_id;
-      i1_funct3_rn     <= i1_funct3_id;
-      i1_funct7_rn     <= i1_funct7_id;
-      i1_rd_addr_rn    <= i1_rd_addr_id;
-      i1_rs1_addr_rn   <= i1_rs1_addr_id;
-      i1_rs2_addr_rn   <= i1_rs2_addr_id;
-      i1_imm_rn        <= i1_imm_id;
-      i1_pc_rn         <= i1_pc_id;
+      for (int i = 0; i < N_DUAL; i++) begin
+        valid_rn[i]       <= decode_valid_id[i];
+        lane_sel_rn[i]    <= lane_sel_id[i];
+        reg_write_rn[i]   <= reg_write_id[i];
+        store_en_rn[i]    <= store_en_id[i];
+        brch_en_rn[i]     <= brch_en_id[i];
+        state_valid_rn[i] <= state_valid_id[i];
+        brch_state_rn[i]  <= brch_state_id[i];
+        rs1_use_rn[i]     <= rs1_use_id[i];
+        rs2_use_rn[i]     <= rs2_use_id[i];
+        opcode_rn[i]      <= opcode_id[i];
+        funct3_rn[i]      <= funct3_id[i];
+        funct7_rn[i]      <= funct7_id[i];
+        rd_addr_rn[i]     <= rd_addr_id[i];
+        rs1_addr_rn[i]    <= rs1_addr_id[i];
+        rs2_addr_rn[i]    <= rs2_addr_id[i];
+        imm_rn[i]         <= imm_id[i];
+        pc_rn[i]          <= pc_id[i];
+        spec_en_rn[i]     <= spec_en_id[i];
+      end
     end
   end
 

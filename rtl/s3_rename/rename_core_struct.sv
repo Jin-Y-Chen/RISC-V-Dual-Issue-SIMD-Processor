@@ -1,7 +1,9 @@
 `timescale 1ns / 1ps
 
 // S3 rename — RAT + ROB (tail alloc). ROB entry owns PRF p32..p63.
-// Head commit: retire → RRAT / store-buffer; reclaim = ROB head advance.
+// Head commit: ROB retire_en → RRAT / store-buffer; reclaim = ROB head advance.
+// Dual-issue ports are [2] arrays: index 0 = I0, index 1 = I1.
+// Decode payload (lane_sel/opcode/funct/imm/pc) bypasses rename at the top.
 import rv_dis_pkg::*;
 import rob_pkg::*;
 
@@ -11,155 +13,112 @@ module rename_core_struct (
   input  logic        flush,
   input  logic        stall_rn,
   input  logic        enable,
-  input  logic        spec0_en_rn,
-  input  logic        spec1_en_rn,
 
-  input  logic        i0_valid_rn,     i1_valid_rn,
-  input  logic        i0_lane_sel_rn,  i1_lane_sel_rn,
-  input  logic        i0_reg_write_rn, i1_reg_write_rn,
-  input  logic        i0_store_en_rn,  i1_store_en_rn,
-  input  logic        i0_rs1_use_rn,   i0_rs2_use_rn,
-  input  logic        i1_rs1_use_rn,   i1_rs2_use_rn,
+  input  logic        spec_en_rn      [2],
+  input  logic        valid_rn        [2],
+  input  logic        reg_write_rn    [2],
+  input  logic        store_en_rn     [2],
+  input  logic        brch_en_rn      [2],
+  input  logic        state_valid_rn  [2],
+  input  br_state_t   brch_state_rn   [2],
+  input  logic        rs1_use_rn      [2],
+  input  logic        rs2_use_rn      [2],
+  input  gpr_addr_t   rd_addr_rn      [2],
+  input  gpr_addr_t   rs1_addr_rn     [2],
+  input  gpr_addr_t   rs2_addr_rn     [2],
 
-  input  opcode_t     i0_opcode_rn,  i1_opcode_rn,
-  input  funct3_t     i0_funct3_rn,  i1_funct3_rn,
-  input  funct7_t     i0_funct7_rn,  i1_funct7_rn,
-  input  gpr_addr_t   i0_rd_addr_rn, i0_rs1_addr_rn, i0_rs2_addr_rn,
-  input  gpr_addr_t   i1_rd_addr_rn, i1_rs1_addr_rn, i1_rs2_addr_rn,
-  input  word_t       i0_imm_rn, i0_pc_rn, i1_imm_rn, i1_pc_rn,
+  input  logic        wback_en        [2],
+  input  prf_addr_t   rob_tag_wb      [2],
+  input  logic        brch_taken_wb   [2],
 
-  input  logic        wback0_en, wback1_en,
-  input  prf_addr_t   i0_rob_idx_wb, i1_rob_idx_wb,
-  input  logic        i0_brch_taken_wb, i1_brch_taken_wb,
+  output logic        stall,
 
-  input  logic        resolve_en, resolve_mispred,
-
-  output logic        stall_id,
-
-  output logic        i0_valid_disp, i1_valid_disp,
-  output logic        i0_lane_sel_disp, i1_lane_sel_disp,
-  output logic        i0_reg_write_disp, i1_reg_write_disp,
-  output logic        i0_spec_en_disp, i1_spec_en_disp,
-  output logic        i0_rs1_use_disp, i0_rs2_use_disp,
-  output logic        i1_rs1_use_disp, i1_rs2_use_disp,
-  output opcode_t     i0_opcode_disp, i1_opcode_disp,
-  output funct3_t     i0_funct3_disp, i1_funct3_disp,
-  output funct7_t     i0_funct7_disp, i1_funct7_disp,
-  output gpr_addr_t   i0_rd_addr_disp, i1_rd_addr_disp,
-  output prf_addr_t   i0_ps1_disp, i0_ps2_disp, i0_prd_disp,
-  output prf_addr_t   i1_ps1_disp, i1_ps2_disp, i1_prd_disp,
-  output prf_addr_t   i0_rob_idx_disp, i1_rob_idx_disp,
-  output word_t       i0_imm_disp, i1_imm_disp, i0_pc_disp, i1_pc_disp,
-
-  // → retire unit / RRAT / store buffer
-  output logic        retire0_en, retire1_en,
-  output logic        rrat0_en, rrat1_en,
-  output gpr_addr_t   i0_rd_addr_cmt, i1_rd_addr_cmt,
-  output prf_addr_t   i0_rob_idx_cmt, i1_rob_idx_cmt,
-  // → store buffer
-  output logic        stb0_en, stb1_en
+  output logic        valid_rs        [2],
+  output logic        path_use_rs     [2],
+  output logic        path_en,
+  output logic        path_sel,
+  output prf_addr_t   ps1_tag_rs      [2],
+  output prf_addr_t   ps2_tag_rs      [2],
+  output prf_addr_t   rob_tag_rs      [2],
+  output logic        stb_en          [2]
 );
 
-  logic stall;
-  logic rat0_en, rat1_en;
-  logic i0_path_sel, i1_path_sel;
-  logic i0_can_retire, i1_can_retire;
+  logic      path_use [2];
+  prf_addr_t rob_tag [2];
+  logic      is_brnch [2];
 
-  wire i0_br = i0_valid_rn && (i0_opcode_rn == OPC_BRANCH);
-  wire i1_br = i1_valid_rn && (i1_opcode_rn == OPC_BRANCH);
+  logic      rat_alloc_en [2];
+  logic      rob_alloc_en [2];
+  logic      rob_valid    [2];
 
-  wire i0_wr = i0_valid_rn && i0_reg_write_rn;
-  wire i1_wr = i1_valid_rn && i1_reg_write_rn;
+  logic      retire_en    [2];
+  logic      rrat_en      [2];
+  gpr_addr_t rd_addr_cmt  [2];
+  prf_addr_t rob_tag_cmt  [2];
+  logic      rat_en       [2];
+  logic      path_sel_rob [2];
 
-  wire go = !flush && !stall_rn &&
-            !(resolve_en && resolve_mispred) && !stall &&
-            (i0_valid_rn || i1_valid_rn);
+  assign path_en  = rat_en[0] | rat_en[1];
+  assign path_sel = rat_en[1] ? path_sel_rob[1] : path_sel_rob[0];
 
-  wire i0_alloc_en = go && i0_wr;
-  wire i1_alloc_en = go && i1_wr;
-  wire i0_rob_en   = go && i0_valid_rn;
-  wire i1_rob_en   = go && i1_valid_rn;
+  wire go = !flush && !stall_rn && !stall &&
+            (valid_rn[0] || valid_rn[1]);
 
-  assign stall_id = !flush && (i0_valid_rn || i1_valid_rn) && !go;
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_lane
+    assign rob_alloc_en[i] = go && valid_rn[i];
+    assign rat_alloc_en[i] = rob_valid[i] && reg_write_rn[i];
+    assign is_brnch[i]     = valid_rn[i] && brch_en_rn[i];
 
-  // ROB alloc tags are already PRF-wide (p32..p63)
-  wire prf_addr_t i0_ntag = i0_rob_idx_disp;
-  wire prf_addr_t i1_ntag = i1_rob_idx_disp;
+    assign valid_rs[i]     = rob_valid[i];
+    assign path_use_rs[i]  = path_use[i];
+    // ROB tag for every allocated op (stores/branches included); RAT uses rat_alloc_en.
+    assign rob_tag_rs[i]   = rob_valid[i] ? rob_tag[i] : '0;
+    assign retire_en[i]    = enable && !flush;
+  end
 
-  allis_table u_allis (
+  alias_table u_alias (
     .clk, .rst_n, .flush,
-    .spec0_en(spec0_en_rn), .spec1_en(spec1_en_rn),
-    .i0_rs1_use(i0_rs1_use_rn), .i0_rs2_use(i0_rs2_use_rn),
-    .i1_rs1_use(i1_rs1_use_rn), .i1_rs2_use(i1_rs2_use_rn),
-    .i0_rs1_addr(i0_rs1_addr_rn), .i0_rs2_addr(i0_rs2_addr_rn),
-    .i1_rs1_addr(i1_rs1_addr_rn), .i1_rs2_addr(i1_rs2_addr_rn),
-    .i0_ps1_tag(i0_ps1_disp), .i0_ps2_tag(i0_ps2_disp),
-    .i1_ps1_tag(i1_ps1_disp), .i1_ps2_tag(i1_ps2_disp),
-    .i0_alloc_en, .i1_alloc_en,
-    .i0_alloc_rd_addr(i0_rd_addr_rn), .i1_alloc_rd_addr(i1_rd_addr_rn),
-    .i0_alloc_ntag(i0_ntag), .i1_alloc_ntag(i1_ntag),
-    .rrat0_en, .rrat1_en,
-    .i0_rd_addr_cmt, .i1_rd_addr_cmt,
-    .i0_rob_idx_cmt, .i1_rob_idx_cmt,
-    .rat0_en, .rat1_en,
-    .i0_path_sel, .i1_path_sel
+    .spec_en      (spec_en_rn),
+    .rs1_use      (rs1_use_rn),
+    .rs2_use      (rs2_use_rn),
+    .rs1_addr     (rs1_addr_rn),
+    .rs2_addr     (rs2_addr_rn),
+    .path_use     (path_use),
+    .ps1_tag      (ps1_tag_rs),
+    .ps2_tag      (ps2_tag_rs),
+    .alloc_en     (rat_alloc_en),
+    .alloc_rd_addr(rd_addr_rn),
+    .alloc_rob_tag(rob_tag),
+    .rrat_en      (rrat_en),
+    .rd_addr_cmt  (rd_addr_cmt),
+    .rob_tag_cmt  (rob_tag_cmt),
+    .rat_en       (rat_en),
+    .path_sel     (path_sel_rob)
   );
 
   reorder_buffer u_rob (
     .clk, .rst_n, .flush,
-    .alloc0_en(i0_rob_en), .alloc1_en(i1_rob_en),
-    .i0_reg_write(i0_reg_write_rn), .i1_reg_write(i1_reg_write_rn),
-    .i0_is_brnch(i0_br), .i1_is_brnch(i1_br),
-    .i0_is_store(i0_store_en_rn), .i1_is_store(i1_store_en_rn),
-    .i0_spec_en(spec0_en_rn), .i1_spec_en(spec1_en_rn),
-    .i0_rd_addr(i0_rd_addr_rn), .i1_rd_addr(i1_rd_addr_rn),
-    .i0_rob_idx(i0_rob_idx_disp), .i1_rob_idx(i1_rob_idx_disp),
+    .alloc_en     (rob_alloc_en),
+    .reg_write    (reg_write_rn),
+    .is_brnch     (is_brnch),
+    .is_store     (store_en_rn),
+    .spec_en      (spec_en_rn),
+    .state_valid  (state_valid_rn),
+    .brch_state   (brch_state_rn),
+    .rd_addr      (rd_addr_rn),
+    .rob_tag,
+    .rob_valid,
     .stall,
-    .wback0_en, .wback1_en,
-    .i0_rob_idx_wb, .i1_rob_idx_wb,
-    .i0_brch_taken_wb, .i1_brch_taken_wb,
-    .retire0_en, .retire1_en,
-    .i0_can_retire, .i1_can_retire,
-    .rrat0_en, .rrat1_en,
-    .i0_rd_addr_cmt, .i1_rd_addr_cmt,
-    .i0_rob_idx_cmt, .i1_rob_idx_cmt,
-    .rat0_en, .rat1_en,
-    .i0_path_sel, .i1_path_sel,
-    .stb0_en, .stb1_en
+    .wback_en     (wback_en),
+    .rob_tag_wb   (rob_tag_wb),
+    .brch_taken_wb(brch_taken_wb),
+    .retire_en    (retire_en),
+    .rrat_en      (rrat_en),
+    .rd_addr_cmt  (rd_addr_cmt),
+    .rob_tag_cmt  (rob_tag_cmt),
+    .rat_en       (rat_en),
+    .path_sel     (path_sel_rob),
+    .stb_en       (stb_en)
   );
-
-  retire u_retire (
-    .enable,
-    .flush,
-    .i0_can_retire, .i1_can_retire,
-    .retire0_en, .retire1_en
-  );
-
-  assign i0_valid_disp     = i0_rob_en;
-  assign i1_valid_disp     = i1_rob_en;
-  assign i0_lane_sel_disp  = i0_lane_sel_rn;
-  assign i1_lane_sel_disp  = i1_lane_sel_rn;
-  assign i0_reg_write_disp = i0_reg_write_rn;
-  assign i1_reg_write_disp = i1_reg_write_rn;
-  assign i0_spec_en_disp   = spec0_en_rn;
-  assign i1_spec_en_disp   = spec1_en_rn;
-  assign i0_rs1_use_disp   = i0_rs1_use_rn;
-  assign i0_rs2_use_disp   = i0_rs2_use_rn;
-  assign i1_rs1_use_disp   = i1_rs1_use_rn;
-  assign i1_rs2_use_disp   = i1_rs2_use_rn;
-  assign i0_opcode_disp    = i0_opcode_rn;
-  assign i1_opcode_disp    = i1_opcode_rn;
-  assign i0_funct3_disp    = i0_funct3_rn;
-  assign i1_funct3_disp    = i1_funct3_rn;
-  assign i0_funct7_disp    = i0_funct7_rn;
-  assign i1_funct7_disp    = i1_funct7_rn;
-  assign i0_rd_addr_disp   = i0_rd_addr_rn;
-  assign i1_rd_addr_disp   = i1_rd_addr_rn;
-  assign i0_prd_disp       = i0_wr ? i0_ntag : '0;
-  assign i1_prd_disp       = i1_wr ? i1_ntag : '0;
-  assign i0_imm_disp       = i0_imm_rn;
-  assign i1_imm_disp       = i1_imm_rn;
-  assign i0_pc_disp        = i0_pc_rn;
-  assign i1_pc_disp        = i1_pc_rn;
 
 endmodule

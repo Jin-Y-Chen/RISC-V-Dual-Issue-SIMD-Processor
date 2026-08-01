@@ -8,6 +8,8 @@ class rename_refmodel extends uvm_object;
     bit        is_branch;
     bit        is_store;
     bit        spec_en;
+    bit        state_valid;
+    br_state_t brch_state;
     gpr_addr_t rd;
     prf_addr_t prd;
     bit        branch_taken;
@@ -99,19 +101,17 @@ class rename_refmodel extends uvm_object;
     issue[1] = is_issue(req, 1);
     legal[0] = req.valid_rn[0] && req.reg_write[0] && (req.rd[0] != '0);
     legal[1] = req.valid_rn[1] && req.reg_write[1] && (req.rd[1] != '0);
-    go = !(wb.resolve_en && wb.resolve_mispred) &&
-         (occupancy <= ROB_DEPTH - 2) &&
-         (issue[0] || issue[1]);
+    go = (occupancy <= ROB_DEPTH - 2) && (issue[0] || issue[1]);
 
     base = (write_ptr % ROB_DEPTH) & ~(1);
     new_tag[0] = (req.valid_rn[0] && req.reg_write[0]) ? to_prf(base) : '0;
     new_tag[1] = (req.valid_rn[1] && req.reg_write[1]) ? to_prf(base + 1) : '0;
 
-    exp_req.stall = (issue[0] || issue[1]) && !go;
+    exp_req.stall = (occupancy > ROB_DEPTH - 2);
     for (int lane = 0; lane < 2; lane++) begin
       exp_req.valid[lane] = go && issue[lane];
       exp_req.prd[lane] = new_tag[lane];
-      exp_req.rob_idx[lane] = to_prf(base | lane);
+      exp_req.rob_tag[lane] = to_prf(base | lane);
     end
     exp_req.ps1[0] = (!req.rs1_use[0] || req.rs1[0] == '0)
                    ? '0 : map_read(req.rs1[0], req.spec_en[0]);
@@ -169,11 +169,11 @@ class rename_refmodel extends uvm_object;
       active_spec = ready[1] ? path_after1 : path_after0;
     end
 
-    // Negedge-order storage updates for next cycle: WB → alloc → map
+    // Negedge-order storage updates for next cycle: WB -> alloc -> map
     for (int lane = 0; lane < 2; lane++) begin
-      if (wb.wback_en[lane] && rob[to_flat(wb.rob_idx[lane])].valid) begin
-        rob[to_flat(wb.rob_idx[lane])].complete = 1;
-        rob[to_flat(wb.rob_idx[lane])].branch_taken = wb.branch_taken[lane];
+      if (wb.wback_en[lane] && rob[to_flat(wb.rob_tag[lane])].valid) begin
+        rob[to_flat(wb.rob_tag[lane])].complete = 1;
+        rob[to_flat(wb.rob_tag[lane])].branch_taken = wb.branch_taken[lane];
       end
     end
 
@@ -183,9 +183,11 @@ class rename_refmodel extends uvm_object;
         rob[idx].valid = issue[lane];
         rob[idx].complete = 0;
         rob[idx].reg_write = issue[lane] && req.reg_write[lane];
-        rob[idx].is_branch = issue[lane] && (req.opcode[lane] == OPC_BRANCH);
+        rob[idx].is_branch = issue[lane] && req.brch_en[lane];
         rob[idx].is_store = issue[lane] && req.store_en[lane];
         rob[idx].spec_en = req.spec_en[lane];
+        rob[idx].state_valid = req.state_valid[lane];
+        rob[idx].brch_state = req.brch_state[lane];
         rob[idx].rd = req.rd[lane];
         rob[idx].prd = to_prf(idx);
         rob[idx].branch_taken = 0;

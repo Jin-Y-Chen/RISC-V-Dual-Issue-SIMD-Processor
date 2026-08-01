@@ -21,8 +21,8 @@ void RobGolden::writeback(const Stim& s) {
     q_[flat].complete = true;
     q_[flat].br_taken = br_taken;
   };
-  do_wb(s.wback0_en, s.i0_rob_idx_wb, s.i0_brch_taken_wb);
-  do_wb(s.wback1_en, s.i1_rob_idx_wb, s.i1_brch_taken_wb);
+  do_wb(s.wback0_en, s.i0_rob_tag_wb, s.i0_brch_taken_wb);
+  do_wb(s.wback1_en, s.i1_rob_tag_wb, s.i1_brch_taken_wb);
 }
 
 void RobGolden::allocate(const Stim& s) {
@@ -30,24 +30,29 @@ void RobGolden::allocate(const Stim& s) {
   const uint8_t a0   = base;
   const uint8_t a1   = static_cast<uint8_t>((base + (s.alloc0_en ? 1 : 0)) & 0x1F);
 
-  auto fill = [&](uint8_t flat, bool reg_w, bool br, bool st, bool spec, uint8_t rd) {
+  auto fill = [&](uint8_t flat, bool reg_w, bool br, bool st, bool spec,
+                  bool state_valid, uint8_t brch_state, uint8_t rd) {
     Entry e;
-    e.valid     = true;
-    e.complete  = false;
-    e.reg_write = reg_w;
-    e.is_branch = br;
-    e.is_store  = st;
-    e.spec_en   = spec;
-    e.rd        = rd & 0x1F;
-    e.br_taken  = false;
+    e.valid       = true;
+    e.complete    = false;
+    e.reg_write   = reg_w;
+    e.is_branch   = br;
+    e.is_store    = st;
+    e.spec_en     = spec;
+    e.state_valid = state_valid;
+    e.brch_state  = brch_state & 0x3;
+    e.rd          = rd & 0x1F;
+    e.br_taken    = false;
     q_[flat] = e;
   };
 
   if (s.alloc0_en) {
-    fill(a0, s.i0_reg_write, s.i0_is_brnch, s.i0_is_store, s.i0_spec_en, s.i0_rd_addr);
+    fill(a0, s.i0_reg_write, s.i0_is_brnch, s.i0_is_store, s.i0_spec_en,
+         s.i0_state_valid, s.i0_brch_state, s.i0_rd_addr);
   }
   if (s.alloc1_en) {
-    fill(a1, s.i1_reg_write, s.i1_is_brnch, s.i1_is_store, s.i1_spec_en, s.i1_rd_addr);
+    fill(a1, s.i1_reg_write, s.i1_is_brnch, s.i1_is_store, s.i1_spec_en,
+         s.i1_state_valid, s.i1_brch_state, s.i1_rd_addr);
   }
 
   const int n = (s.alloc0_en ? 1 : 0) + (s.alloc1_en ? 1 : 0);
@@ -96,8 +101,8 @@ Obs RobGolden::eval(const Stim& s) const {
   const uint8_t base = flat_of(tail_);
   const uint8_t a0   = base;
   const uint8_t a1   = static_cast<uint8_t>((base + (s.alloc0_en ? 1 : 0)) & 0x1F);
-  o.i0_rob_idx = prf_of(a0);
-  o.i1_rob_idx = prf_of(a1);
+  o.i0_rob_tag = prf_of(a0);
+  o.i1_rob_tag = prf_of(a1);
 
   o.head        = head_;
   o.tail        = tail_;
@@ -130,8 +135,8 @@ Obs RobGolden::eval(const Stim& s) const {
   o.rrat1_en       = cmt1 && e1.reg_write;
   o.i0_rd_addr_cmt = cmt0 ? e0.rd : 0;
   o.i1_rd_addr_cmt = cmt1 ? e1.rd : 0;
-  o.i0_rob_idx_cmt = prf_of(h0);
-  o.i1_rob_idx_cmt = prf_of(h1);
+  o.i0_rob_tag_cmt = prf_of(h0);
+  o.i1_rob_tag_cmt = prf_of(h1);
   o.stb0_en        = cmt0 && e0.is_store;
   o.stb1_en        = cmt1 && e1.is_store;
   o.rat0_en        = cmt0 && e0.is_branch;
@@ -185,9 +190,11 @@ rob_gm::Stim make_stim(
     int i0_is_brnch, int i1_is_brnch,
     int i0_is_store, int i1_is_store,
     int i0_spec_en, int i1_spec_en,
+    int i0_state_valid, int i1_state_valid,
+    int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
-    int i0_rob_idx_wb, int i1_rob_idx_wb,
+    int i0_rob_tag_wb, int i1_rob_tag_wb,
     int i0_brch_taken_wb, int i1_brch_taken_wb,
     int retire0_en, int retire1_en) {
   rob_gm::Stim s;
@@ -202,12 +209,16 @@ rob_gm::Stim make_stim(
   s.i1_is_store      = i1_is_store != 0;
   s.i0_spec_en       = i0_spec_en != 0;
   s.i1_spec_en       = i1_spec_en != 0;
+  s.i0_state_valid   = i0_state_valid != 0;
+  s.i1_state_valid   = i1_state_valid != 0;
+  s.i0_brch_state    = static_cast<uint8_t>(i0_brch_state & 0x3);
+  s.i1_brch_state    = static_cast<uint8_t>(i1_brch_state & 0x3);
   s.i0_rd_addr       = static_cast<uint8_t>(i0_rd_addr & 0x1F);
   s.i1_rd_addr       = static_cast<uint8_t>(i1_rd_addr & 0x1F);
   s.wback0_en        = wback0_en != 0;
   s.wback1_en        = wback1_en != 0;
-  s.i0_rob_idx_wb    = static_cast<uint8_t>(i0_rob_idx_wb & 0x3F);
-  s.i1_rob_idx_wb    = static_cast<uint8_t>(i1_rob_idx_wb & 0x3F);
+  s.i0_rob_tag_wb    = static_cast<uint8_t>(i0_rob_tag_wb & 0x3F);
+  s.i1_rob_tag_wb    = static_cast<uint8_t>(i1_rob_tag_wb & 0x3F);
   s.i0_brch_taken_wb = i0_brch_taken_wb != 0;
   s.i1_brch_taken_wb = i1_brch_taken_wb != 0;
   s.retire0_en       = retire0_en != 0;
@@ -216,18 +227,18 @@ rob_gm::Stim make_stim(
 }
 
 void pack_obs(const rob_gm::Obs& o,
-              int* i0_rob_idx, int* i1_rob_idx,
+              int* i0_rob_tag, int* i1_rob_tag,
               int* stall,
               int* i0_can_retire, int* i1_can_retire,
               int* rrat0_en, int* rrat1_en,
               int* i0_rd_addr_cmt, int* i1_rd_addr_cmt,
-              int* i0_rob_idx_cmt, int* i1_rob_idx_cmt,
+              int* i0_rob_tag_cmt, int* i1_rob_tag_cmt,
               int* rat0_en, int* rat1_en,
               int* i0_path_sel, int* i1_path_sel,
               int* stb0_en, int* stb1_en,
               int* head, int* tail, int* occ, int* active_spec) {
-  *i0_rob_idx     = o.i0_rob_idx;
-  *i1_rob_idx     = o.i1_rob_idx;
+  *i0_rob_tag     = o.i0_rob_tag;
+  *i1_rob_tag     = o.i1_rob_tag;
   *stall          = o.stall;
   *i0_can_retire  = o.i0_can_retire;
   *i1_can_retire  = o.i1_can_retire;
@@ -235,8 +246,8 @@ void pack_obs(const rob_gm::Obs& o,
   *rrat1_en       = o.rrat1_en;
   *i0_rd_addr_cmt = o.i0_rd_addr_cmt;
   *i1_rd_addr_cmt = o.i1_rd_addr_cmt;
-  *i0_rob_idx_cmt = o.i0_rob_idx_cmt;
-  *i1_rob_idx_cmt = o.i1_rob_idx_cmt;
+  *i0_rob_tag_cmt = o.i0_rob_tag_cmt;
+  *i1_rob_tag_cmt = o.i1_rob_tag_cmt;
   *rat0_en        = o.rat0_en;
   *rat1_en        = o.rat1_en;
   *i0_path_sel    = o.i0_path_sel;
@@ -273,17 +284,19 @@ void rob_dpi_eval(
     int i0_is_brnch, int i1_is_brnch,
     int i0_is_store, int i1_is_store,
     int i0_spec_en, int i1_spec_en,
+    int i0_state_valid, int i1_state_valid,
+    int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
-    int i0_rob_idx_wb, int i1_rob_idx_wb,
+    int i0_rob_tag_wb, int i1_rob_tag_wb,
     int i0_brch_taken_wb, int i1_brch_taken_wb,
     int retire0_en, int retire1_en,
-    int* i0_rob_idx, int* i1_rob_idx,
+    int* i0_rob_tag, int* i1_rob_tag,
     int* stall,
     int* i0_can_retire, int* i1_can_retire,
     int* rrat0_en, int* rrat1_en,
     int* i0_rd_addr_cmt, int* i1_rd_addr_cmt,
-    int* i0_rob_idx_cmt, int* i1_rob_idx_cmt,
+    int* i0_rob_tag_cmt, int* i1_rob_tag_cmt,
     int* rat0_en, int* rat1_en,
     int* i0_path_sel, int* i1_path_sel,
     int* stb0_en, int* stb1_en,
@@ -293,13 +306,14 @@ void rob_dpi_eval(
   const rob_gm::Stim s = make_stim(
       flush, alloc0_en, alloc1_en, i0_reg_write, i1_reg_write,
       i0_is_brnch, i1_is_brnch, i0_is_store, i1_is_store,
-      i0_spec_en, i1_spec_en, i0_rd_addr, i1_rd_addr,
-      wback0_en, wback1_en, i0_rob_idx_wb, i1_rob_idx_wb,
+      i0_spec_en, i1_spec_en, i0_state_valid, i1_state_valid,
+      i0_brch_state, i1_brch_state, i0_rd_addr, i1_rd_addr,
+      wback0_en, wback1_en, i0_rob_tag_wb, i1_rob_tag_wb,
       i0_brch_taken_wb, i1_brch_taken_wb, retire0_en, retire1_en);
   pack_obs(gm->eval(s),
-           i0_rob_idx, i1_rob_idx, stall, i0_can_retire, i1_can_retire,
+           i0_rob_tag, i1_rob_tag, stall, i0_can_retire, i1_can_retire,
            rrat0_en, rrat1_en, i0_rd_addr_cmt, i1_rd_addr_cmt,
-           i0_rob_idx_cmt, i1_rob_idx_cmt, rat0_en, rat1_en,
+           i0_rob_tag_cmt, i1_rob_tag_cmt, rat0_en, rat1_en,
            i0_path_sel, i1_path_sel, stb0_en, stb1_en,
            head, tail, occ, active_spec);
 }
@@ -312,9 +326,11 @@ void rob_dpi_commit(
     int i0_is_brnch, int i1_is_brnch,
     int i0_is_store, int i1_is_store,
     int i0_spec_en, int i1_spec_en,
+    int i0_state_valid, int i1_state_valid,
+    int i0_brch_state, int i1_brch_state,
     int i0_rd_addr, int i1_rd_addr,
     int wback0_en, int wback1_en,
-    int i0_rob_idx_wb, int i1_rob_idx_wb,
+    int i0_rob_tag_wb, int i1_rob_tag_wb,
     int i0_brch_taken_wb, int i1_brch_taken_wb,
     int retire0_en, int retire1_en) {
   auto* gm = static_cast<rob_gm::RobGolden*>(h);
@@ -322,8 +338,9 @@ void rob_dpi_commit(
   const rob_gm::Stim s = make_stim(
       flush, alloc0_en, alloc1_en, i0_reg_write, i1_reg_write,
       i0_is_brnch, i1_is_brnch, i0_is_store, i1_is_store,
-      i0_spec_en, i1_spec_en, i0_rd_addr, i1_rd_addr,
-      wback0_en, wback1_en, i0_rob_idx_wb, i1_rob_idx_wb,
+      i0_spec_en, i1_spec_en, i0_state_valid, i1_state_valid,
+      i0_brch_state, i1_brch_state, i0_rd_addr, i1_rd_addr,
+      wback0_en, wback1_en, i0_rob_tag_wb, i1_rob_tag_wb,
       i0_brch_taken_wb, i1_brch_taken_wb, retire0_en, retire1_en);
   gm->apply_negedge(s);
 }

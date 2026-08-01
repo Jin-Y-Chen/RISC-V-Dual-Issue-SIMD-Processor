@@ -11,6 +11,8 @@ Requires Python 3.10+ and the chosen simulator on `PATH`, or
 python sim/run.py doctor
 python sim/run.py --list
 python sim/run.py pc_tb
+python sim/run.py alias_table_tb
+python sim/run.py bypass_tb
 python sim/run.py rename_uvm --test rename_smoke_test
 python sim/run.py clean
 ```
@@ -26,8 +28,8 @@ python sim/run.py rename_uvm --sim questa --test rename_random_test
 sim/
   run.py                 Public control panel
   lib/
-    common.py            Target registry, list/doctor/clean, JSON config
-    xsim.py              Default XSim adapter
+    common.py            Target registry, list/doctor/clean, JSON config, aliases
+    xsim.py              Default XSim adapter (grouped compile log)
     questa.py vcs.py xcelium.py
   filelists/
     uvm/rename.f         UVM rename compile list
@@ -75,6 +77,29 @@ organizational only). `rename_core_struct` is verified via `rename_uvm` only
 ```
 
 Placeholders: `${ROOT}`, `${OUT}`, `${MEM_FILE}`.
+
+### Rename / issue configs
+
+| Target | `dpi_cpp` / extras |
+|--------|-------------------|
+| `alias_table_tb` | `model/s3_rename/alias_table_gm.cpp` + RAT pkg/DUT/shim |
+| `reorder_buffer_tb` | `model/s3_rename/rob_gm.cpp` + ROB units/shim |
+| `bypass_tb` | `bypass_unit` + `rs` pkg |
+| `selector_tb` | `selector_unit` + `rs_issue` |
+| `reservation_station_tb` | RS + `rs_wakeup` / `rs_alloc` |
+
+## Target aliases
+
+| Typed name | Runs |
+|------------|------|
+| `rat_tb` / `allis_table_tb` | `alias_table_tb` |
+| `decode_tb` | `decoder_tb` |
+
+## XSim compile log groups
+
+`xvlog` sources are printed under UVM-style headers (compile order unchanged):
+
+`pkg` · `dut` · `model` · `interface` · `agent` · `env` · `sequence` · `test` · `tb_top`
 
 ## UVM suites
 

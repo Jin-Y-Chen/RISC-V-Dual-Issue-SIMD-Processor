@@ -78,6 +78,14 @@ task automatic tb_field_in_bit(input string label, input logic val);
   $display("  %-16s = %18s", label, $sformatf("%0d", val));
 endtask
 
+// Log clock phase as rising/falling edge instead of raw 0/1.
+task automatic tb_field_in_clk(input logic clk);
+  if (clk)
+    $display("  %-16s = %18s", "clk_edge", "rising (posedge)");
+  else
+    $display("  %-16s = %18s", "clk_edge", "falling (negedge)");
+endtask
+
 task automatic tb_field_in_u32(input string label, input logic [31:0] val);
   $display("  %-16s = %18s", label, $sformatf("0x%08h", val));
 endtask

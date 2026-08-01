@@ -5,7 +5,7 @@ import cache_pkg::*;
 // Instruction cache — dual combinational fetch (see project_outline.txt I$).
 // 0) 32 KiB byte-addressed space; each entry = valid + ILEN=32 LE word (33b).
 // 1) 2-way set-assoc over PC[14:2]: INDEX_W=13, 4096 sets × 2 ways (4 B/entry).
-// 2) Combinational dual read; miss => instr=32'h0 and i*_valid=0.
+// 2) Combinational dual read; miss => instr=32'h0 and valid=0.
 // 3) Sequential miss/refill — not implemented.
 module instruction_cache #(
   parameter integer INDEX_W = PC_INDEX_AW,
@@ -16,15 +16,12 @@ module instruction_cache #(
   input  wire     clk,
   input  wire     rst_n,
 
-  //input data
-  input  word_t   pc0,
-  input  word_t   pc1,
+  //input data (dual-issue slot pair)
+  input  word_t   pc    [2],
 
   //output data
-  output instr_t  instr0,
-  output instr_t  instr1,
-  output logic    i0_valid,
-  output logic    i1_valid
+  output instr_t  instr [2],
+  output logic    valid [2]
 );
 
   // -------------------------------------------------------------------------
@@ -38,29 +35,23 @@ module instruction_cache #(
   // bank[set][way] = {valid, instr[31:0]} — one RV32I word per cell
   reg [DATA_W:0] bank [0:SETS-1][0:WAYS-1];
 
-  wire [15:0] i0_lookup_set;
-  wire [15:0] i0_lookup_way;
-  wire [15:0] i1_lookup_set;
-  wire [15:0] i1_lookup_way;
-  wire [DATA_W:0] i0_entry;
-  wire [DATA_W:0] i1_entry;
-
-  assign i0_lookup_set = pc_set(pc0, WAY_AW, SET_AW);
-  assign i0_lookup_way = pc_way(pc0, WAY_AW);
-  assign i1_lookup_set = pc_set(pc1, WAY_AW, SET_AW);
-  assign i1_lookup_way = pc_way(pc1, WAY_AW);
+  logic [15:0]   lookup_set [2];
+  logic [15:0]   lookup_way [2];
+  logic [DATA_W:0] entry    [2];
 
   // -------------------------------------------------------------------------
   // 2. Combinational dual instruction address read
   // -------------------------------------------------------------------------
   // Independent same-cycle lookups. valid=1 => stored word; valid=0 => MISS_DATA.
-  assign i0_entry = bank[i0_lookup_set][i0_lookup_way];
-  assign i1_entry = bank[i1_lookup_set][i1_lookup_way];
-
-  assign instr0   = cache_way_read(i0_entry, MISS_DATA, DATA_W);
-  assign instr1   = cache_way_read(i1_entry, MISS_DATA, DATA_W);
-  assign i0_valid = i0_entry[DATA_W];
-  assign i1_valid = i1_entry[DATA_W];
+  always_comb begin
+    for (int i = 0; i < N_DUAL; i++) begin
+      lookup_set[i] = pc_set(pc[i], WAY_AW, SET_AW);
+      lookup_way[i] = pc_way(pc[i], WAY_AW);
+      entry[i]      = bank[lookup_set[i]][lookup_way[i]];
+      instr[i]      = cache_way_read(entry[i], MISS_DATA, DATA_W);
+      valid[i]      = entry[i][DATA_W];
+    end
+  end
 
   // Bank clear on reset; TB/external preload until section 3 miss/refill exists.
   integer s;

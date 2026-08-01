@@ -8,6 +8,7 @@ import rv_dis_pkg::*;
 
 module decoder_tb;
 
+  logic        fetch_valid;
   logic [31:0] instr;
 
   logic        valid, lane_sel, brch_en, jump_en, store_en;
@@ -30,41 +31,43 @@ module decoder_tb;
   int fail_cnt;
 
   decoder dut (
-    .instr     (instr),
-    .valid     (valid),
-    .lane_sel  (lane_sel),
-    .brch_en   (brch_en),
-    .jump_en   (jump_en),
-    .store_en  (store_en),
-    .opcode    (opcode),
-    .funct3    (funct3),
-    .funct7    (funct7),
-    .rd_addr   (rd_addr),
-    .rs1_addr  (rs1_addr),
-    .rs2_addr  (rs2_addr),
-    .imm       (imm),
-    .rs1_use   (rs1_use),
-    .rs2_use   (rs2_use),
-    .reg_write (reg_write)
+    .instr       (instr),
+    .fetch_valid (fetch_valid),
+    .valid       (valid),
+    .lane_sel    (lane_sel),
+    .brch_en     (brch_en),
+    .jump_en     (jump_en),
+    .store_en    (store_en),
+    .opcode      (opcode),
+    .funct3      (funct3),
+    .funct7      (funct7),
+    .rd_addr     (rd_addr),
+    .rs1_addr    (rs1_addr),
+    .rs2_addr    (rs2_addr),
+    .imm         (imm),
+    .rs1_use     (rs1_use),
+    .rs2_use     (rs2_use),
+    .reg_write   (reg_write)
   );
 
   decoder_gm u_decoder_gm (
-    .instr     (instr),
-    .valid     (ref_valid),
-    .lane_sel  (ref_lane_sel),
-    .brch_en   (ref_brch_en),
-    .jump_en   (ref_jump_en),
-    .store_en  (ref_store_en),
-    .opcode    (ref_opcode),
-    .funct3    (ref_funct3),
-    .funct7    (ref_funct7),
-    .rd_addr   (ref_rd_addr),
-    .rs1_addr  (ref_rs1_addr),
-    .rs2_addr  (ref_rs2_addr),
-    .imm       (ref_imm),
-    .rs1_use   (ref_rs1_use),
-    .rs2_use   (ref_rs2_use),
-    .reg_write (ref_reg_write)
+    .instr       (instr),
+    .fetch_valid (fetch_valid),
+    .valid       (ref_valid),
+    .lane_sel    (ref_lane_sel),
+    .brch_en     (ref_brch_en),
+    .jump_en     (ref_jump_en),
+    .store_en    (ref_store_en),
+    .opcode      (ref_opcode),
+    .funct3      (ref_funct3),
+    .funct7      (ref_funct7),
+    .rd_addr     (ref_rd_addr),
+    .rs1_addr    (ref_rs1_addr),
+    .rs2_addr    (ref_rs2_addr),
+    .imm         (ref_imm),
+    .rs1_use     (ref_rs1_use),
+    .rs2_use     (ref_rs2_use),
+    .reg_write   (ref_reg_write)
   );
 
   task automatic check_decode(input string name, input string detail);
@@ -114,6 +117,7 @@ module decoder_tb;
   initial begin
     pass_cnt = 0;
     fail_cnt = 0;
+    fetch_valid = 1'b1;
 
     tb_banner("decoder_tb: DUT vs decoder_gm.sv");
 
@@ -163,6 +167,10 @@ module decoder_tb;
 
     run_check(32'hFFFF_FFFF, "bad_opcode", "unknown opcode");
     run_check(32'h0000_0000, "flush_zero", "flush bubble illegal insn");
+
+    fetch_valid = 1'b0;
+    run_check(32'h0046_8613, "fetch_miss", "I$ miss clears valid despite legal addi");
+    fetch_valid = 1'b1;
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

@@ -9,6 +9,7 @@ module ex_mem (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,
+  input  logic        flush,
 
   // internal controls
   input  logic        stall_od0,
@@ -45,11 +46,13 @@ module ex_mem (
   input  word_t       od1_pc_ex,
 
   // output controls
+  output logic        od0_enable_mem,
   output logic        od0_reg_write_mem,
   output logic        od0_brch_taken_mem,
   output logic        od0_mem_en_mem,
   output logic        od0_mem_write_mem,
   output logic        od0_use_link_mem,
+  output logic        od1_enable_mem,
   output logic        od1_reg_write_mem,
   output logic        od1_brch_taken_mem,
   output logic        od1_mem_en_mem,
@@ -76,7 +79,8 @@ module ex_mem (
 );
 
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
+    if (!rst_n || flush) begin
+      od0_enable_mem     <= 1'b0;
       od0_reg_write_mem  <= 1'b0;
       od0_rd_addr_mem    <= '0;
       od0_brch_taken_mem <= 1'b0;
@@ -91,6 +95,7 @@ module ex_mem (
       od0_use_link_mem   <= 1'b0;
       od0_pc_mem         <= 32'd0;
 
+      od1_enable_mem     <= 1'b0;
       od1_reg_write_mem  <= 1'b0;
       od1_rd_addr_mem    <= '0;
       od1_brch_taken_mem <= 1'b0;
@@ -106,12 +111,13 @@ module ex_mem (
       od1_pc_mem         <= 32'd0;
     end else begin
       if (enable && !stall_od0) begin
+        od0_enable_mem     <= od0_enable_ex;
         od0_reg_write_mem  <= od0_enable_ex && od0_reg_write_ex;
-        od0_rd_addr_mem         <= od0_rd_addr_ex;
-        od0_brch_taken_mem <= od0_brch_taken_ex;
+        od0_rd_addr_mem    <= od0_rd_addr_ex;
+        od0_brch_taken_mem <= od0_enable_ex && od0_brch_taken_ex;
         od0_brch_pc_mem    <= od0_brch_pc_ex;
-        od0_mem_en_mem     <= od0_mem_en_ex;
-        od0_mem_write_mem    <= od0_mem_write_ex;
+        od0_mem_en_mem     <= od0_enable_ex && od0_mem_en_ex;
+        od0_mem_write_mem  <= od0_enable_ex && od0_mem_write_ex;
         od0_mem_addr_mem   <= od0_mem_addr_ex;
         od0_mem_wdata_mem  <= od0_mem_wdata_ex;
         od0_mem_besel_mem  <= od0_mem_besel_ex;
@@ -122,12 +128,13 @@ module ex_mem (
       end
 
       if (enable && !stall_od1) begin
+        od1_enable_mem     <= od1_enable_ex;
         od1_reg_write_mem  <= od1_enable_ex && od1_reg_write_ex;
-        od1_rd_addr_mem         <= od1_rd_addr_ex;
-        od1_brch_taken_mem <= od1_brch_taken_ex;
+        od1_rd_addr_mem    <= od1_rd_addr_ex;
+        od1_brch_taken_mem <= od1_enable_ex && od1_brch_taken_ex;
         od1_brch_pc_mem    <= od1_brch_pc_ex;
-        od1_mem_en_mem     <= od1_mem_en_ex;
-        od1_mem_write_mem    <= od1_mem_write_ex;
+        od1_mem_en_mem     <= od1_enable_ex && od1_mem_en_ex;
+        od1_mem_write_mem  <= od1_enable_ex && od1_mem_write_ex;
         od1_mem_addr_mem   <= od1_mem_addr_ex;
         od1_mem_wdata_mem  <= od1_mem_wdata_ex;
         od1_mem_besel_mem  <= od1_mem_besel_ex;

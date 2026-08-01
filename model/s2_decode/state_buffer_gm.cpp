@@ -37,6 +37,8 @@ Obs StateBufferGolden::eval(const Stim& s) const {
   const word_t raw1 = cache_way_read(e1, kDefaultState, kDataW);
 
   Obs o;
+  o.i0_state_valid = (e0 >> kDataW) & 1;
+  o.i1_state_valid = (e1 >> kDataW) & 1;
   o.i0_brch_state = s.i0_brch_en ? static_cast<uint8_t>(raw0 & 3) : kDefaultState;
   o.i1_brch_state = s.i1_brch_en ? static_cast<uint8_t>(raw1 & 3) : kDefaultState;
   return o;
@@ -71,7 +73,8 @@ void sbuf_dpi_reset(void* h) {
 }
 void sbuf_dpi_eval(void* h, int i0_pc, int i1_pc, int i0_brch_en, int i1_brch_en,
                    int i0_valid_wb, int i1_valid_wb, int i0_pc_wb, int i1_pc_wb,
-                   int i0_st_wb, int i1_st_wb, int* i0_st, int* i1_st) {
+                   int i0_st_wb, int i1_st_wb, int* i0_st, int* i1_st, int* i0_sv,
+                   int* i1_sv) {
   auto* g = static_cast<state_buffer_gm::StateBufferGolden*>(h);
   if (!g) return;
   state_buffer_gm::Stim s;
@@ -86,6 +89,8 @@ void sbuf_dpi_eval(void* h, int i0_pc, int i1_pc, int i0_brch_en, int i1_brch_en
   auto o = g->eval(s);
   *i0_st = o.i0_brch_state;
   *i1_st = o.i1_brch_state;
+  *i0_sv = o.i0_state_valid;
+  *i1_sv = o.i1_state_valid;
 }
 void sbuf_dpi_commit(void* h, int i0_valid_wb, int i1_valid_wb, int i0_pc_wb,
                      int i1_pc_wb, int i0_st_wb, int i1_st_wb) {

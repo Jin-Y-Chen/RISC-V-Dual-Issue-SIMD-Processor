@@ -14,6 +14,7 @@ module ex_mem_tb;
   logic clk;
   logic rst_n;
   logic enable;
+  logic flush;
 
   logic stall_od0;
   logic stall_od1;
@@ -51,6 +52,7 @@ module ex_mem_tb;
   logic [31:0] od1_pc_ex;
 
   // --- od0 MEM outputs ---
+  logic        od0_enable_mem;
   logic        od0_reg_write_mem;
   prf_addr_t   od0_rd_addr_mem;
   logic        od0_brch_taken_mem;
@@ -66,6 +68,7 @@ module ex_mem_tb;
   logic [31:0] od0_pc_mem;
 
   // --- od1 MEM outputs ---
+  logic        od1_enable_mem;
   logic        od1_reg_write_mem;
   prf_addr_t   od1_rd_addr_mem;
   logic        od1_brch_taken_mem;
@@ -107,7 +110,7 @@ module ex_mem_tb;
 
   task automatic log_dut_inputs;
     tb_log_section("inputs");
-    tb_field_in_bit("clk",               clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",             rst_n);
     tb_field_in_bit("enable",            enable);
     tb_field_in_bit("stall_od0",         stall_od0);
@@ -215,6 +218,7 @@ module ex_mem_tb;
 
   initial begin
     enable    = 1'b1;
+    flush     = 1'b0;
     stall_od0 = 1'b0;
     stall_od1 = 1'b0;
     pass_cnt  = 0;
@@ -311,9 +315,9 @@ module ex_mem_tb;
     od0_mem_en_ex      = 1'b1;
     od0_pc_ex          = 32'h0000_1040;
     tick();
-    check_od0_mem("enable_gate", "enable=0: reg_write_mem gated, payload still latches",
+    check_od0_mem("enable_gate", "enable_ex=0: controls gated, payload still latches",
                   1'b0, 5'd11, 1'b0, 32'd0,
-                  1'b1, 1'b0, 32'd0, 32'd0, 4'd0, 32'd0, 32'd0, 32'h0000_1040);
+                  1'b0, 1'b0, 32'd0, 32'd0, 4'd0, 32'd0, 32'd0, 32'h0000_1040);
 
     $display("");
     tb_summary(pass_cnt, fail_cnt);

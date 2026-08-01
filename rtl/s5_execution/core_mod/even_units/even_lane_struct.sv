@@ -15,17 +15,12 @@ module even_lane (
   input  word_t       rs2_data,
   input  word_t       imm,
 
-  // output controls
-  output logic        reg_write,
-
   // output data
   output word_t        alu_result
 );
 
   word_t operand_a;
   word_t operand_b;
-
-  assign reg_write = enable && ((opcode == OPC_OP) || (opcode == OPC_OP_IMM));
 
   // OP: rs1 + rs2; OP-IMM: rs1 + imm (only opcodes routed to this lane).
   assign operand_a = rs1_data;

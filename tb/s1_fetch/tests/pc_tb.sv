@@ -108,7 +108,7 @@ module pc_tb;
     tb_report_open(pass, $sformatf("ctrl_%02x", ctrl),
                    $sformatf("ctrl=%0b", ctrl));
     tb_log_section("inputs");
-    tb_field_in_bit("clk",            clk);
+    tb_field_in_clk(clk);
     tb_field_in_bit("rst_n",          rst_n);
     tb_field_in_bit("enable",         enable);
     tb_field_in_bit("dispatch_stall", dispatch_stall);

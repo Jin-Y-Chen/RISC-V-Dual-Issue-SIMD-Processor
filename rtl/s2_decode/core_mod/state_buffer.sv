@@ -16,25 +16,21 @@ module state_buffer #(
   input  logic        clk,
   input  logic        rst_n,
 
-  // input data
-  input  word_t       i0_pc,
-  input  word_t       i1_pc,
-  input  logic        i0_brch_en,
-  input  logic        i1_brch_en,
+  // input data (dual-issue slot pair)
+  input  word_t       pc            [2],
+  input  logic        brch_en       [2],
 
   // writeback controls
-  input  logic        i0_valid_wb,
-  input  logic        i1_valid_wb,
+  input  logic        valid_wb      [2],
 
   // writeback data
-  input  word_t       i0_brch_pc_wb,
-  input  word_t       i1_brch_pc_wb,
-  input  br_state_t   i0_brch_state_wb,
-  input  br_state_t   i1_brch_state_wb,
+  input  word_t       brch_pc_wb    [2],
+  input  br_state_t   brch_state_wb [2],
 
   // output data
-  output br_state_t   i0_brch_state,
-  output br_state_t   i1_brch_state
+  output br_state_t   brch_state  [2],
+  // output controls — bank entry valid (1=trained/hit, 0=miss → DEFAULT_STATE)
+  output logic        state_valid [2]
 );
 
   localparam integer WAY_AW = (WAYS <= 1) ? 0 : $clog2(WAYS);
@@ -43,55 +39,35 @@ module state_buffer #(
 
   reg [32:0] bank [0:SETS-1][0:WAYS-1];
 
-  wire [15:0] i0_lookup_set;
-  wire [15:0] i0_lookup_way;
-  wire [15:0] i1_lookup_set;
-  wire [15:0] i1_lookup_way;
-  wire [15:0] wb0_set;
-  wire [15:0] wb0_way;
-  wire [15:0] wb1_set;
-  wire [15:0] wb1_way;
-
-  wire [32:0] wb0_entry;
-  wire [32:0] wb1_entry;
-  logic [32:0] i0_entry_fwd;
-  logic [32:0] i1_entry_fwd;
-
-  wire [31:0] raw_word0;
-  wire [31:0] raw_word1;
-
-  assign i0_lookup_set = pc_set(i0_pc, WAY_AW, SET_AW);
-  assign i0_lookup_way = pc_way(i0_pc, WAY_AW);
-  assign i1_lookup_set = pc_set(i1_pc, WAY_AW, SET_AW);
-  assign i1_lookup_way = pc_way(i1_pc, WAY_AW);
-  assign wb0_set       = pc_set(i0_brch_pc_wb, WAY_AW, SET_AW);
-  assign wb0_way       = pc_way(i0_brch_pc_wb, WAY_AW);
-  assign wb1_set       = pc_set(i1_brch_pc_wb, WAY_AW, SET_AW);
-  assign wb1_way       = pc_way(i1_brch_pc_wb, WAY_AW);
-  assign wb0_entry     = cache_set_write(1'b1, {30'd0, i0_brch_state_wb}, DATA_W);
-  assign wb1_entry     = cache_set_write(1'b1, {30'd0, i1_brch_state_wb}, DATA_W);
+  logic [15:0] lookup_set [2];
+  logic [15:0] lookup_way [2];
+  logic [15:0] wb_set     [2];
+  logic [15:0] wb_way     [2];
+  logic [32:0] wb_entry   [2];
+  logic [32:0] entry_fwd  [2];
+  logic [31:0] raw_word   [2];
 
   // always_comb (not assign+function): XSim must see bank + WB sensitivity.
   always_comb begin
-    i0_entry_fwd = bank[i0_lookup_set][i0_lookup_way];
-    if (i0_valid_wb && (wb0_set == i0_lookup_set) && (wb0_way == i0_lookup_way))
-      i0_entry_fwd = wb0_entry;
-    else if (i1_valid_wb && (wb1_set == i0_lookup_set) && (wb1_way == i0_lookup_way))
-      i0_entry_fwd = wb1_entry;
+    for (int i = 0; i < N_DUAL; i++) begin
+      lookup_set[i] = pc_set(pc[i], WAY_AW, SET_AW);
+      lookup_way[i] = pc_way(pc[i], WAY_AW);
+      wb_set[i]     = pc_set(brch_pc_wb[i], WAY_AW, SET_AW);
+      wb_way[i]     = pc_way(brch_pc_wb[i], WAY_AW);
+      wb_entry[i]   = cache_set_write(1'b1, {30'd0, brch_state_wb[i]}, DATA_W);
+    end
 
-    i1_entry_fwd = bank[i1_lookup_set][i1_lookup_way];
-    if (i0_valid_wb && (wb0_set == i1_lookup_set) && (wb0_way == i1_lookup_way))
-      i1_entry_fwd = wb0_entry;
-    else if (i1_valid_wb && (wb1_set == i1_lookup_set) && (wb1_way == i1_lookup_way))
-      i1_entry_fwd = wb1_entry;
-  end
+    for (int i = 0; i < N_DUAL; i++) begin
+      entry_fwd[i] = bank[lookup_set[i]][lookup_way[i]];
+      if (valid_wb[0] && (wb_set[0] == lookup_set[i]) && (wb_way[0] == lookup_way[i]))
+        entry_fwd[i] = wb_entry[0];
+      else if (valid_wb[1] && (wb_set[1] == lookup_set[i]) && (wb_way[1] == lookup_way[i]))
+        entry_fwd[i] = wb_entry[1];
 
-  assign raw_word0 = cache_way_read(i0_entry_fwd, {30'd0, DEFAULT_STATE}, DATA_W);
-  assign raw_word1 = cache_way_read(i1_entry_fwd, {30'd0, DEFAULT_STATE}, DATA_W);
-
-  always_comb begin
-    i0_brch_state = i0_brch_en ? raw_word0[1:0] : DEFAULT_STATE;
-    i1_brch_state = i1_brch_en ? raw_word1[1:0] : DEFAULT_STATE;
+      raw_word[i]     = cache_way_read(entry_fwd[i], {30'd0, DEFAULT_STATE}, DATA_W);
+      state_valid[i]  = entry_fwd[i][DATA_W];
+      brch_state[i]   = brch_en[i] ? raw_word[i][1:0] : DEFAULT_STATE;
+    end
   end
 
   integer s;
@@ -104,10 +80,10 @@ module state_buffer #(
         end
       end
     end else begin
-      if (i0_valid_wb)
-        bank[wb0_set][wb0_way] <= wb0_entry;
-      if (i1_valid_wb)
-        bank[wb1_set][wb1_way] <= wb1_entry;
+      if (valid_wb[0])
+        bank[wb_set[0]][wb_way[0]] <= wb_entry[0];
+      if (valid_wb[1])
+        bank[wb_set[1]][wb_way[1]] <= wb_entry[1];
     end
   end
 

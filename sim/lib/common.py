@@ -24,6 +24,8 @@ UVM_SUITES: dict[str, dict[str, str]] = {
 # Common typos / short names → real directed top (project.f *_tb.sv stem).
 TARGET_ALIASES: dict[str, str] = {
     "decode_tb": "decoder_tb",
+    "rat_tb": "alias_table_tb",
+    "allis_table_tb": "alias_table_tb",
 }
 
 

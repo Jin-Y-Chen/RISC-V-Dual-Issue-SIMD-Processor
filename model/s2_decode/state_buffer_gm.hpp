@@ -24,6 +24,8 @@ struct Stim {
 struct Obs {
   uint8_t i0_brch_state = kDefaultState;
   uint8_t i1_brch_state = kDefaultState;
+  bool    i0_state_valid = false;
+  bool    i1_state_valid = false;
 };
 
 class StateBufferGolden {
@@ -47,7 +49,8 @@ void  sbuf_dpi_destroy(void* h);
 void  sbuf_dpi_reset(void* h);
 void  sbuf_dpi_eval(void* h, int i0_pc, int i1_pc, int i0_brch_en, int i1_brch_en,
                     int i0_valid_wb, int i1_valid_wb, int i0_pc_wb, int i1_pc_wb,
-                    int i0_st_wb, int i1_st_wb, int* i0_st, int* i1_st);
+                    int i0_st_wb, int i1_st_wb, int* i0_st, int* i1_st, int* i0_sv,
+                    int* i1_sv);
 void  sbuf_dpi_commit(void* h, int i0_valid_wb, int i1_valid_wb, int i0_pc_wb,
                       int i1_pc_wb, int i0_st_wb, int i1_st_wb);
 }

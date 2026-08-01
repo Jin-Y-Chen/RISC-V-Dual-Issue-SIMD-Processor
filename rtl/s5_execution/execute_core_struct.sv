@@ -1,132 +1,79 @@
 `timescale 1ns / 1ps
 
 // S5 execute — four combinational lanes (RS / PRF / dp_ex live in S4 issue).
+// Even/odd EX ports are [2] arrays: index 0 = first port, index 1 = second.
 // Operands arrive ready; this stage only computes ALU / branch / mem address.
 import rv_dis_pkg::*;
 
 module s4_execute_struct (
-  input  logic        ev0_enable_ex,
-  input  opcode_t     ev0_opcode_ex,
-  input  funct3_t     ev0_funct3_ex,
-  input  funct7_t     ev0_funct7_ex,
-  input  word_t       ev0_imm_ex,
-  input  word_t       ev0_rs1_data_ex,
-  input  word_t       ev0_rs2_data_ex,
+  input  logic        ev_enable_ex   [2],
+  input  opcode_t     ev_opcode_ex   [2],
+  input  funct3_t     ev_funct3_ex   [2],
+  input  funct7_t     ev_funct7_ex   [2],
+  input  word_t       ev_imm_ex      [2],
+  input  word_t       ev_rs1_data_ex [2],
+  input  word_t       ev_rs2_data_ex [2],
 
-  input  logic        ev1_enable_ex,
-  input  opcode_t     ev1_opcode_ex,
-  input  funct3_t     ev1_funct3_ex,
-  input  funct7_t     ev1_funct7_ex,
-  input  word_t       ev1_imm_ex,
-  input  word_t       ev1_rs1_data_ex,
-  input  word_t       ev1_rs2_data_ex,
+  input  logic        od_enable_ex   [2],
+  input  opcode_t     od_opcode_ex   [2],
+  input  funct3_t     od_funct3_ex   [2],
+  input  word_t       od_imm_ex      [2],
+  input  word_t       od_pc_ex       [2],
+  input  word_t       od_rs1_data_ex [2],
+  input  word_t       od_rs2_data_ex [2],
 
-  input  logic        od0_enable_ex,
-  input  opcode_t     od0_opcode_ex,
-  input  funct3_t     od0_funct3_ex,
-  input  word_t       od0_imm_ex,
-  input  word_t       od0_pc_ex,
-  input  word_t       od0_rs1_data_ex,
-  input  word_t       od0_rs2_data_ex,
+  output logic        od_use_link_ex [2],
+  output logic        od_brch_taken  [2],
+  output logic        od_mem_en      [2],
+  output logic        od_mem_write   [2],
 
-  input  logic        od1_enable_ex,
-  input  opcode_t     od1_opcode_ex,
-  input  funct3_t     od1_funct3_ex,
-  input  word_t       od1_imm_ex,
-  input  word_t       od1_pc_ex,
-  input  word_t       od1_rs1_data_ex,
-  input  word_t       od1_rs2_data_ex,
-
-  output logic        od0_use_link_ex,
-  output logic        od1_use_link_ex,
-  output logic        od0_brch_taken,
-  output logic        od0_mem_en,
-  output logic        od0_mem_write,
-  output logic        od1_brch_taken,
-  output logic        od1_mem_en,
-  output logic        od1_mem_write,
-
-  output word_t       ev0_alu_result,
-  output word_t       ev1_alu_result,
-  output word_t       od0_brch_pc,
-  output word_t       od0_mem_addr,
-  output word_t       od0_mem_wdata,
-  output mem_besel_t  od0_mem_besel,
-  output word_t       od0_link_pc,
-  output word_t       od0_alu_result,
-  output word_t       od1_brch_pc,
-  output word_t       od1_mem_addr,
-  output word_t       od1_mem_wdata,
-  output mem_besel_t  od1_mem_besel,
-  output word_t       od1_link_pc,
-  output word_t       od1_alu_result
+  output word_t       ev_alu_result  [2],
+  output word_t       od_brch_pc     [2],
+  output word_t       od_mem_addr    [2],
+  output word_t       od_mem_wdata   [2],
+  output mem_besel_t  od_mem_besel   [2],
+  output word_t       od_link_pc     [2],
+  output word_t       od_alu_result  [2]
 );
 
-  assign od0_use_link_ex = od0_enable_ex &&
-                           ((od0_opcode_ex == OPC_JAL) || (od0_opcode_ex == OPC_JALR));
-  assign od1_use_link_ex = od1_enable_ex &&
-                           ((od1_opcode_ex == OPC_JAL) || (od1_opcode_ex == OPC_JALR));
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_od_link
+    assign od_use_link_ex[i] = od_enable_ex[i] &&
+                               ((od_opcode_ex[i] == OPC_JAL) ||
+                                (od_opcode_ex[i] == OPC_JALR));
+  end
 
-  even_lane u_ev0 (
-    .enable     (ev0_enable_ex),
-    .opcode     (ev0_opcode_ex),
-    .funct3     (ev0_funct3_ex),
-    .funct7     (ev0_funct7_ex),
-    .rs1_data   (ev0_rs1_data_ex),
-    .rs2_data   (ev0_rs2_data_ex),
-    .imm        (ev0_imm_ex),
-    .reg_write  (),
-    .alu_result (ev0_alu_result)
-  );
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_ev
+    even_lane u_ev (
+      .enable     (ev_enable_ex[i]),
+      .opcode     (ev_opcode_ex[i]),
+      .funct3     (ev_funct3_ex[i]),
+      .funct7     (ev_funct7_ex[i]),
+      .rs1_data   (ev_rs1_data_ex[i]),
+      .rs2_data   (ev_rs2_data_ex[i]),
+      .imm        (ev_imm_ex[i]),
+      .alu_result (ev_alu_result[i])
+    );
+  end
 
-  even_lane u_ev1 (
-    .enable     (ev1_enable_ex),
-    .opcode     (ev1_opcode_ex),
-    .funct3     (ev1_funct3_ex),
-    .funct7     (ev1_funct7_ex),
-    .rs1_data   (ev1_rs1_data_ex),
-    .rs2_data   (ev1_rs2_data_ex),
-    .imm        (ev1_imm_ex),
-    .reg_write  (),
-    .alu_result (ev1_alu_result)
-  );
-
-  odd_lane u_od0 (
-    .enable     (od0_enable_ex),
-    .opcode     (od0_opcode_ex),
-    .funct3     (od0_funct3_ex),
-    .rs1_data   (od0_rs1_data_ex),
-    .rs2_data   (od0_rs2_data_ex),
-    .imm        (od0_imm_ex),
-    .pc         (od0_pc_ex),
-    .brch_taken (od0_brch_taken),
-    .mem_en     (od0_mem_en),
-    .mem_write  (od0_mem_write),
-    .brch_pc    (od0_brch_pc),
-    .mem_addr   (od0_mem_addr),
-    .mem_wdata  (od0_mem_wdata),
-    .mem_besel  (od0_mem_besel),
-    .link_pc    (od0_link_pc),
-    .reg_wdata  (od0_alu_result)
-  );
-
-  odd_lane u_od1 (
-    .enable     (od1_enable_ex),
-    .opcode     (od1_opcode_ex),
-    .funct3     (od1_funct3_ex),
-    .rs1_data   (od1_rs1_data_ex),
-    .rs2_data   (od1_rs2_data_ex),
-    .imm        (od1_imm_ex),
-    .pc         (od1_pc_ex),
-    .brch_taken (od1_brch_taken),
-    .mem_en     (od1_mem_en),
-    .mem_write  (od1_mem_write),
-    .brch_pc    (od1_brch_pc),
-    .mem_addr   (od1_mem_addr),
-    .mem_wdata  (od1_mem_wdata),
-    .mem_besel  (od1_mem_besel),
-    .link_pc    (od1_link_pc),
-    .reg_wdata  (od1_alu_result)
-  );
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_od
+    odd_lane u_od (
+      .enable     (od_enable_ex[i]),
+      .opcode     (od_opcode_ex[i]),
+      .funct3     (od_funct3_ex[i]),
+      .rs1_data   (od_rs1_data_ex[i]),
+      .rs2_data   (od_rs2_data_ex[i]),
+      .imm        (od_imm_ex[i]),
+      .pc         (od_pc_ex[i]),
+      .brch_taken (od_brch_taken[i]),
+      .mem_en     (od_mem_en[i]),
+      .mem_write  (od_mem_write[i]),
+      .brch_pc    (od_brch_pc[i]),
+      .mem_addr   (od_mem_addr[i]),
+      .mem_wdata  (od_mem_wdata[i]),
+      .mem_besel  (od_mem_besel[i]),
+      .link_pc    (od_link_pc[i]),
+      .reg_wdata  (od_alu_result[i])
+    );
+  end
 
 endmodule

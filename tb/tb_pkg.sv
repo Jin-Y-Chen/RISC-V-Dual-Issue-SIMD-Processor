@@ -15,20 +15,22 @@ package tb_pkg;
     logic      i0_is_brnch, i1_is_brnch;
     logic      i0_is_store, i1_is_store;
     logic      i0_spec_en, i1_spec_en;
+    logic      i0_state_valid, i1_state_valid;
+    br_state_t i0_brch_state, i1_brch_state;
     gpr_addr_t i0_rd_addr, i1_rd_addr;
     logic      wback0_en, wback1_en;
-    prf_addr_t i0_rob_idx_wb, i1_rob_idx_wb;
+    prf_addr_t i0_rob_tag_wb, i1_rob_tag_wb;
     logic      i0_brch_taken_wb, i1_brch_taken_wb;
     logic      retire0_en, retire1_en;
   } rob_stim_t;
 
   typedef struct packed {
-    prf_addr_t  i0_rob_idx, i1_rob_idx;
+    prf_addr_t  i0_rob_tag, i1_rob_tag;
     logic       stall;
     logic       i0_can_retire, i1_can_retire;
     logic       rrat0_en, rrat1_en;
     gpr_addr_t  i0_rd_addr_cmt, i1_rd_addr_cmt;
-    prf_addr_t  i0_rob_idx_cmt, i1_rob_idx_cmt;
+    prf_addr_t  i0_rob_tag_cmt, i1_rob_tag_cmt;
     logic       rat0_en, rat1_en;
     logic       i0_path_sel, i1_path_sel;
     logic       stb0_en, stb1_en;
@@ -78,7 +80,7 @@ package tb_pkg;
       o.rrat0_en, o.rrat1_en, o.rat0_en, o.rat1_en,
       o.stb0_en, o.stb1_en,
       o.i0_rd_addr_cmt, o.i1_rd_addr_cmt,
-      o.i0_rob_idx_cmt, o.i1_rob_idx_cmt,
+      o.i0_rob_tag_cmt, o.i1_rob_tag_cmt,
       o.head, o.tail, o.occ, o.active_spec);
   endfunction
 
@@ -97,15 +99,17 @@ package tb_pkg;
       int'(s.i0_is_brnch), int'(s.i1_is_brnch),
       int'(s.i0_is_store), int'(s.i1_is_store),
       int'(s.i0_spec_en), int'(s.i1_spec_en),
+      int'(s.i0_state_valid), int'(s.i1_state_valid),
+      int'(s.i0_brch_state), int'(s.i1_brch_state),
       int'(s.i0_rd_addr), int'(s.i1_rd_addr),
       int'(s.wback0_en), int'(s.wback1_en),
-      int'(s.i0_rob_idx_wb), int'(s.i1_rob_idx_wb),
+      int'(s.i0_rob_tag_wb), int'(s.i1_rob_tag_wb),
       int'(s.i0_brch_taken_wb), int'(s.i1_brch_taken_wb),
       int'(s.retire0_en), int'(s.retire1_en),
       i0i, i1i, st, c0, c1, r0, r1, rd0, rd1, ci0, ci1,
       ra0, ra1, ps0, ps1, s0, s1, hd, tl, oc, sp);
-    o.i0_rob_idx     = prf_addr_t'(i0i);
-    o.i1_rob_idx     = prf_addr_t'(i1i);
+    o.i0_rob_tag     = prf_addr_t'(i0i);
+    o.i1_rob_tag     = prf_addr_t'(i1i);
     o.stall          = st[0];
     o.i0_can_retire  = c0[0];
     o.i1_can_retire  = c1[0];
@@ -113,8 +117,8 @@ package tb_pkg;
     o.rrat1_en       = r1[0];
     o.i0_rd_addr_cmt = gpr_addr_t'(rd0);
     o.i1_rd_addr_cmt = gpr_addr_t'(rd1);
-    o.i0_rob_idx_cmt = prf_addr_t'(ci0);
-    o.i1_rob_idx_cmt = prf_addr_t'(ci1);
+    o.i0_rob_tag_cmt = prf_addr_t'(ci0);
+    o.i1_rob_tag_cmt = prf_addr_t'(ci1);
     o.rat0_en        = ra0[0];
     o.rat1_en        = ra1[0];
     o.i0_path_sel    = ps0[0];
@@ -136,9 +140,11 @@ package tb_pkg;
       int'(s.i0_is_brnch), int'(s.i1_is_brnch),
       int'(s.i0_is_store), int'(s.i1_is_store),
       int'(s.i0_spec_en), int'(s.i1_spec_en),
+      int'(s.i0_state_valid), int'(s.i1_state_valid),
+      int'(s.i0_brch_state), int'(s.i1_brch_state),
       int'(s.i0_rd_addr), int'(s.i1_rd_addr),
       int'(s.wback0_en), int'(s.wback1_en),
-      int'(s.i0_rob_idx_wb), int'(s.i1_rob_idx_wb),
+      int'(s.i0_rob_tag_wb), int'(s.i1_rob_tag_wb),
       int'(s.i0_brch_taken_wb), int'(s.i1_brch_taken_wb),
       int'(s.retire0_en), int'(s.retire1_en));
   endtask

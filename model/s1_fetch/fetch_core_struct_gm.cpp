@@ -40,8 +40,9 @@ Obs FetchCoreGolden::eval(const Stim& s) {
   sel.i1_brch_recover = s.i1_brch_recover;
   sel.pc0_in = o.pc0;
   sel.pc1_in = o.pc1;
-  sel.i0_pc_target = o.i0_pc_target;
-  sel.i1_pc_target = o.i1_pc_target;
+  // Same contract as RTL: steer with decode predict target (pc_target_wb), not BTB lookup
+  sel.i0_pc_target = s.i0_pc_target_wb;
+  sel.i1_pc_target = s.i1_pc_target_wb;
   sel.i0_pc_execute = s.i0_pc_execute;
   sel.i1_pc_execute = s.i1_pc_execute;
   auto sel_o = pc_selector_gm::eval(sel);
@@ -57,19 +58,8 @@ Obs FetchCoreGolden::eval(const Stim& s) {
 }
 
 void FetchCoreGolden::apply_posedge(const Stim& s) {
-  auto o = eval(s);
   pc_selector_gm::Stim sel;
   auto pc_o = pc_.eval();
-  target_buffer_gm::Stim btb_s;
-  btb_s.i0_pc = pc_o.pc0_out;
-  btb_s.i1_pc = pc_o.pc1_out;
-  btb_s.i0_valid_wb = s.i0_valid_wb;
-  btb_s.i1_valid_wb = s.i1_valid_wb;
-  btb_s.i0_pc_wb = s.i0_pc_wb;
-  btb_s.i1_pc_wb = s.i1_pc_wb;
-  btb_s.i0_pc_target_wb = s.i0_pc_target_wb;
-  btb_s.i1_pc_target_wb = s.i1_pc_target_wb;
-  auto btb_o = btb_.eval(btb_s);
   sel.spec0_in = pc_o.spec0_out;
   sel.spec1_in = pc_o.spec1_out;
   sel.i0_pred_taken = s.i0_pred_taken;
@@ -78,8 +68,8 @@ void FetchCoreGolden::apply_posedge(const Stim& s) {
   sel.i1_brch_recover = s.i1_brch_recover;
   sel.pc0_in = pc_o.pc0_out;
   sel.pc1_in = pc_o.pc1_out;
-  sel.i0_pc_target = btb_o.i0_pc_target;
-  sel.i1_pc_target = btb_o.i1_pc_target;
+  sel.i0_pc_target = s.i0_pc_target_wb;
+  sel.i1_pc_target = s.i1_pc_target_wb;
   sel.i0_pc_execute = s.i0_pc_execute;
   sel.i1_pc_execute = s.i1_pc_execute;
   auto sel_o = pc_selector_gm::eval(sel);
@@ -95,7 +85,6 @@ void FetchCoreGolden::apply_posedge(const Stim& s) {
   ps.pc0_in = sel_o.pc0_out;
   ps.pc1_in = sel_o.pc1_out;
   pc_.apply_posedge(ps);
-  (void)o;
 }
 
 void FetchCoreGolden::apply_negedge(const Stim& s) {

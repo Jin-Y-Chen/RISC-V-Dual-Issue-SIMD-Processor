@@ -13,6 +13,9 @@ class rename_base_seq extends uvm_sequence #(rename_req_item);
       t.lane_sel[i] = 0;
       t.reg_write[i] = 0;
       t.store_en[i] = 0;
+      t.brch_en[i] = 0;
+      t.state_valid[i] = 0;
+      t.brch_state[i] = '0;
       t.rs1_use[i] = 0;
       t.rs2_use[i] = 0;
       t.opcode[i] = '0;
@@ -193,11 +196,9 @@ class rename_wb_base_seq extends uvm_sequence #(rename_wb_item);
     start_item(t);
     foreach (t.wback_en[i]) begin
       t.wback_en[i] = 0;
-      t.rob_idx[i] = '0;
+      t.rob_tag[i] = '0;
       t.branch_taken[i] = 0;
     end
-    t.resolve_en = 0;
-    t.resolve_mispred = 0;
     finish_item(t);
   endtask
 
@@ -206,12 +207,10 @@ class rename_wb_base_seq extends uvm_sequence #(rename_wb_item);
     start_item(t);
     t.wback_en[0] = 1;
     t.wback_en[1] = 1;
-    t.rob_idx[0] = prf_addr_t'({1'b1, 5'((pair * 2) % ROB_DEPTH)});
-    t.rob_idx[1] = prf_addr_t'({1'b1, 5'((pair * 2 + 1) % ROB_DEPTH)});
+    t.rob_tag[0] = prf_addr_t'({1'b1, 5'((pair * 2) % ROB_DEPTH)});
+    t.rob_tag[1] = prf_addr_t'({1'b1, 5'((pair * 2 + 1) % ROB_DEPTH)});
     t.branch_taken[0] = branch_taken;
     t.branch_taken[1] = 0;
-    t.resolve_en = 0;
-    t.resolve_mispred = 0;
     finish_item(t);
   endtask
 endclass

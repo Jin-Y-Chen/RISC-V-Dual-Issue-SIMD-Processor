@@ -1,9 +1,7 @@
 class rename_wb_item extends rv_base_seq_item;
   rand bit         wback_en[2];
-  rand prf_addr_t  rob_idx[2];
+  rand prf_addr_t  rob_tag[2];
   rand bit         branch_taken[2];
-  rand bit         resolve_en;
-  rand bit         resolve_mispred;
 
   logic            rst_n;
   logic            flush;
@@ -11,11 +9,6 @@ class rename_wb_item extends rv_base_seq_item;
   logic            retire_en[2];
   gpr_addr_t       commit_rd[2];
   prf_addr_t       commit_prd[2];
-
-  constraint c_resolve {
-    resolve_en dist {0 := 95, 1 := 5};
-    !resolve_en -> resolve_mispred == 0;
-  }
 
   `uvm_object_utils(rename_wb_item)
 
@@ -61,25 +54,19 @@ class rename_wb_driver extends rv_base_driver #(rename_wb_item);
   endtask
 
   task drive_idle();
-    vif.wb_drv_cb.wback0_en            <= 1'b0;
-    vif.wb_drv_cb.wback1_en            <= 1'b0;
-    vif.wb_drv_cb.i0_rob_idx_wb            <= '0;
-    vif.wb_drv_cb.i1_rob_idx_wb            <= '0;
-    vif.wb_drv_cb.i0_brch_taken_wb     <= 1'b0;
-    vif.wb_drv_cb.i1_brch_taken_wb     <= 1'b0;
-    vif.wb_drv_cb.resolve_en           <= 1'b0;
-    vif.wb_drv_cb.resolve_mispred      <= 1'b0;
+    foreach (vif.wb_drv_cb.wback_en[i]) begin
+      vif.wb_drv_cb.wback_en[i]      <= 1'b0;
+      vif.wb_drv_cb.rob_tag_wb[i]    <= '0;
+      vif.wb_drv_cb.brch_taken_wb[i] <= 1'b0;
+    end
   endtask
 
   task drive(rename_wb_item t);
-    vif.wb_drv_cb.wback0_en            <= t.wback_en[0];
-    vif.wb_drv_cb.wback1_en            <= t.wback_en[1];
-    vif.wb_drv_cb.i0_rob_idx_wb            <= t.rob_idx[0];
-    vif.wb_drv_cb.i1_rob_idx_wb            <= t.rob_idx[1];
-    vif.wb_drv_cb.i0_brch_taken_wb     <= t.branch_taken[0];
-    vif.wb_drv_cb.i1_brch_taken_wb     <= t.branch_taken[1];
-    vif.wb_drv_cb.resolve_en           <= t.resolve_en;
-    vif.wb_drv_cb.resolve_mispred      <= t.resolve_mispred;
+    foreach (t.wback_en[i]) begin
+      vif.wb_drv_cb.wback_en[i]      <= t.wback_en[i];
+      vif.wb_drv_cb.rob_tag_wb[i]    <= t.rob_tag[i];
+      vif.wb_drv_cb.brch_taken_wb[i] <= t.branch_taken[i];
+    end
   endtask
 endclass
 
@@ -98,22 +85,11 @@ class rename_wb_monitor extends rv_base_monitor #(rename_wb_item);
       t = rename_wb_item::type_id::create("t");
       t.rst_n = vif.mon_cb.rst_n;
       t.flush = vif.mon_cb.flush;
-      t.wback_en[0] = vif.mon_cb.wback0_en;
-      t.wback_en[1] = vif.mon_cb.wback1_en;
-      t.rob_idx[0] = vif.mon_cb.i0_rob_idx_wb;
-      t.rob_idx[1] = vif.mon_cb.i1_rob_idx_wb;
-      t.branch_taken[0] = vif.mon_cb.i0_brch_taken_wb;
-      t.branch_taken[1] = vif.mon_cb.i1_brch_taken_wb;
-      t.resolve_en = vif.mon_cb.resolve_en;
-      t.resolve_mispred = vif.mon_cb.resolve_mispred;
-      t.commit_en[0] = vif.mon_cb.rrat0_en;
-      t.commit_en[1] = vif.mon_cb.rrat1_en;
-      t.commit_rd[0] = vif.mon_cb.i0_rd_addr_cmt;
-      t.commit_rd[1] = vif.mon_cb.i1_rd_addr_cmt;
-      t.commit_prd[0] = vif.mon_cb.i0_rob_idx_cmt;
-      t.commit_prd[1] = vif.mon_cb.i1_rob_idx_cmt;
-      t.retire_en[0] = vif.mon_cb.retire0_en;
-      t.retire_en[1] = vif.mon_cb.retire1_en;
+      foreach (t.wback_en[i]) begin
+        t.wback_en[i]     = vif.mon_cb.wback_en[i];
+        t.rob_tag[i]      = vif.mon_cb.rob_tag_wb[i];
+        t.branch_taken[i] = vif.mon_cb.brch_taken_wb[i];
+      end
       ap.write(t);
     end
   endtask

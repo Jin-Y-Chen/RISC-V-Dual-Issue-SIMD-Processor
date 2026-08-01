@@ -1,10 +1,11 @@
 `timescale 1ns / 1ps
 
 // S2 decode structure — dual decoder + state_buffer + per-lane target_predict.
-// IF/ID supplies instr/PC/pc_target, slot valid, and per-lane spec0/spec1 enables.
+// All slot-indexed ports are [2] arrays: index 0 = I0, index 1 = I1.
+// IF/ID supplies instr/PC/pc_target, slot valid, and per-lane spec_en_id.
 // No register-file access here: decode exports rs*/rd addresses and use flags only;
 // GPR read/write lives in the issue stage.
-// Nested-speculation freeze (i*_nest_spec_stall) is produced by target_predict for PC.
+// Nested-speculation freeze (nest_spec_stall) is produced by target_predict for PC.
 import rv_dis_pkg::*;
 
 module s2_decode_struct (
@@ -12,166 +13,104 @@ module s2_decode_struct (
   input  logic        clk,
   input  logic        rst_n,
 
-  // IF/ID controls (slot valid + per-lane speculation from if_id)
-  input  logic        i0_valid_id,
-  input  logic        i1_valid_id,
-  input  logic        spec0_en_id,
-  input  logic        spec1_en_id,
+  // IF/ID controls (I$ hit + per-lane speculation from if_id)
+  input  logic        fetch_valid_id  [2],
+  input  logic        spec_en_id      [2],
 
   // IF/ID data
-  input  instr_t      i0_instr_id,
-  input  instr_t      i1_instr_id,
-  input  word_t       i0_pc_id,
-  input  word_t       i1_pc_id,
-  input  word_t       i0_pc_target_id,
-  input  word_t       i1_pc_target_id,
-  input  logic        i0_target_valid_id,
-  input  logic        i1_target_valid_id,
+  input  instr_t      instr_id        [2],
+  input  word_t       pc_id           [2],
+  input  word_t       pc_target_id    [2],
+  input  logic        target_valid_id [2],
 
   // branch-state writeback (MEM resolve → state_buffer train)
-  input  logic        i0_brch_valid_wb,
-  input  logic        i1_brch_valid_wb,
-  input  word_t       i0_brch_pc_wb,
-  input  word_t       i1_brch_pc_wb,
-  input  br_state_t   i0_brch_state_wb,
-  input  br_state_t   i1_brch_state_wb,
+  input  logic        brch_valid_wb   [2],
+  input  word_t       brch_pc_wb      [2],
+  input  br_state_t   brch_state_wb   [2],
 
   // decode outputs — data (addresses / immediate only; no GPR operands)
-  output logic        i0_lane_sel,
-  output opcode_t     i0_opcode,
-  output funct3_t     i0_funct3,
-  output funct7_t     i0_funct7,
-  output gpr_addr_t   i0_rd_addr,
-  output gpr_addr_t   i0_rs1_addr,
-  output gpr_addr_t   i0_rs2_addr,
-  output word_t       i0_imm,
-  output logic        i1_lane_sel,
-  output opcode_t     i1_opcode,
-  output funct3_t     i1_funct3,
-  output funct7_t     i1_funct7,
-  output gpr_addr_t   i1_rd_addr,
-  output gpr_addr_t   i1_rs1_addr,
-  output gpr_addr_t   i1_rs2_addr,
-  output word_t       i1_imm,
+  output logic        lane_sel        [2],
+  output opcode_t     opcode          [2],
+  output funct3_t     funct3          [2],
+  output funct7_t     funct7          [2],
+  output gpr_addr_t   rd_addr         [2],
+  output gpr_addr_t   rs1_addr        [2],
+  output gpr_addr_t   rs2_addr        [2],
+  output word_t       imm             [2],
 
   // decode outputs — controls
-  output logic        i0_valid,
-  output logic        i0_brch_en,
-  output logic        i0_jump_en,
-  output logic        i0_store_en,
-  output logic        i0_rs1_use,
-  output logic        i0_rs2_use,
-  output logic        i0_reg_write,
-  output logic        i1_valid,
-  output logic        i1_brch_en,
-  output logic        i1_jump_en,
-  output logic        i1_store_en,
-  output logic        i1_rs1_use,
-  output logic        i1_rs2_use,
-  output logic        i1_reg_write,
+  output logic        valid           [2],
+  output logic        brch_en         [2],
+  output logic        store_en        [2],
+  output logic        rs1_use         [2],
+  output logic        rs2_use         [2],
+  output logic        reg_write       [2],
 
   // branch predict outputs (nest_spec_stall → fetch PC)
-  output br_state_t   i0_brch_state,
-  output br_state_t   i1_brch_state,
-  output word_t       i0_pc_predict,
-  output word_t       i1_pc_predict,
-  output logic        i0_pred_taken,
-  output logic        i1_pred_taken,
-  output logic        i0_pred_valid_wb,
-  output logic        i1_pred_valid_wb,
-  output logic        i0_nest_spec_stall,
-  output logic        i1_nest_spec_stall
+  output br_state_t   brch_state      [2],
+  output logic        state_valid     [2],
+  output word_t       pc_predict      [2],
+  output logic        pred_taken      [2],
+  output logic        pred_valid_wb   [2],
+  output logic        nest_spec_stall [2]
 );
 
-  // -------------------------------------------------------------------------
-  // Decoders
-  // -------------------------------------------------------------------------
-  decoder u_dec_i0 (
-    .instr     (i0_instr_id),
-    .lane_sel  (i0_lane_sel),
-    .brch_en   (i0_brch_en),
-    .jump_en   (i0_jump_en),
-    .store_en  (i0_store_en),
-    .opcode    (i0_opcode),
-    .funct3    (i0_funct3),
-    .funct7    (i0_funct7),
-    .rd_addr   (i0_rd_addr),
-    .rs1_addr  (i0_rs1_addr),
-    .rs2_addr  (i0_rs2_addr),
-    .imm       (i0_imm),
-    .valid     (i0_valid),
-    .rs1_use   (i0_rs1_use),
-    .rs2_use   (i0_rs2_use),
-    .reg_write (i0_reg_write)
-  );
-
-  decoder u_dec_i1 (
-    .instr     (i1_instr_id),
-    .lane_sel  (i1_lane_sel),
-    .brch_en   (i1_brch_en),
-    .jump_en   (i1_jump_en),
-    .store_en  (i1_store_en),
-    .opcode    (i1_opcode),
-    .funct3    (i1_funct3),
-    .funct7    (i1_funct7),
-    .rd_addr   (i1_rd_addr),
-    .rs1_addr  (i1_rs1_addr),
-    .rs2_addr  (i1_rs2_addr),
-    .imm       (i1_imm),
-    .valid     (i1_valid),
-    .rs1_use   (i1_rs1_use),
-    .rs2_use   (i1_rs2_use),
-    .reg_write (i1_reg_write)
-  );
+  // Internal only: decoder → target_predict (not exported)
+  logic jump_en [2];
 
   // -------------------------------------------------------------------------
-  // Branch direction state + target predict
+  // Branch direction state (shared bank, dual-ported)
   // -------------------------------------------------------------------------
   state_buffer u_state_buf (
-    .clk              (clk),
-    .rst_n            (rst_n),
-    .i0_pc            (i0_pc_id),
-    .i1_pc            (i1_pc_id),
-    .i0_brch_en       (i0_brch_en),
-    .i1_brch_en       (i1_brch_en),
-    .i0_valid_wb      (i0_brch_valid_wb),
-    .i1_valid_wb      (i1_brch_valid_wb),
-    .i0_brch_pc_wb    (i0_brch_pc_wb),
-    .i1_brch_pc_wb    (i1_brch_pc_wb),
-    .i0_brch_state_wb (i0_brch_state_wb),
-    .i1_brch_state_wb (i1_brch_state_wb),
-    .i0_brch_state    (i0_brch_state),
-    .i1_brch_state    (i1_brch_state)
+    .clk           (clk),
+    .rst_n         (rst_n),
+    .pc            (pc_id),
+    .brch_en       (brch_en),
+    .valid_wb      (brch_valid_wb),
+    .brch_pc_wb    (brch_pc_wb),
+    .brch_state_wb (brch_state_wb),
+    .brch_state    (brch_state),
+    .state_valid   (state_valid)
   );
 
-  target_predict u_target_predict_i0 (
-    .target_valid    (i0_target_valid_id),
-    .brnch_en        (i0_brch_en),
-    .jump_en         (i0_jump_en),
-    .spec_n          (spec0_en_id),
-    .pc              (i0_pc_id),
-    .target_state    (i0_brch_state),
-    .imm             (i0_imm),
-    .pc_target       (i0_pc_target_id),
-    .pc_predict      (i0_pc_predict),
-    .pred_taken      (i0_pred_taken),
-    .pred_valid_wb   (i0_pred_valid_wb),
-    .nest_spec_stall (i0_nest_spec_stall)
-  );
+  // -------------------------------------------------------------------------
+  // Per-slot decode + target predict (decoder/target_predict are single-insn)
+  // -------------------------------------------------------------------------
+  for (genvar i = 0; i < N_DUAL; i++) begin : g_slot
+    decoder u_dec (
+      .instr       (instr_id[i]),
+      .fetch_valid (fetch_valid_id[i]),
+      .lane_sel    (lane_sel[i]),
+      .brch_en     (brch_en[i]),
+      .jump_en     (jump_en[i]),
+      .store_en    (store_en[i]),
+      .opcode      (opcode[i]),
+      .funct3      (funct3[i]),
+      .funct7      (funct7[i]),
+      .rd_addr     (rd_addr[i]),
+      .rs1_addr    (rs1_addr[i]),
+      .rs2_addr    (rs2_addr[i]),
+      .imm         (imm[i]),
+      .valid       (valid[i]),
+      .rs1_use     (rs1_use[i]),
+      .rs2_use     (rs2_use[i]),
+      .reg_write   (reg_write[i])
+    );
 
-  target_predict u_target_predict_i1 (
-    .target_valid    (i1_target_valid_id),
-    .brnch_en        (i1_brch_en),
-    .jump_en         (i1_jump_en),
-    .spec_n          (spec1_en_id),
-    .pc              (i1_pc_id),
-    .target_state    (i1_brch_state),
-    .imm             (i1_imm),
-    .pc_target       (i1_pc_target_id),
-    .pc_predict      (i1_pc_predict),
-    .pred_taken      (i1_pred_taken),
-    .pred_valid_wb   (i1_pred_valid_wb),
-    .nest_spec_stall (i1_nest_spec_stall)
-  );
+    target_predict u_target_predict (
+      .target_valid    (target_valid_id[i]),
+      .brnch_en        (brch_en[i]),
+      .jump_en         (jump_en[i]),
+      .spec_n          (spec_en_id[i]),
+      .pc              (pc_id[i]),
+      .target_state    (brch_state[i]),
+      .imm             (imm[i]),
+      .pc_target       (pc_target_id[i]),
+      .pc_predict      (pc_predict[i]),
+      .pred_taken      (pred_taken[i]),
+      .pred_valid_wb   (pred_valid_wb[i]),
+      .nest_spec_stall (nest_spec_stall[i])
+    );
+  end
 
 endmodule
