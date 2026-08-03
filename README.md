@@ -1,4 +1,4 @@
-# RISC-V Dual-Issue Out-of-Order Processor (RV-DIS)
+# RISC-V Dual-Issue Out-of-Order Processor (RV-DIO)
 
 ## 1. Project Overview
 
