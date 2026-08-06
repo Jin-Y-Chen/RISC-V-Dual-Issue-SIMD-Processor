@@ -12,7 +12,7 @@ python sim/run.py doctor
 python sim/run.py --list
 python sim/run.py pc_tb
 python sim/run.py alias_table_tb
-python sim/run.py bypass_tb
+python sim/run.py reservation_station_tb
 python sim/run.py rename_uvm --test rename_smoke_test
 python sim/run.py clean
 ```
@@ -78,15 +78,14 @@ organizational only). `rename_core_struct` is verified via `rename_uvm` only
 
 Placeholders: `${ROOT}`, `${OUT}`, `${MEM_FILE}`.
 
-### Rename / issue configs
+### Rename / dispatch configs
 
 | Target | `dpi_cpp` / extras |
 |--------|-------------------|
 | `alias_table_tb` | `model/s3_rename/alias_table_gm.cpp` + RAT pkg/DUT/shim |
 | `reorder_buffer_tb` | `model/s3_rename/rob_gm.cpp` + ROB units/shim |
-| `bypass_tb` | `bypass_unit` + `rs` pkg |
-| `selector_tb` | `selector_unit` + `rs_issue` |
-| `reservation_station_tb` | RS + `rs_wakeup` / `rs_alloc` |
+| `reservation_station_tb` | `reservation_station` + `rs.sv` |
+| `dispatch_core_tb` | `dispatch_core` + RS / PRF |
 
 ## Target aliases
 

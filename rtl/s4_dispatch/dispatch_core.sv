@@ -1,12 +1,11 @@
 `timescale 1ns / 1ps
 
-// S4 issue / dispatch glue — three peers:
-//   p_register_file | reservation_station | selector_unit
-// Pick: src_en (1=RS / 0=rename), store_en, rs_tag → RS ↓clk update.
+// S4 dispatch glue — two peers:
+//   reservation_station (bank + select) | physical_register
 import rv_dis_pkg::*;
 import rs_pkg::*;
 
-module issue_core_struct (
+module dispatch_core (
   input  logic        clk,
   input  logic        rst_n,
   input  logic        enable,
@@ -44,26 +43,6 @@ module issue_core_struct (
   output word_t       rs2_data      [2]
 );
 
-  logic        bank_valid    [RS_WAYS];
-  rs_way_t     bank_rs_tag   [RS_WAYS];
-  rs_age_t     bank_age      [RS_WAYS];
-  logic        bank_lane_sel [RS_WAYS];
-  logic        bank_spec     [RS_WAYS];
-  logic        bank_rs1_rdy  [RS_WAYS];
-  logic        bank_rs2_rdy  [RS_WAYS];
-  opcode_t     bank_opcode   [RS_WAYS];
-  funct3_t     bank_funct3   [RS_WAYS];
-  funct7_t     bank_funct7   [RS_WAYS];
-  prf_addr_t   bank_ps1      [RS_WAYS];
-  prf_addr_t   bank_ps2      [RS_WAYS];
-  prf_addr_t   bank_prd      [RS_WAYS];
-  word_t       bank_imm      [RS_WAYS];
-  word_t       bank_pc       [RS_WAYS];
-
-  logic        src_en   [2];
-  logic        store_en [2];
-  rs_way_t     rs_tag   [2];
-
   logic        iss_valid    [2];
   logic        iss_lane_sel [2];
   opcode_t     iss_opcode   [2];
@@ -91,7 +70,6 @@ module issue_core_struct (
     .clk, .rst_n, .enable,
     .flush(flush_rs),
     .path_en, .path_sel,
-    .stall_dp,
     .valid_dp(rob_valid_dp),
     .lane_sel_dp,
     .path_use_dp,
@@ -99,31 +77,6 @@ module issue_core_struct (
     .ps1_tag_dp, .ps2_tag_dp, .rob_tag_dp,
     .imm_dp, .pc_dp,
     .wb_en, .rob_tag_wb,
-    .src_en, .store_en, .rs_tag,
-    .bank_valid, .bank_rs_tag, .bank_age, .bank_lane_sel, .bank_spec,
-    .bank_rs1_rdy, .bank_rs2_rdy,
-    .bank_opcode, .bank_funct3, .bank_funct7,
-    .bank_ps1, .bank_ps2, .bank_prd, .bank_imm, .bank_pc
-  );
-
-  selector_unit u_select (
-    .enable,
-    .flush(flush_rs),
-    .path_en, .path_sel,
-    .bank_valid, .bank_rs_tag, .bank_age, .bank_lane_sel, .bank_spec,
-    .bank_rs1_rdy, .bank_rs2_rdy,
-    .bank_opcode, .bank_funct3, .bank_funct7,
-    .bank_ps1, .bank_ps2, .bank_prd, .bank_imm, .bank_pc,
-    .wb_en, .rob_tag_wb,
-    .valid_dp    (rob_valid_dp),
-    .path_use_dp,
-    .lane_sel_dp,
-    .opcode_dp, .funct3_dp, .funct7_dp,
-    .ps1_dp      (ps1_tag_dp),
-    .ps2_dp      (ps2_tag_dp),
-    .prd_dp      (rob_tag_dp),
-    .imm_dp, .pc_dp,
-    .src_en, .rs_tag, .store_en,
     .stall_dp,
     .iss_valid, .iss_lane_sel,
     .iss_opcode, .iss_funct3, .iss_funct7,
@@ -131,7 +84,7 @@ module issue_core_struct (
     .ps1_prf, .ps2_prf
   );
 
-  p_register_file u_prf (
+  physical_register u_prf (
     .clk, .rst_n,
     .rs1_addr(ps1_prf),
     .rs2_addr(ps2_prf),

@@ -3,7 +3,7 @@
 Run from repo root:
 
 ```powershell
-python sim/run.py <top>          # e.g. pc_tb, alias_table_tb, bypass_tb
+python sim/run.py <top>          # e.g. pc_tb, alias_table_tb, reservation_station_tb
 python sim/run.py rename_uvm
 python sim/run.py --list
 ```
@@ -79,7 +79,7 @@ Clock in check dumps: `tb_field_in_clk` prints `rising (posedge)` / `falling (ne
 | S1 Fetch | `pc_tb`, `pc_selector_tb`, `instruction_cache_tb`, `target_buffer_tb`, `fetch_core_struct_tb` | [s1_fetch/README.md](s1_fetch/README.md) |
 | S2 Decode | `decoder_tb`, `if_id_tb`, `state_buffer_tb`, `target_predict_tb`, `decode_core_struct_tb` | |
 | S3 Rename | `alias_table_tb`, `reorder_buffer_tb` | [s3_rename/README.md](s3_rename/README.md); full rename via UVM |
-| S4 Dispatch | `bypass_tb`, `selector_tb`, `reservation_station_tb`, `rn_dp_tb` | [s4_dispatch/README.md](s4_dispatch/README.md) |
+| S4 Dispatch | `reservation_station_tb`, `dispatch_core_tb`, `rn_dp_tb` | [s4_dispatch/README.md](s4_dispatch/README.md) |
 | S5 Execute | `dp_ex_tb`, `even_lane_tb`, `odd_lane_tb`, `memory_cache_tb`, `ex_mem_tb` | |
 | S6 Wback | `ex_mem_wb_tb` | |
 

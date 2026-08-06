@@ -62,7 +62,7 @@ rtl/s1_fetch/core_mod/target_buffer.sv
 rtl/s1_fetch/fetch_core_struct.sv
 rtl/s2_decode/if_id.sv
 rtl/s2_decode/core_mod/decoder.sv
-rtl/s4_dispatch/core_mod/p_register_file.sv
+rtl/s4_dispatch/core_mod/physical_register.sv
 rtl/s2_decode/core_mod/state_buffer.sv
 rtl/s2_decode/core_mod/target_predict.sv
 rtl/s2_decode/decode_core_struct.sv
@@ -73,13 +73,8 @@ rtl/s3_rename/core_mod/rob_units/tail_alloc.sv
 rtl/s3_rename/core_mod/rob_units/head_retire.sv
 rtl/s3_rename/rename_core_struct.sv
 rtl/s4_dispatch/rn_dp.sv
-rtl/s4_dispatch/core_mod/rs_units/rs_wakeup.sv
-rtl/s4_dispatch/core_mod/rs_units/sel_issue.sv
-rtl/s4_dispatch/core_mod/rs_units/sel_ready.sv
-rtl/s4_dispatch/core_mod/rs_units/sel_pick.sv
 rtl/s4_dispatch/core_mod/reservation_station.sv
-rtl/s4_dispatch/core_mod/selector_unit.sv
-rtl/s4_dispatch/issue_core_struct.sv
+rtl/s4_dispatch/dispatch_core.sv
 rtl/s5_execution/dp_ex.sv
 rtl/s5_execution/core_mod/even_units/scalar_alu_unit.sv
 rtl/s5_execution/core_mod/even_units/even_lane_struct.sv
@@ -123,8 +118,7 @@ tb/s3_rename/tests/alias_table_tb.sv
 tb/s3_rename/tests/reorder_buffer_tb.sv
 tb/s4_dispatch/tests/rn_dp_tb.sv
 tb/s4_dispatch/tests/reservation_station_tb.sv
-tb/s4_dispatch/tests/selector_tb.sv
-tb/s4_dispatch/tests/issue_core_struct_tb.sv
+tb/s4_dispatch/tests/dispatch_core_tb.sv
 tb/s5_execute/tests/dp_ex_tb.sv
 tb/s5_execute/tests/even_lane_tb.sv
 tb/s5_execute/tests/odd_lane_tb.sv

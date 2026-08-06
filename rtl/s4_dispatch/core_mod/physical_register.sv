@@ -7,7 +7,7 @@
 // Negedge commit; combo reads with same-cycle WB bypass.
 import rv_dis_pkg::*;
 
-module p_register_file (
+module physical_register (
   input  logic      clk,
   input  logic      rst_n,
 

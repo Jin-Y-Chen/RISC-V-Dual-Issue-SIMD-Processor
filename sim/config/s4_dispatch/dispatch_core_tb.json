@@ -1,0 +1,8 @@
+{
+  "extra_sources": [
+    "rtl/s4_dispatch/funct_pkg/rs.sv",
+    "rtl/s4_dispatch/core_mod/reservation_station.sv",
+    "rtl/s4_dispatch/core_mod/physical_register.sv",
+    "rtl/s4_dispatch/dispatch_core.sv"
+  ]
+}

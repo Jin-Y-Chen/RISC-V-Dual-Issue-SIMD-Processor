@@ -986,7 +986,7 @@ S3_Rename:
             into scalar path-enable (OR of both lanes) and a single path
             select (lane 1 wins when both commit a branch, matching the RAT's
             own priority). These scalars bypass the RN/DP register and drive
-            the issue core's path filter directly for same-cycle reservation-
+            the dispatch core's path filter directly for same-cycle reservation-
             station wrong-path squash.
 
     Register Alias Table (RAT):
@@ -1269,19 +1269,18 @@ Intermediate Register (RN_DP):
             The RN/DP register is a one-entry elastic pipeline register
             between rename and dispatch. Dual-issue ports are two-element
             arrays (index 0 = I0, index 1 = I1). It latches the renamed
-            bundle that the issue core consumes: ROB validity, speculation
+            bundle that the dispatch core consumes: ROB validity, speculation
             path, execution lane, opcode and function fields, physical source
             tags, ROB-owned destination tag (p32..p63), immediate, and PC.
             Architectural register-write is not carried here — it remains in
-            the ROB; the reservation station and selector derive produces
-            from opcode and destination tag. Storage updates on the rising
-            clock edge.
+            the ROB; the reservation station derives produces from opcode and
+            destination tag. Storage updates on the rising clock edge.
 
         1. Backpressure and Recovery:
 
             Rename stall is wired straight through from dispatch stall (the
-            selector asserts when unpicked renames cannot fit in free
-            reservation-station ways). While dispatch stall is high the
+            reservation station asserts when unpicked renames cannot fit in
+            free bank ways). While dispatch stall is high the
             register holds its outputs so rename does not advance and a ROB
             allocation is not consumed twice; the top folds rename stall into
             front-end stall. Reset or flush clears both lanes (validity clear
@@ -1293,24 +1292,23 @@ S4_Dispatch:
 
     Overview:
 
-        Renamed dual-issue instructions enter dispatch through three peers
-        glued by the issue core: the physical register file, the reservation
-        station, and the selector. The bank stores controls and physical tags
-        only (no operand data). Selection is combinational: up to two oldest
-        ready bank entries and two ready rename lanes form a four-candidate
-        pool; the two oldest issue. The selector drives issue muxing and a
-        dual-channel reservation-station control bus. The reservation station
-        applies that control only on the falling edge (clear / age / rename
-        store / nop). Operand values are read from the physical register file
-        at issue and buffered in the DP/EX register, which demultiplexes the
-        dual issue pair onto four execution ports (even0 / even1 / odd0 /
-        odd1) by lane select.
+        Renamed dual-issue instructions enter dispatch through two peers
+        glued by the dispatch core: the reservation station and the physical
+        register file. The RS owns the bank and select logic (bank not
+        ported). The bank stores controls and physical tags only (no operand
+        data). Selection is combinational: up to two oldest ready bank
+        entries and two ready rename lanes form a four-candidate pool; the
+        two oldest issue. Internal clear / age / rename-store controls update
+        the bank on the falling edge. Operand values are read from the
+        physical register file at issue and buffered in the DP/EX register,
+        which demultiplexes the dual issue pair onto four execution ports
+        (even0 / even1 / odd0 / odd1) by lane select.
 
-        Glue: `rtl/s4_dispatch/issue_core_struct.sv`
-          peers: p_register_file | reservation_station | selector_unit
-        Helper: `rtl/s4_dispatch/funct_pkg/rs.sv`
+        Glue: `rtl/s4_dispatch/dispatch_core.sv`
+          peers: reservation_station | physical_register
+        Helpers: `rtl/s4_dispatch/funct_pkg/rs.sv`
 
-            // issue_core_struct external API (dual [2] arrays)
+            // dispatch_core external API (dual [2] arrays)
             input  logic        clk, rst_n, enable, flush_rs,
             input  logic        path_en, path_sel,
             input  logic        rob_valid_dp [2], path_use_dp [2], lane_sel_dp [2],
@@ -1334,11 +1332,16 @@ S4_Dispatch:
         Within a cycle:
           combinational — wakeup view, readiness, 4→2 age pick, issue mux,
                           physical register-file read
-          falling edge  — reservation-station bank apply of selector control
-                          (and physical register-file / ROB writeback)
+          falling edge  — reservation-station bank apply (clear / age /
+                          rename store) and physical register-file writeback
+
+        Glue wiring: RS drives stall_dp plus issue controls and physical
+        source tags; dispatch_core derives reg_write via rs_produces; PRF
+        reads those tags and returns operand data on the issue outputs.
 
     Physical Register File:
-            Path: `rtl/s4_dispatch/core_mod/p_register_file.sv`
+            Path: `rtl/s4_dispatch/core_mod/physical_register.sv`
+            Module: physical_register
             Depth: 64 physical registers (p0..p63). ROB-owned tags
             p32..p63 hold speculative results; p0..p31 are the architected
             baseline after reset / RRAT commit.
@@ -1380,11 +1383,12 @@ S4_Dispatch:
 
     Reservation Station:
             Path: `rtl/s4_dispatch/core_mod/reservation_station.sv`
-            Units: `rtl/s4_dispatch/core_mod/rs_units/rs_wakeup.sv`
+            Helpers: `rtl/s4_dispatch/funct_pkg/rs.sv`
             Geometry: 16 fully associative ways; dispatch-order ages in the bank
+            Owns: bank + select (ready / 4→2 pick / issue mux); bank not ported
 
             input  logic        clk, rst_n, enable, flush,
-            input  logic        path_en, path_sel, stall_dp,
+            input  logic        path_en, path_sel,
 
             input  logic        valid_dp [2], lane_sel_dp [2], path_use_dp [2],
             input  opcode_t     opcode_dp [2],
@@ -1396,99 +1400,7 @@ S4_Dispatch:
             input  logic        wb_en [2],
             input  prf_addr_t   rob_tag_wb [2],
 
-            input  logic        src_en [2], store_en [2],
-            input  rs_way_t     rs_tag [2],
-
-            output logic        bank_valid [RS_WAYS],
-            output rs_way_t     bank_rs_tag [RS_WAYS],
-            output rs_age_t     bank_age [RS_WAYS],
-            output logic        bank_lane_sel [RS_WAYS], bank_spec [RS_WAYS],
-            output logic        bank_rs1_rdy [RS_WAYS], bank_rs2_rdy [RS_WAYS],
-            output opcode_t     bank_opcode [RS_WAYS],
-            output funct3_t     bank_funct3 [RS_WAYS],
-            output funct7_t     bank_funct7 [RS_WAYS],
-            output prf_addr_t   bank_ps1 [RS_WAYS], bank_ps2 [RS_WAYS],
-            output prf_addr_t   bank_prd [RS_WAYS],
-            output word_t       bank_imm [RS_WAYS], bank_pc [RS_WAYS]
-
-        0. Structure and Specification:
-
-            The reservation station is a dual-issue centralized queue of 16
-            ways. Registered bank fields (updated only on the falling clock
-            edge) include: valid, stamped way tag, age, lane select,
-            speculation path, both source-ready bits, opcode and function
-            fields, physical source tags, destination tag, immediate, and PC.
-            Operand data is never stored.
-
-            Each entry's stamped way tag is the way id written at allocate;
-            the selector uses it when driving clear, age, and issue tags so
-            updates address the entry by its stored tag. Ages live only in
-            the bank age field (no free-running age counter).
-
-        1. Wakeup:
-
-            Wakeup ORs writeback hits onto registered ready bits for bank
-            sources (comparing each source tag against the dual writeback
-            tags). A live entry whose destination matches writeback is freed
-            as a safety reclaim. The path filter may squash wrong-path bank
-            entries on the same falling edge.
-
-        2. Falling-edge control decode:
-
-            Dual-channel control from the selector carries, per channel, a
-            source/store pair and an entry tag. The four intents are: write a
-            rename lane into a free way; bump age only for an unpicked bank
-            candidate; nop (rename already issued, or idle); and clear a bank
-            entry that just issued. For clear and age ops, the entry tag is
-            the way id stamped into that entry at allocate.
-
-            When enabled: apply wakeup ready bits, free writeback-matching
-            destinations, path-squash wrong-speculation entries, then decode
-            the two control channels. Rename stores (blocked by dispatch
-            stall) allocate into the lowest free ways, stamp the way tag, and
-            set ready bits from writeback, the bank destination CAM, and
-            same-pair read-after-write. Flush or reset clears the bank.
-
-        3. Recovery:
-
-            On reset or reservation-station flush at the falling edge, the
-            bank clears. The path filter continuously drops wrong-path rename
-            stores and may squash wrong-path bank entries. Finer younger-only
-            flush by speculation context remains a future refinement.
-
-    Selector:
-            Path: `rtl/s4_dispatch/core_mod/selector_unit.sv`
-            Units: `rtl/s4_dispatch/core_mod/rs_units/`
-                     sel_ready, sel_pick, sel_issue
-
-            input  logic        enable, flush, path_en, path_sel,
-
-            input  logic        bank_valid [RS_WAYS],
-            input  rs_way_t     bank_rs_tag [RS_WAYS],
-            input  rs_age_t     bank_age [RS_WAYS],
-            input  logic        bank_lane_sel [RS_WAYS], bank_spec [RS_WAYS],
-            input  logic        bank_rs1_rdy [RS_WAYS], bank_rs2_rdy [RS_WAYS],
-            input  opcode_t     bank_opcode [RS_WAYS],
-            input  funct3_t     bank_funct3 [RS_WAYS],
-            input  funct7_t     bank_funct7 [RS_WAYS],
-            input  prf_addr_t   bank_ps1 [RS_WAYS], bank_ps2 [RS_WAYS],
-            input  prf_addr_t   bank_prd [RS_WAYS],
-            input  word_t       bank_imm [RS_WAYS], bank_pc [RS_WAYS],
-
-            input  logic        wb_en [2],
-            input  prf_addr_t   rob_tag_wb [2],
-
-            input  logic        valid_dp [2], path_use_dp [2], lane_sel_dp [2],
-            input  opcode_t     opcode_dp [2],
-            input  funct3_t     funct3_dp [2],
-            input  funct7_t     funct7_dp [2],
-            input  prf_addr_t   ps1_dp [2], ps2_dp [2], prd_dp [2],
-            input  word_t       imm_dp [2], pc_dp [2],
-
-            output logic        src_en [2], store_en [2],
-            output rs_way_t     rs_tag [2],
             output logic        stall_dp,
-
             output logic        iss_valid [2], iss_lane_sel [2],
             output opcode_t     iss_opcode [2],
             output funct3_t     iss_funct3 [2],
@@ -1499,47 +1411,75 @@ S4_Dispatch:
 
         0. Structure and Specification:
 
-            The selector is purely combinational glue of three sub-units:
-            readiness (bank and rename candidates), pick (age arbitration and
-            control packing), and issue mux (payload for the two issued
-            slots). It reads the registered bank and the current rename pair,
-            drives dual-channel reservation-station control, asserts dispatch
-            stall when needed, and presents physical source tags for the
-            physical register-file read.
+            The reservation station is a dual-issue centralized queue of 16
+            ways plus the former selector logic. Registered bank fields
+            (updated only on the falling clock edge) include: valid, stamped
+            way tag, age, lane select, speculation path, both source-ready
+            bits, opcode and function fields, physical source tags,
+            destination tag, immediate, and PC. Operand data is never stored.
+            The bank arrays are module-internal (not ports).
 
-        1. Readiness:
+            Each entry's stamped way tag is the way id written at allocate;
+            internal clear / age / issue tags address the entry by that
+            stored tag. Ages live only in the bank age field (no free-running
+            age counter). Pure helpers live in rs_pkg (rs_wake_bit,
+            rs_path_ok, rs_way_kill, rs_disp_ready, rs_pick_oldest /
+            rs_pick_oldest4, rs_free_ways, rs_alloc_src_rdy, …).
 
-            Bank issue readiness requires a valid entry with both sources
-            ready or satisfied by same-cycle writeback, after the path filter
-            masks wrong-path entries. Rename readiness checks the bank
-            destination CAM plus writeback, with same-pair read-after-write
-            forcing I1 unready when I0 produces a tag I1 reads. Up to two
-            oldest ready bank ways and two ready rename lanes form the
-            four-candidate pool. Rename ages are younger than every live bank
-            age so waiting bank entries win ties.
+        1. Combinational select (ready → pick → issue):
 
-        2. Pick — four candidates to two issue:
+            Wakeup view ORs writeback hits onto registered ready bits
+            (rs_wake_bit). Bank issue readiness requires a valid entry with
+            both sources ready or satisfied by same-cycle writeback, after
+            the path filter masks wrong-path entries. Rename readiness checks
+            the bank destination CAM plus writeback, with same-pair
+            read-after-write forcing I1 unready when I0 produces a tag I1
+            reads. Up to two oldest ready bank ways and two ready rename
+            lanes form the four-candidate pool (C_RS0, C_RS1, C_BY0, C_BY1).
+            Rename ages are younger than every live bank age so waiting bank
+            entries win ties.
 
             The two oldest candidates issue (bank payload when sourced from
             the bank, rename lane when sourced from rename). Unpicked ready
-            rename stores into the reservation station on the falling edge.
-            Issued rename is a reservation-station nop (no stub; the
-            destination is in flight without occupying a way). Issued bank
-            entry clears that way on the falling edge. Unpicked bank
-            candidate (in the pool but not issued) age-bumps only.
+            rename stores into the bank on the falling edge. Issued rename is
+            a nop (no stub; the destination is in flight without occupying a
+            way). Issued bank entry clears that way on the falling edge.
+            Unpicked bank candidate (in the pool but not issued) age-bumps
+            only.
 
-            Clears plus rename stores must fit in two control channels; if an
-            age pick would overflow, the selector drops the youngest bank
-            pick and may refill with a ready rename. Dispatch stalls when not
-            flushing and unpicked renames need more free ways than available
-            (crediting same-cycle writeback frees).
-
-        3. Issue mux and stage outputs:
+            Clears plus rename stores must fit in two internal control
+            channels (src_en / store_en / rs_tag); if an age pick would
+            overflow, the select drops the youngest bank pick and may refill
+            with a ready rename. Dispatch stalls when not flushing and
+            unpicked renames need more free ways than available (crediting
+            same-cycle writeback frees via rs_free_ways).
 
             The issue mux selects bank or rename payload for each fired slot
-            and drives controls plus physical register-file read addresses
-            into the issue-core outputs and the DP/EX register. Register-write
-            is derived from whether the opcode produces a result.
+            and drives iss_* controls plus ps1_prf / ps2_prf for the physical
+            register-file read. Register-write is derived in dispatch_core
+            via rs_produces.
+
+        2. Falling-edge bank update:
+
+            Dual-channel internal control intents per channel: write a rename
+            lane into a free way (src_en=0, store_en=1); bump age only for an
+            unpicked bank candidate (1,1); nop (0,0 — rename already issued
+            or idle); clear a bank entry that just issued (1,0). Clear / age
+            use the stamped way tag.
+
+            When enabled: apply wakeup ready bits, free writeback-matching
+            destinations and wrong-path entries (rs_way_kill), then decode
+            the two control channels. Rename stores (blocked by stall_dp)
+            allocate into the lowest free ways, stamp the way tag, and set
+            ready bits from writeback, the bank destination CAM, and
+            same-pair read-after-write. Flush or reset clears the bank.
+
+        3. Recovery:
+
+            On reset or reservation-station flush at the falling edge, the
+            bank clears. The path filter continuously drops wrong-path rename
+            stores and may squash wrong-path bank entries. Finer younger-only
+            flush by speculation context remains a future refinement.
 
 Intermediate Register (DP_EX):
             Path: `rtl/s5_execution/dp_ex.sv`

@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 
 // Reservation-station package — geometry + pure helpers (no structs).
-// Source readiness vs working destinations currently in the RS bank (not a
-// free-running NUM_PRF scoreboard).
+// Covers bank wakeup, readiness, alloc RAW, and selector age/pick helpers.
 package rs_pkg;
 
 import rv_dis_pkg::*;
@@ -10,6 +9,12 @@ import rv_dis_pkg::*;
   localparam int RS_WAYS   = 16;
   localparam int RS_WAY_AW = 4;
   localparam int RS_AGE_W  = 32;  // dispatch-order stamp (not PC)
+
+  // 4-candidate pool indices: RS0, RS1, rename0, rename1
+  localparam int C_RS0 = 0;
+  localparam int C_RS1 = 1;
+  localparam int C_BY0 = 2;
+  localparam int C_BY1 = 3;
 
   typedef logic [RS_WAY_AW-1:0] rs_way_t;
   typedef logic [RS_WAYS-1:0]   rs_mask_t;
@@ -40,6 +45,25 @@ import rv_dis_pkg::*;
   );
     return (wb_en[0] && (wb_prd[0] == tag)) ||
            (wb_en[1] && (wb_prd[1] == tag));
+  endfunction
+
+  // Same-cycle wakeup OR onto a registered ready bit.
+  function automatic logic rs_wake_bit(
+    input logic      valid,
+    input logic      rdy_q,
+    input prf_addr_t ps,
+    input logic      wb_en  [2],
+    input prf_addr_t wb_prd [2]
+  );
+    return rdy_q || (valid && rs_wb_hit(ps, wb_en, wb_prd));
+  endfunction
+
+  function automatic logic rs_path_ok(
+    input logic path_en,
+    input logic path_use,
+    input logic path_sel
+  );
+    return !path_en || (path_use == path_sel);
   endfunction
 
   // Tag is a working destination still sitting in the RS.
@@ -172,9 +196,9 @@ import rv_dis_pkg::*;
   );
     logic    found;
     rs_age_t best;
-    found            = 1'b0;
-    best             = '1;
-    rs_pick_oldest4  = 0;
+    found           = 1'b0;
+    best            = '1;
+    rs_pick_oldest4 = 0;
     for (int i = 0; i < 4; i++) begin
       if (cand[i] && (!found || (ages[i] < best))) begin
         found           = 1'b1;
@@ -200,6 +224,49 @@ import rv_dis_pkg::*;
       end
     end
     rs_next_age = found ? (best + rs_age_t'(1)) : rs_age_t'(0);
+  endfunction
+
+  // Free ways after same-cycle WB kills on the path-masked bank.
+  function automatic int rs_free_ways(
+    input rs_mask_t  bank_valid_m,
+    input prf_addr_t bank_prd [RS_WAYS],
+    input logic      wb_en    [2],
+    input prf_addr_t wb_prd   [2]
+  );
+    int u, n_wb;
+    u = 0; n_wb = 0;
+    for (int i = 0; i < RS_WAYS; i++) begin
+      u += bank_valid_m[i];
+      if (bank_valid_m[i] && rs_wb_hit(bank_prd[i], wb_en, wb_prd))
+        n_wb++;
+    end
+    return RS_WAYS - u + n_wb;
+  endfunction
+
+  // Kill way on WB complete, wrong-path squash, or issued clear (src_en && !store_en).
+  function automatic logic rs_way_kill(
+    input int        way,
+    input logic      enable,
+    input logic      path_en,
+    input logic      path_sel,
+    input logic      bank_valid,
+    input logic      bank_spec,
+    input prf_addr_t bank_prd,
+    input logic      wb_en    [2],
+    input prf_addr_t wb_prd   [2],
+    input logic      src_en   [2],
+    input logic      store_en [2],
+    input rs_way_t   rs_tag   [2]
+  );
+    logic clr;
+    clr = 1'b0;
+    if (enable)
+      for (int ch = 0; ch < 2; ch++)
+        if (src_en[ch] && !store_en[ch] && (rs_tag[ch] == rs_way_t'(way)))
+          clr = 1'b1;
+    return (bank_valid && rs_wb_hit(bank_prd, wb_en, wb_prd)) ||
+           (path_en && bank_valid && (bank_spec != path_sel)) ||
+           clr;
   endfunction
 
 endpackage

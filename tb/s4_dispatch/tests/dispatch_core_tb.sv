@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 
-// Integrated TB: selector_unit ↔ reservation_station via issue_core_struct.
+// Integrated TB: reservation_station + physical_register via dispatch_core.
 // No rename stubs: issued rename is RS nop; RS issue clears the way.
 import rv_dis_pkg::*;
 import rs_pkg::*;
 
 `include "../../common/utils/tb_console.svh"
 
-module issue_core_struct_tb;
+module dispatch_core_tb;
 
   localparam int CLK_PERIOD = 10;
 
@@ -45,7 +45,7 @@ module issue_core_struct_tb;
 
   int pass_cnt, fail_cnt;
 
-  issue_core_struct dut (.*);
+  dispatch_core dut (.*);
 
   initial clk = 0;
   always #(CLK_PERIOD/2) clk = ~clk;
@@ -54,14 +54,14 @@ module issue_core_struct_tb;
     int n;
     n = 0;
     for (int w = 0; w < RS_WAYS; w++)
-      if (dut.bank_valid[w]) n++;
+      if (dut.u_rs.bank_valid[w]) n++;
     return n;
   endfunction
 
   function automatic int find_prd(input prf_addr_t prd);
     find_prd = -1;
     for (int w = 0; w < RS_WAYS; w++)
-      if (dut.bank_valid[w] && (dut.bank_prd[w] == prd))
+      if (dut.u_rs.bank_valid[w] && (dut.u_rs.bank_prd[w] == prd))
         return w;
   endfunction
 
@@ -127,7 +127,7 @@ module issue_core_struct_tb;
     fail_cnt = 0;
     rst_n = 0;
     clear_disp();
-    tb_banner("issue_core_struct_tb - selector ↔ RS integrated");
+    tb_banner("dispatch_core_tb - RS + PRF integrated");
 
     repeat (2) @(posedge clk);
     rst_n = 1;
@@ -232,7 +232,7 @@ module issue_core_struct_tb;
 
     // Stall when bank is full of unready entries (drive via RS store path).
     // Fill: dual-store ready ops while holding issue off is not possible with
-    // the selector; cover stall in selector_tb. Here just flush cleanup.
+    // cover stall in reservation_station_tb. Here just flush cleanup.
     flush_rs = 1;
     @(negedge clk);
     #1;

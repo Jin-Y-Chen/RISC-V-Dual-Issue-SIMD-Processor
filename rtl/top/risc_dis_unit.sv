@@ -382,7 +382,7 @@ module risc_dis_unit #(
     .pc_dp
   );
 
-  issue_core_struct u_s4_issue (
+  dispatch_core u_s4_dispatch (
     .clk          (clk),
     .rst_n        (rst_n),
     .enable       (enable && !stall_ex),

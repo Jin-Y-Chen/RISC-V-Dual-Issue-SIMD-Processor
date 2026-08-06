@@ -1,23 +1,18 @@
-# S4 Dispatch / issue — testbenches
+# S4 Dispatch — testbenches
 
-Peer cores under `issue_core_struct`:
+Peers under `dispatch_core`:
 
 ```text
-issue_core_struct
-  ├── reservation_station   bank + wakeup + alloc
-  ├── bypass_unit           same-cycle dispatch ready/age
-  ├── selector_unit         oldest-ready pick (+ rs_issue)
-  └── p_register_file       physical RF
+dispatch_core
+  ├── reservation_station   bank + select (ready / pick / issue); helpers in rs.sv
+  └── physical_register     physical RF
 ```
-
-Each core has its own directed TB (no monolithic issue smoke).
 
 ## Run
 
 ```powershell
-python sim/run.py bypass_tb
-python sim/run.py selector_tb
 python sim/run.py reservation_station_tb
+python sim/run.py dispatch_core_tb
 python sim/run.py rn_dp_tb
 ```
 
@@ -25,9 +20,8 @@ python sim/run.py rn_dp_tb
 
 | Top | DUT | Style | Config |
 |-----|-----|-------|--------|
-| `bypass_tb` | `bypass_unit` | Directed expect | `sim/config/s4_dispatch/bypass_tb.json` |
-| `selector_tb` | `selector_unit` (+ `rs_issue`) | Directed expect | `sim/config/s4_dispatch/selector_tb.json` |
-| `reservation_station_tb` | `reservation_station` (+ wakeup/alloc) | Directed expect | `sim/config/s4_dispatch/reservation_station_tb.json` |
+| `reservation_station_tb` | `reservation_station` | Directed expect | `sim/config/s4_dispatch/reservation_station_tb.json` |
+| `dispatch_core_tb` | `dispatch_core` | Directed expect | `sim/config/s4_dispatch/dispatch_core_tb.json` |
 | `rn_dp_tb` | `rn_dp` | Directed | `sim/config/s4_dispatch/rn_dp_tb.json` |
 
 | Path | Role |
@@ -37,16 +31,14 @@ python sim/run.py rn_dp_tb
 | `../dpi/shims/s4_dispatch/` | `register_file_gm.sv` (legacy RF) |
 | `../../model/s4_dispatch/` | C++ RF golden |
 
-## Coverage (issue peers)
+## Coverage
 
-**bypass_tb** — idle, dual ready (p0), unready src, WB wake, same-pair RAW (rs1/rs2).
+**reservation_station_tb** — dual rename issue, RAW store then issue, path filter, flush.
 
-**selector_tb** — dual bypass issue, oldest bank vs bypass, bank+bypass mix, flush, full-bank stall, dual bypass when full, WB wakes bank entry.
-
-**reservation_station_tb** — reset, bypass-accept marks dest unready, store unready pair, WB wakeup, free issued way, flush, selective path squash, `stall_dp` blocks store, fill 16 ways.
+**dispatch_core_tb** — dual bypass issue (no RS stub), same-pair RAW store then issue, path filter, flush.
 
 ## Notes
 
-- `pick` / `stall_dp` on the RS TB are **driven** as if from `selector_unit` (unit isolation).
-- `tests/register_file_tb.sv` targets legacy `register_file` and is **not** registered in `.slang/project.f` / `sim/run.py` yet; current PRF DUT is `p_register_file`.
-- RTL: `rtl/s4_dispatch/issue_core_struct.sv` and `core_mod/`.
+- Bank stays inside `reservation_station` (no bank ports). TBs peek `dut.bank_*` / `dut.u_rs.bank_*` when needed.
+- `tests/register_file_tb.sv` targets legacy `register_file` and is **not** registered in `.slang/project.f` / `sim/run.py` yet; current PRF DUT is `physical_register`.
+- RTL: `rtl/s4_dispatch/dispatch_core.sv`, `core_mod/reservation_station.sv`, `funct_pkg/rs.sv`.
